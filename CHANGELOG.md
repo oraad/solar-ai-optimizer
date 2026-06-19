@@ -26,6 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Notes
 
-- Dashboard user guide screenshots are pending; see `docs/frontend-manual.md`.
+- Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
 [0.1.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.1.0

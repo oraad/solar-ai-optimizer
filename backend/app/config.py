@@ -64,9 +64,36 @@ class Settings(BaseSettings):
     # Comma-separated CORS origins; "*" allows all (default for local dev).
     cors_origins: str = Field(default="*")
 
+    # Ingress / authorization
+    trust_ingress_headers: bool = Field(default=False)
+    admin_user_ids: str = Field(default="")
+    admin_cache_ttl_seconds: int = Field(default=300)
+
+    local_admin_username: str = Field(default="admin")
+    local_admin_password: str = Field(default="")
+    local_admin_password_hash: str = Field(default="")
+
+    session_secret: str = Field(default="")
+    session_ttl_hours: int = Field(default=24)
+    session_cookie_secure: bool = Field(default=False)
+
     @property
     def is_addon(self) -> bool:
         return bool(self.supervisor_token)
+
+    @property
+    def ingress_trusted(self) -> bool:
+        return self.is_addon or self.trust_ingress_headers
+
+    @property
+    def local_auth_enabled(self) -> bool:
+        return bool(self.local_admin_password or self.local_admin_password_hash)
+
+    @property
+    def admin_user_id_set(self) -> frozenset[str]:
+        return frozenset(
+            u.strip() for u in self.admin_user_ids.split(",") if u.strip()
+        )
 
     @model_validator(mode="after")
     def _wire_supervisor(self) -> "Settings":
@@ -79,6 +106,8 @@ class Settings(BaseSettings):
         if self.supervisor_token and not self.ha_token:
             self.ha_base_url = "http://supervisor/core"
             self.ha_token = self.supervisor_token
+        if self.is_addon:
+            self.trust_ingress_headers = True
         return self
 
 

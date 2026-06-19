@@ -1,36 +1,43 @@
-"""Optional API token auth for standalone deployments."""
+"""Authentication middleware: session resolution and access gate."""
 
 from __future__ import annotations
 
-import secrets
-
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
-# Unauthenticated liveness probe for Docker/HA healthchecks.
-PUBLIC_PATHS = {"/api/health"}
+from ..config import get_settings
+from .session import (
+    ANONYMOUS,
+    get_session,
+    is_public_api_path,
+    requires_auth_gate,
+    resolve_session,
+)
 
 
-class ApiTokenMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, token: str) -> None:  # noqa: ANN001
-        super().__init__(app)
-        self._token = token
-        self._expected = f"Bearer {token}"
+class UserContextMiddleware(BaseHTTPMiddleware):
+    """Attach resolved session to every HTTP request and WebSocket upgrade."""
 
-    def _authorized(self, request: Request) -> bool:
-        auth = request.headers.get("Authorization", "")
-        if len(auth) != len(self._expected):
-            return False
-        return secrets.compare_digest(auth, self._expected)
-
-    async def dispatch(self, request: Request, call_next):  # noqa: ANN001
-        if not self._token:
-            return await call_next(request)
-        path = request.url.path
-        if path in PUBLIC_PATHS:
-            return await call_next(request)
-        if path.startswith("/api") or path == "/metrics":
-            if not self._authorized(request):
-                return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    async def dispatch(self, request: Request, call_next) -> Response:  # noqa: ANN001
+        settings = get_settings()
+        resolver = getattr(request.app.state, "admin_resolver", None)
+        session = await resolve_session(request, settings, resolver)
+        request.state.session = session
         return await call_next(request)
+
+
+class AuthGateMiddleware(BaseHTTPMiddleware):
+    """Return 401 when local auth is enabled and the caller is unauthenticated."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:  # noqa: ANN001
+        settings = get_settings()
+        path = request.url.path
+        if not requires_auth_gate(path, settings):
+            return await call_next(request)
+
+        session = get_session(request)
+        if session.authenticated:
+            return await call_next(request)
+
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)

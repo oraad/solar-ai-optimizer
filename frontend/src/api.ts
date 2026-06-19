@@ -8,6 +8,7 @@ import type {
   ForecastBundle,
   GridStats,
   Override,
+  SessionInfo,
   ShedResult,
   SystemStatus,
   Telemetry,
@@ -17,7 +18,7 @@ import type {
 // standalone (served at "/") and behind a Home Assistant ingress path.
 export function basePrefix(): string {
   const p = location.pathname;
-  const ingress = p.match(/^(\/api\/hassio_ingress\/[^/]+)/);
+  const ingress = p.match(/^(\/api\/(?:hassio_ingress|ingress)\/[^/]+)/);
   if (ingress) return ingress[1];
   if (p.endsWith("/")) return p.replace(/\/+$/, "");
   return "";
@@ -49,9 +50,17 @@ function authHeaders(): Record<string, string> {
   return headers;
 }
 
+function fetchInit(init: RequestInit = {}): RequestInit {
+  return {
+    credentials: "include",
+    ...init,
+    headers: { ...authHeaders(), ...(init.headers as Record<string, string> | undefined) },
+  };
+}
+
 async function parseError(res: Response, path: string): Promise<string> {
   if (res.status === 401) {
-    return `${path} -> 401 Unauthorized — set API token in Settings`;
+    return `${path} -> 401 Unauthorized`;
   }
   try {
     const body = (await res.json()) as {
@@ -73,18 +82,28 @@ async function parseError(res: Response, path: string): Promise<string> {
   return `${path} -> ${res.status}`;
 }
 
+export class AuthRequiredError extends Error {
+  constructor() {
+    super("Unauthorized");
+    this.name = "AuthRequiredError";
+  }
+}
+
 async function getJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
+  const res = await fetch(`${BASE}${path}`, fetchInit());
   if (!res.ok) throw new Error(await parseError(res, path));
   return (await res.json()) as T;
 }
 
 async function sendJSON<T>(method: string, path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(body ?? {}),
-  });
+  const res = await fetch(
+    `${BASE}${path}`,
+    fetchInit({
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    }),
+  );
   if (!res.ok) throw new Error(await parseError(res, path));
   return (await res.json()) as T;
 }
@@ -93,6 +112,15 @@ const postJSON = <T>(path: string, body: unknown) => sendJSON<T>("POST", path, b
 const putJSON = <T>(path: string, body: unknown) => sendJSON<T>("PUT", path, body);
 
 export const api = {
+  me: async (): Promise<SessionInfo> => {
+    const res = await fetch(`${BASE}/api/me`, fetchInit());
+    if (res.status === 401) throw new AuthRequiredError();
+    if (!res.ok) throw new Error(await parseError(res, "/api/me"));
+    return (await res.json()) as SessionInfo;
+  },
+  login: (username: string, password: string) =>
+    postJSON<{ ok: boolean }>("/api/auth/login", { username, password }),
+  logout: () => postJSON<{ ok: boolean }>("/api/auth/logout", {}),
   status: () => getJSON<SystemStatus>("/api/status"),
   forecast: () => getJSON<ForecastBundle>("/api/forecast"),
   plan: () =>
@@ -160,8 +188,25 @@ export class LiveSocket {
   private listeners = new Set<StatusListener>();
   private reconnectTimer: number | null = null;
   private reconnectAttempt = 0;
+  private enabled = false;
 
   connect(): void {
+    this.enabled = true;
+    this.open();
+  }
+
+  disconnect(): void {
+    this.enabled = false;
+    if (this.reconnectTimer != null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.ws?.close();
+    this.ws = null;
+  }
+
+  private open(): void {
+    if (!this.enabled) return;
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const token = getApiToken();
     const qs = token ? `?token=${encodeURIComponent(token)}` : "";
@@ -184,6 +229,7 @@ export class LiveSocket {
   }
 
   private scheduleReconnect(): void {
+    if (!this.enabled) return;
     if (this.reconnectTimer != null) return;
     const base = 1000;
     const max = 30_000;
@@ -193,7 +239,7 @@ export class LiveSocket {
     this.reconnectAttempt += 1;
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null;
-      this.connect();
+      this.open();
     }, delay);
   }
 

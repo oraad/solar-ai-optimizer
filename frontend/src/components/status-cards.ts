@@ -99,15 +99,16 @@ export class StatusCards extends LitElement {
       : battState === "discharging" ? "var(--accent-2)"
       : "var(--muted)";
 
+    const battSpec = this.status?.battery_summary ?? this.battery;
     const eta =
-      this.battery && soc != null && battP != null
+      battSpec && soc != null && battP != null
         ? batteryEtaLine({
             soc,
             powerW: battP,
-            capacityKwh: this.battery.capacity_kwh ?? 0,
-            roundTripEfficiency: this.battery.round_trip_efficiency ?? 0.9,
-            maxSocCeiling: this.battery.max_soc_ceiling ?? 100,
-            minSocFloor: this.battery.min_soc_floor ?? 20,
+            capacityKwh: battSpec.capacity_kwh ?? 0,
+            roundTripEfficiency: battSpec.round_trip_efficiency ?? 0.9,
+            maxSocCeiling: battSpec.max_soc_ceiling ?? 100,
+            minSocFloor: battSpec.min_soc_floor ?? 20,
             targetSoc: d?.reserve.target_soc ?? null,
             autonomyFloorSoc: d?.reserve.autonomy_floor_soc ?? null,
           })

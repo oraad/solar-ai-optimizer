@@ -25,6 +25,21 @@ The main navigation has five tabs: **Overview**, **Forecast**, **History**, **As
 
 ---
 
+## Viewer dashboard
+
+When you sign in through Home Assistant ingress as a non-admin user, the dashboard runs in **viewer** mode:
+
+- **Tabs:** Overview, Forecast, and History only (no Assistant or Settings)
+- **Top bar:** **VIEWER** badge; your HA display name may appear under the app title
+- **Overview overrides:** shadow/live toggle, pause/resume, and kill switch (with confirmation)
+- **Read-only banners** on Overview when an admin has pinned reserve SOC or forced grid charge
+
+Viewers cannot pin reserve SOC, force grid charge, run a control cycle, refresh forecast, clear overrides, or change configuration. Battery time-to-empty on Overview uses live status data — no Settings access required.
+
+See [Ingress and authorization](ingress-auth.md) for how admin vs viewer roles are determined.
+
+---
+
 ## Overview
 
 The Overview tab is the control room:

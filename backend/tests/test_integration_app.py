@@ -6,6 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+from tests.conftest_auth import clear_auth_env
+
+
 @pytest.fixture
 def live_client(tmp_path, monkeypatch):
     cfg = tmp_path / "config.yaml"
@@ -20,6 +23,7 @@ def live_client(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{data / 'test.db'}")
     monkeypatch.setenv("HA_TOKEN", "")
     monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
+    clear_auth_env(monkeypatch)
 
     from app.main import create_app
 
@@ -41,3 +45,5 @@ def test_status_and_metrics_after_startup(live_client):
     body = status.json()
     assert "mpc_available" in body
     assert "ml_available" in body
+    assert body["battery_summary"] is not None
+    assert body["battery_summary"]["capacity_kwh"] == 10.0

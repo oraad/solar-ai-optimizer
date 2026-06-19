@@ -5,12 +5,11 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from app.api.routes import router
 from app.llm.assistant import Assistant
 from app.models import SystemStatus, utcnow
+from tests.conftest_auth import api_with_router, clear_auth_env
 
 
 def test_kill_switch_requires_confirmation():
@@ -20,7 +19,8 @@ def test_kill_switch_requires_confirmation():
 
 
 @pytest.fixture
-def assistant_client():
+def assistant_client(monkeypatch):
+    clear_auth_env(monkeypatch)
     orch = MagicMock()
     orch.settings = MagicMock(llm_enabled=False)
     orch.build_status.return_value = SystemStatus(
@@ -40,10 +40,8 @@ def assistant_client():
     orch.forecast = MagicMock()
     orch.forecast.current = None
     orch.apply_override = AsyncMock()
-    app = FastAPI()
-    app.state.orchestrator = orch
-    app.include_router(router)
-    return TestClient(app), orch
+    tc = api_with_router(router, orch)
+    return tc, orch
 
 
 def test_assistant_kill_switch_blocked_without_confirm(assistant_client):

@@ -1,4 +1,4 @@
-"""API auth middleware: ingress bypass and bearer token."""
+"""GET /api/me for ingress, token, and open modes."""
 
 from __future__ import annotations
 
@@ -9,13 +9,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.auth import AuthGateMiddleware, UserContextMiddleware
-from app.api.metrics import metrics_router
 from app.api.routes import router
 from app.models import SystemStatus, utcnow
 
 
 @pytest.fixture
-def authed_client(monkeypatch):
+def me_client(monkeypatch):
     orch = MagicMock()
     orch.build_status.return_value = SystemStatus(
         ha_connected=True,
@@ -29,7 +28,6 @@ def authed_client(monkeypatch):
         paused=False,
         last_updated=utcnow(),
     )
-    monkeypatch.setenv("API_TOKEN", "secret-token")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("HA_TOKEN", "")
     monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
@@ -40,44 +38,51 @@ def authed_client(monkeypatch):
 
     app = FastAPI()
     app.state.orchestrator = orch
-    app.state.admin_resolver = AsyncMock()
+    resolver = AsyncMock()
+    resolver.is_admin = AsyncMock(return_value=True)
+    app.state.admin_resolver = resolver
     app.add_middleware(AuthGateMiddleware)
     app.add_middleware(UserContextMiddleware)
-    app.include_router(metrics_router)
     app.include_router(router)
     return TestClient(app)
 
 
-def test_health_public_without_token(authed_client):
-    res = authed_client.get("/api/health")
+def test_me_open_mode(me_client, monkeypatch):
+    monkeypatch.delenv("API_TOKEN", raising=False)
+    monkeypatch.delenv("LOCAL_ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("LOCAL_ADMIN_PASSWORD_HASH", raising=False)
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    res = me_client.get("/api/me")
     assert res.status_code == 200
+    assert res.json()["auth_mode"] == "open"
+    assert res.json()["is_admin"] is True
 
 
-def test_status_requires_token(authed_client):
-    res = authed_client.get("/api/status")
-    assert res.status_code == 401
-
-
-def test_status_with_bearer_token(authed_client):
-    res = authed_client.get(
-        "/api/status",
-        headers={"Authorization": "Bearer secret-token"},
-    )
-    assert res.status_code == 200
-
-
-def test_ingress_bypasses_token(authed_client, monkeypatch):
+def test_me_ingress_mode(me_client, monkeypatch):
     monkeypatch.setenv("TRUST_INGRESS_HEADERS", "true")
     from app.config import get_settings
 
     get_settings.cache_clear()
-    res = authed_client.get(
-        "/api/status",
-        headers={"X-Remote-User-Id": "ha-user"},
+    res = me_client.get(
+        "/api/me",
+        headers={
+            "X-Remote-User-Id": "ha-1",
+            "X-Remote-User-Name": "viewer",
+        },
     )
     assert res.status_code == 200
+    body = res.json()
+    assert body["auth_mode"] == "ingress"
+    assert body["username"] == "viewer"
 
 
-def test_metrics_requires_token(authed_client):
-    res = authed_client.get("/metrics")
-    assert res.status_code == 401
+def test_me_token_mode(me_client, monkeypatch):
+    monkeypatch.setenv("API_TOKEN", "secret")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    res = me_client.get("/api/me", headers={"Authorization": "Bearer secret"})
+    assert res.status_code == 200
+    assert res.json()["auth_mode"] == "token"

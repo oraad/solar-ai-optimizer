@@ -25,6 +25,7 @@ from .ha.client import HAClient
 from .ha.heartbeat import HAHeartbeat
 from .ingest.collector import Collector
 from .models import (
+    BatterySummary,
     Decision,
     ExecutionResult,
     GridStats,
@@ -446,10 +447,17 @@ class Orchestrator:
         from .observability.capabilities import ml_available, mpc_available
 
         forecast = self.forecast.current
+        bat = self.cfg.battery
         return SystemStatus(
             telemetry=telemetry,
             decision=self.latest_decision,
             grid_stats=self.latest_grid_stats,
+            battery_summary=BatterySummary(
+                capacity_kwh=bat.capacity_kwh,
+                round_trip_efficiency=bat.round_trip_efficiency,
+                max_soc_ceiling=bat.max_soc_ceiling,
+                min_soc_floor=bat.min_soc_floor,
+            ),
             ha_connected=self.ha.is_reachable(self.cfg.control.ha_stale_after_seconds),
             telemetry_stale=stale,
             telemetry_age_seconds=self._telemetry_age_seconds(),

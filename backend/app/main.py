@@ -20,10 +20,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from .api import api_router, metrics_router, ws_router
-from .api.auth import ApiTokenMiddleware
+from .api import api_router, auth_router, metrics_router, ws_router
+from .api.auth import AuthGateMiddleware, UserContextMiddleware
 from .config import get_settings
 from .config_store import ConfigStore
+from .ha.users import HAAdminResolver
 from .logging_setup import configure_logging, request_id_var
 from .orchestrator import Orchestrator
 from .scheduler import build_scheduler
@@ -70,18 +71,28 @@ async def lifespan(app: FastAPI):
     store = ConfigStore(settings.config_path, runtime_overrides)
 
     log.info(
-        "Starting Solar AI Optimizer (shadow_mode=%s, addon=%s)",
+        "Starting Solar AI Optimizer (shadow_mode=%s, addon=%s, "
+        "ingress_trusted=%s, local_auth=%s, api_token=%s)",
         settings.shadow_mode,
         settings.is_addon,
+        settings.ingress_trusted,
+        settings.local_auth_enabled,
+        bool(settings.api_token),
     )
-    if not settings.api_token and not settings.is_addon:
+    if settings.local_admin_password and not settings.local_admin_password_hash:
         log.warning(
-            "API_TOKEN is not set — mutating /api endpoints are open on the LAN. "
-            "Set API_TOKEN for standalone deployments."
+            "LOCAL_ADMIN_PASSWORD is set in plain text — use "
+            "LOCAL_ADMIN_PASSWORD_HASH in production."
+        )
+    if not settings.local_auth_enabled and not settings.api_token and not settings.is_addon:
+        log.warning(
+            "No LOCAL_ADMIN or API_TOKEN configured — API is open on the LAN. "
+            "Set LOCAL_ADMIN_PASSWORD or API_TOKEN for standalone deployments."
         )
     orchestrator = Orchestrator(settings, store)
     await orchestrator.setup()
     app.state.orchestrator = orchestrator
+    app.state.admin_resolver = HAAdminResolver(settings, orchestrator.ha)
 
     scheduler = build_scheduler(orchestrator)
     orchestrator.attach_scheduler(scheduler)
@@ -99,8 +110,9 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    docs_url = None if settings.api_token else "/docs"
-    openapi_url = None if settings.api_token else "/openapi.json"
+    auth_locked = settings.api_token or settings.local_auth_enabled
+    docs_url = None if auth_locked else "/docs"
+    openapi_url = None if auth_locked else "/openapi.json"
     app = FastAPI(
         title="Solar AI Optimizer",
         version="0.1.0",
@@ -118,17 +130,19 @@ def create_app() -> FastAPI:
         for o in settings.cors_origins.split(",")
         if o.strip()
     ] or ["*"]
+    allow_credentials = settings.local_auth_enabled and origins != ["*"]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_credentials=False,
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(SecurityHeadersMiddleware, allow_frames=settings.is_addon)
-    if settings.api_token:
-        app.add_middleware(ApiTokenMiddleware, token=settings.api_token)
+    app.add_middleware(AuthGateMiddleware)
+    app.add_middleware(UserContextMiddleware)
+    app.include_router(auth_router)
     app.include_router(metrics_router)
     app.include_router(api_router)
     app.include_router(ws_router)

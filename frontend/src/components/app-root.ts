@@ -1,12 +1,13 @@
 import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 
-import { api, live } from "../api.js";
+import { api, AuthRequiredError, live } from "../api.js";
 import { sharedStyles } from "../styles.js";
 import type {
   AppConfigView,
   ExecutionResult,
   ForecastBundle,
+  SessionInfo,
   ShedResult,
   SystemStatus,
 } from "../types.js";
@@ -19,16 +20,21 @@ import "./forecast-chart.js";
 import "./history-view.js";
 import "./assistant-panel.js";
 import "./settings-panel.js";
+import "./login-page.js";
 
 type Tab = "overview" | "forecast" | "history" | "assistant" | "settings";
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
+const ALL_TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "overview", label: "Overview", icon: "\u25A0" },
   { id: "forecast", label: "Forecast", icon: "\u2600" },
   { id: "history", label: "History", icon: "\u29D6" },
   { id: "assistant", label: "Assistant", icon: "\u2709" },
   { id: "settings", label: "Settings", icon: "\u2699" },
 ];
+
+const VIEWER_TABS = ALL_TABS.filter(
+  (t) => t.id !== "settings" && t.id !== "assistant",
+);
 
 @customElement("solar-app")
 export class SolarApp extends LitElement {
@@ -154,9 +160,19 @@ export class SolarApp extends LitElement {
         background: color-mix(in srgb, var(--bad) 12%, var(--panel-2));
         color: var(--bad);
       }
+      .auth-loading {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
     `,
   ];
 
+  @state() private session: SessionInfo | null = null;
+  @state() private authReady = false;
+  @state() private needsLogin = false;
   @state() private status: SystemStatus | null = null;
   @state() private forecast: ForecastBundle | null = null;
   @state() private config: AppConfigView | null = null;
@@ -177,23 +193,22 @@ export class SolarApp extends LitElement {
     this.theme =
       (document.documentElement.getAttribute("data-theme") as "light" | "dark") || "dark";
     const savedTab = localStorage.getItem("solar-tab") as Tab | null;
-    if (savedTab && TABS.some((t) => t.id === savedTab)) this.tab = savedTab;
+    if (savedTab && ALL_TABS.some((t) => t.id === savedTab)) this.tab = savedTab;
 
-    live.connect();
-    this.unsub = live.onStatus((s) => {
-      this.status = s;
-      this.lastUpdate = Date.now();
-    });
     window.addEventListener("solar-plan-refresh", this.onPlanRefresh);
-    void this.bootstrap();
-    this.pollTimer = window.setInterval(() => void this.refreshSlow(), 60_000);
+    window.addEventListener("solar-login-success", this.onLoginSuccess);
+    window.addEventListener("solar-logout", this.onLogout);
+    void this.initAuth();
     this.clockTimer = window.setInterval(() => (this.now = Date.now()), 1000);
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    live.disconnect();
     this.unsub?.();
     window.removeEventListener("solar-plan-refresh", this.onPlanRefresh);
+    window.removeEventListener("solar-login-success", this.onLoginSuccess);
+    window.removeEventListener("solar-logout", this.onLogout);
     if (this.pollTimer) window.clearInterval(this.pollTimer);
     if (this.clockTimer) window.clearInterval(this.clockTimer);
   }
@@ -201,6 +216,90 @@ export class SolarApp extends LitElement {
   private onPlanRefresh = (): void => {
     void this.refreshPlan();
   };
+
+  private onLoginSuccess = (): void => {
+    void this.initAuth();
+  };
+
+  private onLogout = (): void => {
+    live.disconnect();
+    this.unsub?.();
+    this.unsub = undefined;
+    this.session = null;
+    this.authReady = false;
+    this.needsLogin = true;
+    this.status = null;
+    if (this.pollTimer) {
+      window.clearInterval(this.pollTimer);
+      this.pollTimer = undefined;
+    }
+  };
+
+  private async initAuth(): Promise<void> {
+    this.authReady = false;
+    this.needsLogin = false;
+    try {
+      this.session = await api.me();
+      this.normalizeTabForRole();
+      this.authReady = true;
+      this.startDashboard();
+    } catch (e) {
+      if (e instanceof AuthRequiredError) {
+        this.needsLogin = true;
+        this.session = null;
+        this.authReady = true;
+        return;
+      }
+      this.authReady = true;
+      this.noteApiError(e);
+    }
+  }
+
+  private startDashboard(): void {
+    live.connect();
+    if (!this.unsub) {
+      this.unsub = live.onStatus((s) => {
+        this.status = s;
+        this.lastUpdate = Date.now();
+      });
+    }
+    if (!this.pollTimer) {
+      void this.bootstrap();
+      this.pollTimer = window.setInterval(() => void this.refreshSlow(), 60_000);
+    }
+  }
+
+  private normalizeTabForRole(): void {
+    const tabs = this.visibleTabs;
+    if (!tabs.some((t) => t.id === this.tab)) {
+      this.tab = "overview";
+      localStorage.setItem("solar-tab", this.tab);
+    }
+  }
+
+  private get isAdmin(): boolean {
+    return this.session?.is_admin ?? false;
+  }
+
+  private get viewerTooltip(): string {
+    const name = this.session?.display_name || this.session?.username;
+    return name ? `Signed in as ${name} (viewer)` : "Viewer access — limited operator controls";
+  }
+
+  private get dashboardRole(): "admin" | "viewer" {
+    return this.isAdmin ? "admin" : "viewer";
+  }
+
+  private get brandSubtitle(): string {
+    if (!this.isAdmin && this.session?.display_name) {
+      return this.session.display_name;
+    }
+    return "Resilience-first energy control";
+  }
+
+  private get visibleTabs() {
+    return this.isAdmin ? ALL_TABS : VIEWER_TABS;
+  }
 
   private noteApiError(e: unknown): void {
     const msg = e instanceof Error ? e.message : String(e);
@@ -236,10 +335,12 @@ export class SolarApp extends LitElement {
       this.noteApiError(e);
     }
     await this.refreshPlan();
-    try {
-      this.config = await api.config();
-    } catch (e) {
-      this.noteApiError(e);
+    if (this.isAdmin) {
+      try {
+        this.config = await api.config();
+      } catch (e) {
+        this.noteApiError(e);
+      }
     }
   }
 
@@ -252,7 +353,6 @@ export class SolarApp extends LitElement {
     this.theme = this.theme === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", this.theme);
     try { localStorage.setItem("solar-theme", this.theme); } catch { /* ignore */ }
-    // Let charts (which paint to canvas, not via CSS) rebuild with new tokens.
     window.dispatchEvent(new Event("solar-theme-change"));
   }
 
@@ -280,7 +380,11 @@ export class SolarApp extends LitElement {
       case "forecast":
         return html`
           <div class="layout">
-            <solar-forecast-chart class="span-8" .forecast=${this.forecast}></solar-forecast-chart>
+            <solar-forecast-chart
+              class="span-8"
+              .forecast=${this.forecast}
+              .role=${this.dashboardRole}
+            ></solar-forecast-chart>
             <solar-grid-stats
               class="span-4"
               .stats=${this.status?.grid_stats ?? null}
@@ -292,7 +396,7 @@ export class SolarApp extends LitElement {
       case "assistant":
         return html`<div class="layout"><solar-assistant-panel class="span-12 center"></solar-assistant-panel></div>`;
       case "settings":
-        return html`<div class="layout"><solar-settings-panel class="span-12 center" .config=${this.config} .status=${this.status}></solar-settings-panel></div>`;
+        return html`<div class="layout"><solar-settings-panel class="span-12 center" .config=${this.config} .status=${this.status} .session=${this.session}></solar-settings-panel></div>`;
       default:
         return html`
           <div class="layout">
@@ -312,12 +416,24 @@ export class SolarApp extends LitElement {
               .results=${this.execResults}
               .shedResults=${this.shedResults}
             ></solar-decision-panel>
-            <solar-overrides-panel class="span-4" .status=${this.status} .config=${this.config}></solar-overrides-panel>
+            <solar-overrides-panel
+              class="span-4"
+              .role=${this.dashboardRole}
+              .status=${this.status}
+              .config=${this.config}
+            ></solar-overrides-panel>
           </div>`;
     }
   }
 
   render() {
+    if (!this.authReady) {
+      return html`<div class="auth-loading">Loading…</div>`;
+    }
+    if (this.needsLogin) {
+      return html`<solar-login-page></solar-login-page>`;
+    }
+
     return html`
       <div class="topbar">
         <div class="topbar-inner">
@@ -325,11 +441,14 @@ export class SolarApp extends LitElement {
             <span class="sun">&#9728;</span>
             <div>
               <h1>Solar AI Optimizer</h1>
-              <div class="sub">Resilience-first energy control</div>
+              <div class="sub">${this.brandSubtitle}</div>
             </div>
           </div>
           <div class="status-strip">
             <span class="updated"><span class="dot ${this.haConnected ? "on" : "off"}"></span>${this.updatedLabel()}</span>
+            ${!this.isAdmin
+              ? html`<span class="pill warn" title=${this.viewerTooltip}>VIEWER</span>`
+              : null}
             <span class="pill ${this.haConnected ? "good" : "bad"}">
               <span class="dot ${this.haConnected ? "on" : "off"}"></span>
               ${this.haConnected ? "HA connected" : "HA offline"}
@@ -345,13 +464,14 @@ export class SolarApp extends LitElement {
                     : ""}
                 </span>`
               : null}
-            ${this.status?.forecast_misconfigured
+            ${this.isAdmin && this.status?.forecast_misconfigured
               ? html`<span class="pill bad">SET LOCATION</span>`
               : null}
             ${this.status?.forecast_degraded
               ? html`<span class="pill warn">FORECAST DEGRADED</span>`
               : null}
-            ${this.status?.forecast_provider === "solcast" &&
+            ${this.isAdmin &&
+            this.status?.forecast_provider === "solcast" &&
             this.status?.solcast_configured === false
               ? html`<span class="pill bad">SOLCAST MISCONFIGURED</span>`
               : null}
@@ -371,7 +491,7 @@ export class SolarApp extends LitElement {
           </div>
         </div>
         <nav role="tablist">
-          ${TABS.map(
+          ${this.visibleTabs.map(
             (t) => html`
               <button
                 role="tab"

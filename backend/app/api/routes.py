@@ -2,21 +2,38 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
-from fastapi import APIRouter, Body, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ValidationError
 
 from ..llm.assistant import Assistant
 from ..models import Override, utcnow
 from ..orchestrator import Orchestrator
 from ..storage import repo
+from .session import SessionUser, assert_override_allowed, get_session, require_admin, require_authenticated
+
+log = logging.getLogger("api.routes")
 
 router = APIRouter(prefix="/api", tags=["solar"])
 
 
 def _orch(request: Request) -> Orchestrator:
     return request.app.state.orchestrator
+
+
+@router.get("/me")
+async def me(request: Request) -> dict:
+    from ..config import get_settings
+
+    settings = get_settings()
+    session = get_session(request)
+    if not session.authenticated and (
+        settings.local_auth_enabled or settings.api_token
+    ):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return session.to_me_dict(settings)
 
 
 @router.get("/health")
@@ -63,7 +80,10 @@ async def forecast(request: Request) -> dict:
 
 
 @router.post("/forecast/refresh")
-async def forecast_refresh(request: Request) -> dict:
+async def forecast_refresh(
+    request: Request,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
     orch = _orch(request)
     await orch.forecast_cycle()
     cur = orch.forecast.current
@@ -84,7 +104,10 @@ async def plan(request: Request) -> dict:
 
 
 @router.post("/cycle")
-async def force_cycle(request: Request) -> dict:
+async def force_cycle(
+    request: Request,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
     decision = await _orch(request).control_cycle()
     return decision.model_dump(mode="json") if decision else {}
 
@@ -145,7 +168,9 @@ def _config_view(cfg) -> dict:
 
 @router.get("/entities")
 async def entities(
-    request: Request, domain: str | None = Query(default=None)
+    request: Request,
+    domain: str | None = Query(default=None),
+    _admin: SessionUser = Depends(require_admin),
 ) -> dict:
     """List Home Assistant entities for UI autocomplete.
 
@@ -177,13 +202,20 @@ async def entities(
 
 
 @router.get("/config")
-async def get_config(request: Request) -> dict:
+async def get_config(
+    request: Request,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
     """Full (non-secret) effective config surfaced to the dashboard for editing."""
     return _config_view(_orch(request).cfg)
 
 
 @router.put("/config")
-async def put_config(request: Request, patch: dict = Body(...)) -> dict:
+async def put_config(
+    request: Request,
+    patch: dict = Body(...),
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
     """Apply a partial config update from the UI (deep-merged + persisted)."""
     orch = _orch(request)
     # Don't overwrite a stored HA token with the masked/blank value from the UI,
@@ -205,19 +237,29 @@ async def put_config(request: Request, patch: dict = Body(...)) -> dict:
 
 
 @router.post("/config/reset")
-async def reset_config(request: Request) -> dict:
+async def reset_config(
+    request: Request,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
     cfg = await _orch(request).reset_config()
     return {"ok": True, "config": _config_view(cfg)}
 
 
 @router.get("/model/export")
-async def model_export(request: Request) -> dict:
+async def model_export(
+    request: Request,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
     """Export the learned model (bias factors + load profile) as JSON."""
     return _orch(request).forecast.export_model()
 
 
 @router.post("/model/import")
-async def model_import(request: Request, data: dict = Body(...)) -> dict:
+async def model_import(
+    request: Request,
+    data: dict = Body(...),
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
     orch = _orch(request)
     try:
         async with orch.forecast._refresh_lock:
@@ -230,7 +272,10 @@ async def model_import(request: Request, data: dict = Body(...)) -> dict:
 
 
 @router.post("/model/retrain")
-async def model_retrain(request: Request) -> dict:
+async def model_retrain(
+    request: Request,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
     orch = _orch(request)
     trained = await orch.forecast.retrain_ml_load()
     orch.forecast.save_model(orch.model_path)
@@ -249,18 +294,35 @@ class OverrideRequest(Override):
 
 
 @router.post("/override")
-async def post_override(request: Request, body: OverrideRequest) -> dict:
+async def post_override(
+    request: Request,
+    body: OverrideRequest,
+    session: SessionUser = Depends(require_authenticated),
+) -> dict:
     if body.kill_switch and not body.confirm:
         raise HTTPException(
             status_code=400,
             detail="kill_switch requires confirm=true",
         )
     ov = Override(**body.model_dump(exclude={"confirm"}))
+    if not ov.model_dump(exclude_none=True):
+        raise HTTPException(status_code=400, detail="No override fields provided")
+    assert_override_allowed(session, ov)
+    touched = list(ov.model_dump(exclude_none=True).keys())
+    log.info(
+        "Override by user=%s mode=%s fields=%s",
+        session.user_id or session.username or "unknown",
+        session.auth_mode,
+        touched,
+    )
     return await _orch(request).apply_override(ov)
 
 
 @router.post("/override/clear")
-async def clear_override(request: Request) -> dict:
+async def clear_override(
+    request: Request,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
     orch = _orch(request)
     result = orch.clear_overrides()
     await orch.control_cycle()
@@ -287,7 +349,11 @@ class AssistRequest(BaseModel):
 
 
 @router.post("/assistant/ask")
-async def assistant_ask(request: Request, body: AssistRequest) -> dict:
+async def assistant_ask(
+    request: Request,
+    body: AssistRequest,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
     """Natural-language Q&A and (optional) control via the local LLM assistant.
 
     The LLM only writes prose; control intents are parsed deterministically and

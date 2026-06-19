@@ -57,11 +57,14 @@ export class OverridesPanel extends LitElement {
       }
       .banner.warn { background: color-mix(in srgb, var(--warn) 12%, var(--panel-2)); color: var(--warn); }
       .banner.danger { background: color-mix(in srgb, var(--bad) 12%, var(--panel-2)); color: var(--bad); }
+      .viewer-note { font-size: 0.78rem; color: var(--muted); margin: -4px 0 12px; }
+      .seg button:disabled { opacity: 0.45; cursor: not-allowed; }
     `,
   ];
 
   @property({ attribute: false }) status: SystemStatus | null = null;
   @property({ attribute: false }) config: AppConfigView | null = null;
+  @property({ type: String }) role: "admin" | "viewer" = "admin";
 
   @state() private busy = false;
   @state() private msg = "";
@@ -131,9 +134,13 @@ export class OverridesPanel extends LitElement {
   render() {
     const shadow = this.status?.shadow_mode ?? true;
     const paused = this.status?.paused ?? false;
+    const viewer = this.role === "viewer";
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
-        <h3>Controls &amp; overrides</h3>
+        <h3>${viewer ? "Operator controls" : "Controls &amp; overrides"}</h3>
+        ${viewer
+          ? html`<p class="viewer-note">Reserve pin and grid-charge overrides require an admin.</p>`
+          : null}
 
         ${paused
           ? html`<div class="banner warn">Engine paused — no inverter or shed writes until resumed.</div>`
@@ -144,7 +151,7 @@ export class OverridesPanel extends LitElement {
         ${this.status?.force_grid_charge_override === true
           ? html`<div class="banner warn">Grid charge forced on.</div>`
           : null}
-        ${this.status?.force_grid_charge_override === false
+        ${!viewer && this.status?.force_grid_charge_override === false
           ? html`<div class="banner warn">Grid charge override: auto.</div>`
           : null}
 
@@ -159,54 +166,65 @@ export class OverridesPanel extends LitElement {
         <div class="ctrl">
           <span>${labelWithTip("Engine", overrideHelp("engine"))}</span>
           <span class="seg">
-            <button @click=${this.togglePause}>&#10073;&#10073; Pause</button>
-            <button @click=${this.resume}>&#9654; Resume</button>
+            <button class=${paused ? "active warn" : ""} ?disabled=${paused || this.busy} @click=${this.togglePause}>&#10073;&#10073; Pause</button>
+            <button class=${paused ? "active good" : ""} ?disabled=${!paused || this.busy} @click=${this.resume}>&#9654; Resume</button>
           </span>
         </div>
 
-        <div class="ctrl">
-          <span>${labelWithTip("Grid charge", overrideHelp("grid_charge"))}</span>
-          <span class="seg">
-            <button @click=${this.forceCharge}>&#9889; Force on</button>
-            <button @click=${this.stopForceCharge}>Auto</button>
-          </span>
-        </div>
+        ${viewer
+          ? html`
+              <div class="buttons">
+                <span class="action-with-tip">
+                  <button class="danger" @click=${this.killSwitch}>&#9760; Kill switch</button>
+                  <solar-info-tip .text=${overrideHelp("kill_switch")!}></solar-info-tip>
+                </span>
+              </div>
+            `
+          : html`
+              <div class="ctrl">
+                <span>${labelWithTip("Grid charge", overrideHelp("grid_charge"))}</span>
+                <span class="seg">
+                  <button @click=${this.forceCharge}>&#9889; Force on</button>
+                  <button @click=${this.stopForceCharge}>Auto</button>
+                </span>
+              </div>
 
-        <div class="ctrl">
-          <span>${labelWithTip("Pin reserve", overrideHelp("pin_reserve"))}</span>
-          <span class="reserve-input">
-            <input
-              type="number"
-              min="0"
-              max="100"
-              placeholder="auto"
-              @input=${(e: Event) => {
-                const v = (e.target as HTMLInputElement).value;
-                this.reserveInput = v === "" ? null : Number(v);
-              }}
-            />
-            <button @click=${this.applyReserve}>Set</button>
-          </span>
-        </div>
+              <div class="ctrl">
+                <span>${labelWithTip("Pin reserve", overrideHelp("pin_reserve"))}</span>
+                <span class="reserve-input">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="auto"
+                    @input=${(e: Event) => {
+                      const v = (e.target as HTMLInputElement).value;
+                      this.reserveInput = v === "" ? null : Number(v);
+                    }}
+                  />
+                  <button @click=${this.applyReserve}>Set</button>
+                </span>
+              </div>
 
-        <div class="buttons">
-          <span class="action-with-tip">
-            <button @click=${this.forceCycle}>&#8635; Run cycle now</button>
-            <solar-info-tip .text=${overrideHelp("run_cycle")!}></solar-info-tip>
-          </span>
-          <span class="action-with-tip">
-            <button @click=${this.refreshForecast}>&#9728; Refresh forecast</button>
-            <solar-info-tip .text=${overrideHelp("refresh_forecast")!}></solar-info-tip>
-          </span>
-          <span class="action-with-tip">
-            <button @click=${this.clearAll}>Clear overrides</button>
-            <solar-info-tip .text=${overrideHelp("clear_overrides")!}></solar-info-tip>
-          </span>
-          <span class="action-with-tip">
-            <button class="danger" @click=${this.killSwitch}>&#9760; Kill switch</button>
-            <solar-info-tip .text=${overrideHelp("kill_switch")!}></solar-info-tip>
-          </span>
-        </div>
+              <div class="buttons">
+                <span class="action-with-tip">
+                  <button @click=${this.forceCycle}>&#8635; Run cycle now</button>
+                  <solar-info-tip .text=${overrideHelp("run_cycle")!}></solar-info-tip>
+                </span>
+                <span class="action-with-tip">
+                  <button @click=${this.refreshForecast}>&#9728; Refresh forecast</button>
+                  <solar-info-tip .text=${overrideHelp("refresh_forecast")!}></solar-info-tip>
+                </span>
+                <span class="action-with-tip">
+                  <button @click=${this.clearAll}>Clear overrides</button>
+                  <solar-info-tip .text=${overrideHelp("clear_overrides")!}></solar-info-tip>
+                </span>
+                <span class="action-with-tip">
+                  <button class="danger" @click=${this.killSwitch}>&#9760; Kill switch</button>
+                  <solar-info-tip .text=${overrideHelp("kill_switch")!}></solar-info-tip>
+                </span>
+              </div>
+            `}
 
         <div class="msg">${this.msg}</div>
       </div>

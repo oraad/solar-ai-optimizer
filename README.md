@@ -81,11 +81,15 @@ Set via `docker-compose.yml` `environment:` or an optional `.env` file (see
 |----------|---------|
 | `HA_BASE_URL` / `HA_TOKEN` | Home Assistant connection (or set in UI) |
 | `SHADOW_MODE` | `true` = observe only (default) |
-| `API_TOKEN` | Protect mutating `/api/*` and `/ws` in standalone mode |
+| `LOCAL_ADMIN_PASSWORD_HASH` / `SESSION_SECRET` | Local admin login for standalone direct access |
+| `TRUST_INGRESS_HEADERS` | Trust HA ingress user headers (auto on add-on) |
+| `API_TOKEN` | Bearer token for scripts; also protects API when set |
 | `CORS_ORIGINS` | Comma-separated CORS origins (default `*`) |
 | `ML_LOAD_ENABLED` | Enable gradient-boosting load forecast (needs sklearn in image) |
 
-When `API_TOKEN` is set, enter the same value in **Settings → API security**.
+When `API_TOKEN` is set, enter the same value in **Settings → API security**. For
+local login and HA ingress (admin vs viewer roles), see
+[docs/ingress-auth.md](docs/ingress-auth.md).
 
 ## Home Assistant add-on
 

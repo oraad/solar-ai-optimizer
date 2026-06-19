@@ -5,15 +5,15 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from app.api.routes import router
 from app.models import SystemStatus, utcnow
+from tests.conftest_auth import api_with_router, clear_auth_env
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    clear_auth_env(monkeypatch)
     orch = MagicMock()
     forecast = MagicMock()
     forecast.ml_import_locked = False
@@ -36,10 +36,8 @@ def client():
         paused=False,
         last_updated=utcnow(),
     )
-    app = FastAPI()
-    app.state.orchestrator = orch
-    app.include_router(router)
-    return TestClient(app), orch
+    tc = api_with_router(router, orch)
+    return tc, orch
 
 
 def test_model_retrain_endpoint(client):

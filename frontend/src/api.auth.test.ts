@@ -31,6 +31,6 @@ describe("fetch error parsing", () => {
       }),
     );
     const { api } = await import("./api.js");
-    await expect(api.status()).rejects.toThrow(/401.*API token/i);
+    await expect(api.status()).rejects.toThrow(/401 Unauthorized/i);
   });
 });

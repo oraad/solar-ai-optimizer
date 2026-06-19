@@ -24,6 +24,9 @@ aiosqlite>=0.20.0
 PyYAML>=6.0.2
 python-dateutil>=2.9.0
 
+# Local admin login (bcrypt password verification)
+bcrypt>=4.2.0
+
 # --- Optional extras (Phase 3/4). Uncomment to enable. ---
 # numpy>=2.1.0            # required by ML load forecasting
 # pandas>=2.2.0

@@ -8,7 +8,7 @@ import { labelWithTip } from "../label-tip.js";
 import { sharedStyles } from "../styles.js";
 import "./entity-input.js";
 import "./info-tip.js";
-import type { AppConfigView, EntityInfo, SystemStatus } from "../types.js";
+import type { AppConfigView, EntityInfo, SessionInfo, SystemStatus } from "../types.js";
 
 type Section = Record<string, unknown>;
 
@@ -85,6 +85,7 @@ export class SettingsPanel extends LitElement {
 
   @property({ attribute: false }) config: AppConfigView | null = null;
   @property({ attribute: false }) status: SystemStatus | null = null;
+  @property({ attribute: false }) session: SessionInfo | null = null;
 
   @state() private draft: AppConfigView | null = null;
   @state() private raw = "";
@@ -538,6 +539,24 @@ export class SettingsPanel extends LitElement {
     return html`
       <details>
         <summary>API security (standalone)</summary>
+        ${this.session?.auth_mode === "local"
+          ? html`
+              <p class="label">
+                Signed in as <strong>${this.session.display_name ?? this.session.username}</strong>.
+              </p>
+              <div class="buttons">
+                <button
+                  type="button"
+                  @click=${async () => {
+                    await api.logout();
+                    window.dispatchEvent(new Event("solar-logout"));
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
+            `
+          : null}
         <p class="label">
           When the backend has <code>API_TOKEN</code> set, paste the same value here
           so mutating requests (overrides, config save) are authorized.

@@ -17,7 +17,18 @@ Do not open public issues for undisclosed vulnerabilities.
 
 ## Deployment Guidance
 
-- When exposing the API outside Home Assistant ingress, set `API_TOKEN` and use HTTPS.
+- When exposing the API outside Home Assistant ingress, set `LOCAL_ADMIN_PASSWORD_HASH` + `SESSION_SECRET` or `API_TOKEN`, and use HTTPS.
+- Set `TRUST_INGRESS_HEADERS=true` only when the app is reachable exclusively via HA ingress (not directly on port 8000).
 - Keep Home Assistant long-lived tokens scoped and rotated.
 - Run in **shadow mode** until you trust automated inverter writes.
 - The default Docker image includes optional ML/MPC extras; use `INSTALL_EXTRAS=0` for a leaner attack surface if those features are unused.
+
+## Viewer role (ingress)
+
+Non-admin HA users authenticated via ingress are **viewers**. They may read live status, forecasts, and history, and may POST limited overrides only:
+
+- `shadow_mode`, `pause_engine`, `kill_switch` (with `confirm=true`)
+
+Viewers are denied config reads (`GET /api/config`), entity enumeration (`GET /api/entities`), config writes, the Assistant, reserve pin, force grid charge, and other admin-only routes. Enforcement is on the backend; the dashboard hides controls as defense-in-depth.
+
+Do not expose port `8000` directly if viewers should not bypass HA ingress identity headers.

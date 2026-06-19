@@ -156,12 +156,22 @@ class ExecutionResult(BaseModel):
     ts: datetime = Field(default_factory=utcnow)
 
 
+class BatterySummary(BaseModel):
+    """Non-secret battery specs for dashboard ETA (included in live status)."""
+
+    capacity_kwh: float
+    round_trip_efficiency: float
+    max_soc_ceiling: float
+    min_soc_floor: float
+
+
 class SystemStatus(BaseModel):
     """Aggregated live status surfaced to the dashboard."""
 
     telemetry: Telemetry | None = None
     decision: Decision | None = None
     grid_stats: GridStats | None = None
+    battery_summary: BatterySummary | None = None
     ha_connected: bool = False
     telemetry_stale: bool = False
     telemetry_age_seconds: float | None = None

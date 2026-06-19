@@ -76,10 +76,18 @@ export interface ShedResult {
   ts: string;
 }
 
+export interface BatterySummary {
+  capacity_kwh: number;
+  round_trip_efficiency: number;
+  max_soc_ceiling: number;
+  min_soc_floor: number;
+}
+
 export interface SystemStatus {
   telemetry: Telemetry | null;
   decision: Decision | null;
   grid_stats: GridStats | null;
+  battery_summary?: BatterySummary | null;
   ha_connected: boolean;
   telemetry_stale?: boolean;
   telemetry_age_seconds?: number | null;
@@ -98,6 +106,18 @@ export interface SystemStatus {
   shadow_mode: boolean;
   paused: boolean;
   last_updated: string;
+}
+
+export type AuthMode = "ingress" | "local" | "token" | "open" | "none";
+
+export interface SessionInfo {
+  authenticated: boolean;
+  auth_mode: AuthMode;
+  user_id: string | null;
+  username: string | null;
+  display_name: string | null;
+  is_admin: boolean;
+  login_required: boolean;
 }
 
 export interface DecisionHistoryRow {

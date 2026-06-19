@@ -31,6 +31,7 @@ export class ForecastChart extends LitElement {
   ];
 
   @property({ attribute: false }) forecast: ForecastBundle | null = null;
+  @property({ type: String }) role: "admin" | "viewer" = "admin";
   @query(".chart-mount") private chartEl!: HTMLDivElement;
   @query(".cursor-values") private cursorLegendEl!: HTMLDivElement;
   private chartHandle?: ChartHandle;
@@ -194,7 +195,9 @@ export class ForecastChart extends LitElement {
           </div>
         </div>
         ${!f || f.solar.length === 0
-          ? html`<p class="label">No forecast yet. Set your latitude/longitude and panels in the Settings tab.</p>`
+          ? html`<p class="label">${this.role === "viewer"
+              ? "No forecast yet. Ask an admin to configure forecast location and PV arrays in Settings."
+              : "No forecast yet. Set your latitude/longitude and panels in the Settings tab."}</p>`
           : null}
       </div>
     `;

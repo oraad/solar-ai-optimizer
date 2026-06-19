@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bcrypt
 import pytest
 from fastapi.testclient import TestClient
 
@@ -12,10 +13,12 @@ def authed_app(tmp_path, monkeypatch):
     cfg.write_text("battery:\n  capacity_kwh: 10\n", encoding="utf-8")
     data = tmp_path / "data"
     data.mkdir()
+    password_hash = bcrypt.hashpw(b"secret", bcrypt.gensalt()).decode()
     monkeypatch.setenv("CONFIG_PATH", str(cfg))
     monkeypatch.setenv("DATA_DIR", str(data))
     monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{data / 'test.db'}")
-    monkeypatch.setenv("API_TOKEN", "secret")
+    monkeypatch.setenv("LOCAL_ADMIN_PASSWORD_HASH", password_hash)
+    monkeypatch.setenv("SESSION_SECRET", "test-secret")
     monkeypatch.setenv("HA_TOKEN", "")
     monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
 
@@ -29,15 +32,12 @@ def authed_app(tmp_path, monkeypatch):
         yield client
 
 
-def test_openapi_hidden_when_api_token_set(authed_app):
+def test_openapi_hidden_when_local_auth_set(authed_app):
     assert authed_app.get("/openapi.json").status_code == 404
     assert authed_app.get("/docs").status_code == 404
 
 
-def test_status_requires_token_when_configured(authed_app):
+def test_status_requires_login_when_local_auth(authed_app):
     assert authed_app.get("/api/status").status_code == 401
-    res = authed_app.get(
-        "/api/status",
-        headers={"Authorization": "Bearer secret"},
-    )
-    assert res.status_code == 200
+    authed_app.post("/api/auth/login", json={"username": "admin", "password": "secret"})
+    assert authed_app.get("/api/status").status_code == 200

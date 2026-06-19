@@ -62,6 +62,16 @@ docker compose run --rm frontend-test
 - Dashboard + API: http://localhost:8000
 - API docs: http://localhost:8000/docs
 
+## Proxmox VE
+
+Deploy on Proxmox with a community-scripts-style helper (Docker-in-LXC):
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer.sh)"
+```
+
+See [proxmox/README.md](proxmox/README.md) for updates, backups, and future OCI notes.
+
 ## Dashboard user guide
 
 See the [documentation site](https://oraad.github.io/solar-ai-optimizer/) or

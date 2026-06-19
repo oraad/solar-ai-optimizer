@@ -41,3 +41,8 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - name: Build production image
         run: docker compose build solar
+      - name: Verify OCI metadata on production image
+        run: |
+          docker image inspect solar-ai-optimizer --format '{{json .Config.Labels}}' | grep -q 'org.opencontainers.image.title'
+          docker image inspect solar-ai-optimizer --format '{{json .Config.Entrypoint}}' | grep -q '/app/run.sh'
+          docker image inspect solar-ai-optimizer --format '{{json .Config.ExposedPorts}}' | grep -q '8000/tcp'

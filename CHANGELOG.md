@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-19
+
+### Added
+
+- Proxmox VE deployment: community-scripts-style helper scripts (`proxmox/ct/solar-ai-optimizer.sh`, install script, shared lib)
+- Proxmox documentation: install, update, backup, troubleshooting, and future OCI notes ([proxmox/README.md](proxmox/README.md))
+- CI check that production image exposes OCI metadata (labels, entrypoint, port)
+
+### Changed
+
+- Docker image: `ENTRYPOINT` instead of `CMD`, `STOPSIGNAL SIGTERM`, and OpenContainers / `io.oraad.solar.*` labels for future Proxmox OCI use
+
 ## [0.3.0] - 2026-06-19
 
 ### Added
@@ -64,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.4.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.0
 [0.3.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.3.0
 [0.2.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.2.0
 [0.1.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.1.0

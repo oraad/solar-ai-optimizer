@@ -39,16 +39,30 @@ COPY --from=frontend /ui/dist ./static
 # Normalize line endings (Windows checkouts use CRLF, which breaks the shebang)
 # and make the entrypoint executable.
 RUN sed -i 's/\r$//' /app/run.sh && chmod +x /app/run.sh && mkdir -p /app/data
+
+# Persistent state (SQLite DB, runtime config, learned models). Mount at deploy time.
 VOLUME ["/app/data"]
 
 EXPOSE 8000
 
+# OCI / Proxmox application-container metadata (see proxmox/README.md).
+LABEL org.opencontainers.image.title="Solar AI Optimizer" \
+      org.opencontainers.image.description="Resilience-first solar/battery optimizer for Home Assistant" \
+      org.opencontainers.image.source="https://github.com/oraad/solar-ai-optimizer" \
+      org.opencontainers.image.url="https://github.com/oraad/solar-ai-optimizer" \
+      org.opencontainers.image.licenses="MIT" \
+      io.oraad.solar.data-dir="/app/data" \
+      io.oraad.solar.http-port="8000" \
+      io.oraad.solar.health-path="/api/health"
+
+STOPSIGNAL SIGTERM
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
     CMD curl -fsS http://localhost:8000/api/health || exit 1
 
-# Universal entrypoint: works for docker-compose and as an HA add-on
-# (translates /data/options.json into env vars when present).
-CMD ["/app/run.sh"]
+# Universal entrypoint: docker-compose, HA add-on, and future Proxmox OCI.
+# Translates /data/options.json into env vars when present (add-on mode).
+ENTRYPOINT ["/app/run.sh"]
 
 # ---- Stage 3: test runner ----
 FROM app AS test

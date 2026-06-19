@@ -4,10 +4,10 @@ This guide walks through the Lit web dashboard served with the backend at **http
 
 ## Getting started
 
-Open the dashboard in your browser after starting the stack:
+Open the dashboard after [installation](installation.md):
 
 ```bash
-docker compose up -d --build solar
+docker compose up -d --build
 ```
 
 The top bar shows live connection status and operating mode:
@@ -15,32 +15,48 @@ The top bar shows live connection status and operating mode:
 - **HA connected / HA offline** — Home Assistant WebSocket link
 - **SHADOW / LIVE** — shadow mode logs actions without writing to the inverter
 - **RULES / MPC** — active decision engine (MPC falls back to rules if PuLP is unavailable)
-- Status pills such as **SET LOCATION**, **FORECAST DEGRADED**, **STALE DATA**, or **SOLCAST MISCONFIGURED** highlight configuration or data issues
+- Status pills such as **SET LOCATION**, **FORECAST DEGRADED**, **STALE DATA**, or **SOLCAST MISCONFIGURED** highlight configuration or data issues (admin only)
 
 Use the **theme toggle** (sun/moon icon) to switch light/dark; charts repaint to match.
 
+---
+
+## Dashboard roles
+
+There is **one dashboard** for all users. Roles control which tabs and controls appear — not separate apps or URLs.
+
+| Role | Typical access | Tabs |
+|------|----------------|------|
+| **Admin** | HA owner, `system-admin` group, local login, or `API_TOKEN` | Overview, Forecast, History, **Assistant**, **Settings** |
+| **Viewer** | Other HA users via [ingress](ingress-auth.md) | Overview, Forecast, History only |
+
+Role resolution and API enforcement: [Roles and access](ingress-auth.md).
+
+### Feature matrix
+
+| Feature | Admin | Viewer |
+|---------|:-----:|:------:|
+| Overview live status and decision | Yes | Yes |
+| Forecast and history | Yes | Yes |
+| Shadow / live toggle | Yes | Yes |
+| Pause / resume engine | Yes | Yes |
+| Kill switch (with confirmation) | Yes | Yes |
+| Reserve pin, grid charge, clear overrides | Yes | No |
+| Run control cycle, refresh forecast | Yes | No |
+| Assistant (LLM) | Yes | No |
+| Settings / config / entities | Yes | No |
+| Config status banners (SET LOCATION, etc.) | Yes | Hidden |
+| Battery time-to-empty on Overview | Yes | Yes |
+
+---
+
+## Admin dashboard
+
+Admins see all five tabs and the full **Overrides** panel on Overview.
+
 ![Overview tab with status strip and navigation](images/frontend/overview.png)
 
-The main navigation has five tabs: **Overview**, **Forecast**, **History**, **Assistant**, and **Settings**. Your last tab is remembered in the browser.
-
----
-
-## Viewer dashboard
-
-When you sign in through Home Assistant ingress as a non-admin user, the dashboard runs in **viewer** mode:
-
-- **Tabs:** Overview, Forecast, and History only (no Assistant or Settings)
-- **Top bar:** **VIEWER** badge; your HA display name may appear under the app title
-- **Overview overrides:** shadow/live toggle, pause/resume, and kill switch (with confirmation)
-- **Read-only banners** on Overview when an admin has pinned reserve SOC or forced grid charge
-
-Viewers cannot pin reserve SOC, force grid charge, run a control cycle, refresh forecast, clear overrides, or change configuration. Battery time-to-empty on Overview uses live status data — no Settings access required.
-
-See [Ingress and authorization](ingress-auth.md) for how admin vs viewer roles are determined.
-
----
-
-## Overview
+### Overview (admin)
 
 The Overview tab is the control room:
 
@@ -49,20 +65,61 @@ The Overview tab is the control room:
 | **Status cards** | Live SOC, PV, load, grid, and related telemetry |
 | **Grid statistics** | Recent grid availability stats |
 | **Decision & rationale** | Current target reserve, risk score, and planned inverter actions |
-| **Overrides** | Shadow/live toggle, pause, kill switch, manual reserve override |
+| **Overrides** | Shadow/live, pause, kill switch, reserve pin, grid charge, run cycle |
 
-Read the **Decision** panel first: it explains *why* the optimizer chose its current reserve and actions. The **Overrides** panel on the right is for operator intervention (see below).
+Read the **Decision** panel first: it explains *why* the optimizer chose its current reserve and actions.
 
-![Overview layout with decision and overrides](images/frontend/overview.png)
+### Overrides panel (admin)
 
-### Overrides panel
+Admins get the full operator panel:
 
 - **Shadow / Live** — start in shadow; switch to live only after you trust the decisions
 - **Pause** — stop the control loop without losing telemetry
-- **Kill switch** — emergency stop; restores shed tiers when disengaged (requires confirmation via Assistant or API)
+- **Kill switch** — emergency stop; restores shed tiers when disengaged (requires confirmation)
 - **Reserve override** — temporarily force a minimum target SOC (%)
+- **Force grid charge** — opportunistic grid top-up override
+- **Run cycle** / **Refresh forecast** — manual triggers
+- **Clear overrides** — reset operator overrides after kill switch
 
 ![Overrides panel](images/frontend/overrides.png)
+
+### Forecast, History, Assistant, Settings (admin)
+
+Admins use **Forecast** and **History** the same as viewers (see below), plus:
+
+- **Assistant** — LLM chat about recent decisions; optional command apply
+- **Settings** — all runtime configuration (HA, entities, battery, load shedding, etc.)
+
+![Assistant chat panel](images/frontend/assistant.png)
+
+![Settings panel (expanded sections)](images/frontend/settings.png)
+
+---
+
+## Viewer dashboard
+
+When you sign in through Home Assistant ingress as a non-admin user, the dashboard runs in **viewer** mode:
+
+![Viewer Overview — three tabs and VIEWER badge](images/frontend/viewer-overview.png)
+
+- **Tabs:** Overview, Forecast, and History only — no Assistant or Settings
+- **Top bar:** **VIEWER** badge; your HA display name may appear under the app title
+- **Overview overrides:** shadow/live toggle, pause/resume, and kill switch (with confirmation) only
+- **Read-only banners** on Overview when an admin has pinned reserve SOC or forced grid charge — viewers see the active override but cannot change it
+- **Forecast empty state** — if location is not configured, the chart shows a message to ask an admin to set latitude/longitude in Settings (viewers cannot open Settings)
+- **Battery time-to-empty** on Overview uses live status data — no Settings access required
+
+Viewers cannot pin reserve SOC, force grid charge, run a control cycle, refresh forecast, clear overrides, use the Assistant, or change configuration.
+
+See [Roles and access](ingress-auth.md) for how admin vs viewer roles are determined.
+
+---
+
+## Overview
+
+Shared by admin and viewer (controls differ — see [Overrides panel (admin)](#overrides-panel-admin) and [Viewer dashboard](#viewer-dashboard)).
+
+![Overview layout with decision and overrides](images/frontend/overview.png)
 
 ---
 
@@ -74,7 +131,7 @@ The **Forecast** tab shows a 48-hour solar and load forecast chart plus daily en
 - **Temperature** (when configured) uses a separate right-hand °C axis
 - Pills warn about **cloudy tomorrow** or a **degraded forecast** (hover for reasons)
 
-Set latitude, longitude, PV arrays, and forecast provider under **Settings** if the chart is empty.
+Admins: set latitude, longitude, PV arrays, and forecast provider under **Settings** if the chart is empty. Viewers: contact an admin if the chart shows a configuration message.
 
 ![Forecast chart and grid statistics](images/frontend/forecast.png)
 
@@ -100,7 +157,7 @@ History combines telemetry charts and audit tables. Choose a **time window** (6h
 
 ## Assistant
 
-The **Assistant** answers questions about recent decisions and can apply **parsed commands** when you enable **Allow assistant to apply control commands**.
+**Admin only.** The Assistant answers questions about recent decisions and can apply **parsed commands** when you enable **Allow assistant to apply control commands**.
 
 Examples:
 
@@ -110,13 +167,11 @@ Examples:
 
 Blocked kill-switch attempts show a red banner explaining the confirmation requirement.
 
-![Assistant chat panel](images/frontend/assistant.png)
-
 ---
 
 ## Settings
 
-All runtime configuration is edited here and persisted to the `solar-data` volume. Use **Save changes** after edits.
+**Admin only.** All runtime configuration is edited here and persisted to the `solar-data` volume. Use **Save changes** after edits.
 
 Major sections:
 
@@ -132,9 +187,7 @@ Major sections:
 | **Inverter entity map** | HA entities for read sensors and write controls |
 | **Load shedding** | Tiers with **multiple shed entities** per tier, SOC thresholds, priority |
 
-Entity fields support autocomplete when Home Assistant is connected.
-
-![Settings panel (expanded sections)](images/frontend/settings.png)
+Entity fields support autocomplete when Home Assistant is connected. See [Home Assistant setup](home-assistant-setup.md).
 
 ### Load-shedding tiers
 
@@ -156,15 +209,38 @@ Each tier can control **several switches** (e.g. pool pump + heater). All entiti
 | **STALE DATA** | HA entities in inverter map; `ha_stale_after_seconds` in Control |
 | **API errors banner** | API token in Settings → API security; CORS if using a separate origin |
 | Empty charts | Wait for telemetry history; widen History window |
+| **VIEWER** but need Settings | Ask an HA admin or use local admin login for direct access |
 
 ---
 
 ## Regenerating screenshots
 
+!!! danger "DEMO_MODE is for docs only"
+    Never run `DEMO_MODE` on a system connected to a real inverter.
+
 After UI changes, refresh images for this manual:
 
 ```bash
-docker compose up -d --build solar
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+docker compose exec solar python -m scripts.seed_demo
+docker compose restart solar
+```
+
+Then capture screenshots (Docker — works without local Node/npm):
+
+```bash
+docker run --rm --add-host=host.docker.internal:host-gateway \
+  -v "$(pwd)/frontend:/ui" -v "$(pwd)/docs:/docs" \
+  -e SCREENSHOT_BASE_URL=http://host.docker.internal:8000 \
+  -w /ui node:24-bookworm \
+  bash -lc "npm ci && npx playwright install --with-deps chromium && npm run docs:screenshots"
+```
+
+On Windows PowerShell, use `c:/Projects/solar/frontend` style paths instead of `$(pwd)`.
+
+Or with local Node installed:
+
+```bash
 cd frontend
 npm install
 npx playwright install chromium

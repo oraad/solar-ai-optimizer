@@ -6,33 +6,28 @@ unpredictable grid outages.
 
 ## Quick links
 
-- [Dashboard user guide](frontend-manual.md) — screenshot walkthrough of every tab
-- [Ingress and authorization](ingress-auth.md) — local login, hass_ingress, admin vs viewer
-- [Home Assistant fail-safe](home-assistant-failsafe.md) — heartbeat watchdog and grid-charge-at-max
-- [GitHub repository](https://github.com/oraad/solar-ai-optimizer) — source, issues, releases
-- [Changelog](https://github.com/oraad/solar-ai-optimizer/blob/main/CHANGELOG.md)
+| Topic | Guide |
+|-------|--------|
+| **Install** | [Installation and quick start](installation.md) — Docker, Compose, add-on, Proxmox |
+| **Dashboard** | [Dashboard user guide](frontend-manual.md) — admin and viewer walkthrough |
+| **Home Assistant** | [HA setup](home-assistant-setup.md) · [Fail-safe package](home-assistant-failsafe.md) |
+| **Access control** | [Roles and access](ingress-auth.md) — admin vs viewer |
+| **Config** | [Configuration](configuration.md) · [`.env.example`](https://github.com/oraad/solar-ai-optimizer/blob/main/.env.example) |
+| **Proxmox** | [Proxmox deployment](proxmox.md) |
+| **Security** | [Security policy](security.md) |
+| **Source** | [GitHub repository](https://github.com/oraad/solar-ai-optimizer) · [Changelog](https://github.com/oraad/solar-ai-optimizer/blob/main/CHANGELOG.md) |
 
 ## Get started
 
-### Docker Compose
+New to the project? Start with **[Installation and quick start](installation.md)**.
+
+The fastest local path:
 
 ```bash
 docker compose up -d --build
 ```
 
 Open **http://localhost:8000**. The app starts in **shadow mode** (no inverter writes).
-
-Pre-built image (after release):
-
-```bash
-docker pull ghcr.io/oraad/solar-ai-optimizer:latest
-```
-
-### Home Assistant add-on
-
-1. Add repository: `https://github.com/oraad/solar-ai-optimizer`
-2. Install **Solar AI Optimizer** from the add-on store
-3. Open the ingress panel and configure entities in **Settings**
 
 ## Priorities
 
@@ -55,5 +50,6 @@ Home Assistant ──WebSocket──▶ Ingest ──▶ SQLite
    FastAPI + Lit dashboard
 ```
 
-See the [README on GitHub](https://github.com/oraad/solar-ai-optimizer#readme) for API
-details, configuration options, and safety notes.
+See [Configuration](configuration.md) for settings sources, [Security](security.md) for
+deployment hardening, and the [README on GitHub](https://github.com/oraad/solar-ai-optimizer#readme)
+for API details and safety notes.

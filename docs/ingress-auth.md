@@ -66,6 +66,11 @@ Reload ingress in **Developer tools → YAML → INGRESS**.
 
 When `SUPERVISOR_TOKEN` is set, ingress headers are trusted automatically. Local login is optional and off by default. Open the panel from the HA sidebar.
 
+!!! info "Roles at a glance"
+    **Admin** users see all five dashboard tabs (including Assistant and Settings).
+    **Viewer** users see Overview, Forecast, and History only, with limited overrides on Overview.
+    See the [Dashboard user guide → Dashboard roles](frontend-manual.md#dashboard-roles) for screenshots and the full feature matrix.
+
 ## Admin vs viewer (ingress users)
 
 | Role | How determined | Dashboard |

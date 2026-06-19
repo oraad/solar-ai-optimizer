@@ -25,12 +25,19 @@ theme:
 
 nav:
   - Home: index.md
+  - Installation: installation.md
   - Dashboard User Guide: frontend-manual.md
-  - Ingress and Authorization: ingress-auth.md
+  - Roles and Access: ingress-auth.md
+  - Home Assistant Setup: home-assistant-setup.md
   - Home Assistant Fail-safe: home-assistant-failsafe.md
+  - Configuration: configuration.md
+  - Proxmox Deployment: proxmox.md
+  - Security: security.md
 
 markdown_extensions:
   - admonition
   - tables
   - toc:
       permalink: true
+  - pymdownx.details
+  - pymdownx.superfences

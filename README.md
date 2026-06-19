@@ -19,6 +19,20 @@ forecast load, and defend a conservative battery reserve so the home survives ev
 if the grid never returns. The grid is handled purely reactively - whenever it
 appears, the optimizer grabs it; it is never assumed or predicted.
 
+## Documentation
+
+Full documentation: **https://oraad.github.io/solar-ai-optimizer/**
+
+| Topic | Guide |
+|-------|--------|
+| Install | [Installation](https://oraad.github.io/solar-ai-optimizer/installation/) — Docker, Compose, add-on, Proxmox |
+| Dashboard | [User guide](https://oraad.github.io/solar-ai-optimizer/frontend-manual/) — admin and viewer |
+| Home Assistant | [HA setup](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/) · [Fail-safe](https://oraad.github.io/solar-ai-optimizer/home-assistant-failsafe/) |
+| Access | [Roles and access](https://oraad.github.io/solar-ai-optimizer/ingress-auth/) |
+| Config | [Configuration](https://oraad.github.io/solar-ai-optimizer/configuration/) |
+| Proxmox | [Proxmox deployment](https://oraad.github.io/solar-ai-optimizer/proxmox/) |
+| Security | [Security policy](https://oraad.github.io/solar-ai-optimizer/security/) |
+
 ## Architecture
 
 ```
@@ -36,7 +50,7 @@ The inverter is abstracted behind an `InverterAdapter`. The included
 `HAEntityAdapter` maps logical capabilities to HA entity IDs from the Settings panel,
 so swapping entity IDs makes it work with Sunsynk, Victron, Growatt, etc.
 
-## Quick start (Docker)
+## Quick start
 
 No `.env` or `config.yaml` is required. Configure everything from the dashboard
 Settings panel (persisted to the `solar-data` volume).
@@ -45,70 +59,26 @@ Settings panel (persisted to the `solar-data` volume).
 docker compose up -d --build
 ```
 
-Or pull a pre-built image:
-
-```bash
-docker pull ghcr.io/oraad/solar-ai-optimizer:latest
-```
-
-Only the `solar` app service starts by default. To run tests:
-
-```bash
-docker compose run --rm test
-docker compose run --rm frontend-test
-# or: docker compose --profile test up --abort-on-container-exit
-```
-
 - Dashboard + API: http://localhost:8000
 - API docs: http://localhost:8000/docs
 
-## Proxmox VE
-
-Deploy on Proxmox with a community-scripts-style helper (Docker-in-LXC):
-
-```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer.sh)"
-```
-
-See [proxmox/README.md](proxmox/README.md) for updates, backups, and future OCI notes.
-
-## Dashboard user guide
-
-See the [documentation site](https://oraad.github.io/solar-ai-optimizer/) or
-[docs/frontend-manual.md](docs/frontend-manual.md) for a screenshot walkthrough of every tab
-(Overview, Forecast, History, Assistant, Settings).
+Or pull a pre-built image — see [Installation](https://oraad.github.io/solar-ai-optimizer/installation/).
 
 The service starts in **SHADOW MODE** (`SHADOW_MODE=true`): it logs every action
 it *would* take but writes nothing to the inverter. Watch it for a day or two,
 confirm the decisions look right, then switch to live control from the dashboard.
 
-### Optional environment variables
+### Other deployment paths
 
-Set via `docker-compose.yml` `environment:` or an optional `.env` file (see
-`.env.example`). Common overrides:
+- **Home Assistant add-on** — [HA setup guide](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/#supervisor-add-on)
+- **Proxmox LXC** — [one-liner install](https://oraad.github.io/solar-ai-optimizer/proxmox/)
 
-| Variable | Purpose |
-|----------|---------|
-| `HA_BASE_URL` / `HA_TOKEN` | Home Assistant connection (or set in UI) |
-| `SHADOW_MODE` | `true` = observe only (default) |
-| `LOCAL_ADMIN_PASSWORD_HASH` / `SESSION_SECRET` | Local admin login for standalone direct access |
-| `TRUST_INGRESS_HEADERS` | Trust HA ingress user headers (auto on add-on) |
-| `API_TOKEN` | Bearer token for scripts; also protects API when set |
-| `CORS_ORIGINS` | Comma-separated CORS origins (default `*`) |
-| `ML_LOAD_ENABLED` | Enable gradient-boosting load forecast (needs sklearn in image) |
+### Tests
 
-When `API_TOKEN` is set, enter the same value in **Settings → API security**. For
-local login and HA ingress (admin vs viewer roles), see
-[docs/ingress-auth.md](docs/ingress-auth.md).
-
-## Home Assistant add-on
-
-1. Add the repository URL `https://github.com/oraad/solar-ai-optimizer` in Supervisor → Add-on store → Repositories.
-2. Install the add-on (root `config.yaml` includes `build:` for local builds).
-3. Open the ingress panel; configure HA URL/token, **latitude/longitude**, PV arrays, and inverter entities in Settings.
-
-The add-on uses `/data` for the database, runtime config overrides, and learned model.
-`run.sh` maps `options.json` fields to environment variables automatically.
+```bash
+docker compose run --rm test
+docker compose run --rm frontend-test
+```
 
 ## Local development
 
@@ -128,42 +98,8 @@ Frontend:
 cd frontend
 npm install
 npm run dev   # http://localhost:5173 (proxies /api and /ws to :8000)
-npm test      # vitest unit tests (api.ts, basePrefix, auth)
+npm test
 ```
-
-## Configuration
-
-| Source | Purpose |
-|--------|---------|
-| **Settings UI** | Primary config: HA connection, entity map, battery, reserve, forecast, control |
-| `config/config.yaml` (in image) | Base defaults; UI overrides stored in data volume |
-| `.env` / compose `environment` | Secrets, feature flags, optional API token |
-
-Key sections (all editable in Settings): inverter entity map, battery specs,
-reserve policy, forecast location/arrays/temperature model, control timing,
-engine mode (`rules` or `mpc`), load-shedding tiers.
-
-### Solcast (optional solar provider)
-
-In Settings, set **forecast → provider** to `solcast`. Credentials are **not**
-stored in the UI config — set environment variables (or HA add-on options):
-
-| Variable | Purpose |
-|----------|---------|
-| `SOLCAST_API_KEY` | Bearer token from your Solcast account |
-| `SOLCAST_RESOURCE_ID` | Rooftop site ID from the Solcast dashboard |
-
-Both must be set when provider is `solcast`; otherwise the app falls back to
-Open-Meteo and shows a misconfiguration warning.
-
-### Logging
-
-| Variable | Values | Default |
-|----------|--------|---------|
-| `LOG_LEVEL` | DEBUG, INFO, WARNING, ERROR | INFO |
-| `LOG_FORMAT` | `text`, `json` | text |
-
-Set `LOG_FORMAT=json` for production log aggregators (one JSON object per line).
 
 ## The intelligence (phased)
 
@@ -176,12 +112,14 @@ Set `LOG_FORMAT=json` for production log aggregators (one JSON object per line).
   `engine.mode: mpc` and install PuLP.
 - **Phase 4 - Learning + LLM (optional):** ML load (`ML_LOAD_ENABLED`), Ollama assistant (`LLM_ENABLED`).
 
+Configuration details: [Configuration guide](https://oraad.github.io/solar-ai-optimizer/configuration/).
+
 ## Safety (non-negotiable)
 
 - **Shadow mode** is the default until you trust it.
 - Every write is screened: bounds → watchdog → rate limit → read-back verification.
 - **Kill switch** enables grid charge at max current, restores shed tiers, and pauses the engine. Use **Clear overrides** to resume.
-- **Fail-safe:** heartbeat to Home Assistant plus grid-charge-at-max on shutdown; configure HA automation for when the optimizer is dead — see [Home Assistant fail-safe](docs/home-assistant-failsafe.md).
+- **Fail-safe:** heartbeat to Home Assistant plus grid-charge-at-max on shutdown — see [Home Assistant fail-safe](https://oraad.github.io/solar-ai-optimizer/home-assistant-failsafe/).
 - **Watchdog:** if Home Assistant is unreachable, writes stop; the inverter keeps
   its last safe configuration.
 
@@ -194,12 +132,7 @@ Set `LOG_FORMAT=json` for production log aggregators (one JSON object per line).
 `POST /api/assistant/ask`,
 and `WS /ws` (pass `?token=` when `API_TOKEN` is set).
 
-Docker healthcheck hits `/api/health` (includes `metrics` counters). Prometheus scrape target: `GET /metrics`.
-
-### Docker build extras
-
-The default image installs Phase 3/4 extras (PuLP, scikit-learn, numpy) via `INSTALL_EXTRAS=1`.
-For a lean image: `docker compose build --build-arg INSTALL_EXTRAS=0`.
+Docker healthcheck hits `/api/health`. Prometheus scrape target: `GET /metrics`.
 
 ## Upgrading
 
@@ -207,12 +140,6 @@ For a lean image: `docker compose build --build-arg INSTALL_EXTRAS=0`.
 docker rm -f solar-dashboard 2>/dev/null || true   # legacy container name
 docker compose up -d --build
 ```
-
-Mutating endpoints require `Authorization: Bearer <token>` when `API_TOKEN` is set.
-
-## Documentation
-
-Full documentation is hosted on GitHub Pages: **https://oraad.github.io/solar-ai-optimizer/**
 
 ## Changelog
 
@@ -229,4 +156,4 @@ Issues and pull requests are welcome on [GitHub](https://github.com/oraad/solar-
 ## Data backup
 
 The `solar-data` Docker volume holds `solar.db`, `config.runtime.yaml`, and
-`model.json`. Back up this volume before upgrades.
+`model.json`. Back up this volume before upgrades. See [Configuration → Data backup](https://oraad.github.io/solar-ai-optimizer/configuration/#data-backup).

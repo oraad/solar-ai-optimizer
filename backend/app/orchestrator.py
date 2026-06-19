@@ -34,6 +34,7 @@ from .models import (
     SystemStatus,
     utcnow,
 )
+from .demo import synthetic_telemetry
 from .storage import repo
 from .storage.db import close_db, init_db
 
@@ -146,16 +147,24 @@ class Orchestrator:
         if saved.get("override"):
             with contextlib.suppress(Exception):
                 self.override = Override(**saved["override"])
-        if await self.ha.ping():
+        if self.settings.demo_mode:
+            log.warning(
+                "DEMO_MODE enabled — synthetic telemetry only; do not use in production."
+            )
+            self._inject_demo_telemetry()
+        elif await self.ha.ping():
             log.info("Home Assistant reachable.")
         else:
             log.warning("Home Assistant not reachable yet; will keep retrying.")
         # Best-effort initial forecast + sample (don't crash startup on failure).
         with contextlib.suppress(Exception):
             await self.forecast.refresh()
-        with contextlib.suppress(Exception):
-            await self.collector.sample()
-        self._stream_task = asyncio.create_task(self.collector.run_stream_safe())
+        if self.settings.demo_mode:
+            await self._control_cycle_body()
+        else:
+            with contextlib.suppress(Exception):
+                await self.collector.sample()
+            self._stream_task = asyncio.create_task(self.collector.run_stream_safe())
         await self._pulse_heartbeat()
         log.info("Orchestrator ready (shadow_mode=%s).", self.shadow_mode)
 
@@ -261,15 +270,30 @@ class Orchestrator:
         async with self._cycle_lock:
             return await self._control_cycle_body()
 
-    async def _control_cycle_body(self) -> Decision | None:
-        try:
-            telemetry = await self.collector.sample()
-        except Exception as e:  # noqa: BLE001
-            from .observability.metrics import metrics
+    def _inject_demo_telemetry(self) -> Telemetry:
+        telemetry = synthetic_telemetry()
+        self.collector.set_latest(telemetry)
+        return telemetry
 
-            metrics.control_cycle_failures += 1
-            log.warning("control_cycle telemetry failed: %s", e)
-            telemetry = self.collector.latest
+    async def _demo_sample(self) -> Telemetry:
+        telemetry = synthetic_telemetry()
+        self.collector.set_latest(telemetry)
+        with contextlib.suppress(Exception):
+            await repo.save_telemetry(telemetry)
+        return telemetry
+
+    async def _control_cycle_body(self) -> Decision | None:
+        if self.settings.demo_mode:
+            telemetry = await self._demo_sample()
+        else:
+            try:
+                telemetry = await self.collector.sample()
+            except Exception as e:  # noqa: BLE001
+                from .observability.metrics import metrics
+
+                metrics.control_cycle_failures += 1
+                log.warning("control_cycle telemetry failed: %s", e)
+                telemetry = self.collector.latest
         if telemetry is None:
             await self._broadcast()
             await self._pulse_heartbeat()
@@ -458,7 +482,11 @@ class Orchestrator:
                 max_soc_ceiling=bat.max_soc_ceiling,
                 min_soc_floor=bat.min_soc_floor,
             ),
-            ha_connected=self.ha.is_reachable(self.cfg.control.ha_stale_after_seconds),
+            ha_connected=(
+                True
+                if self.settings.demo_mode
+                else self.ha.is_reachable(self.cfg.control.ha_stale_after_seconds)
+            ),
             telemetry_stale=stale,
             telemetry_age_seconds=self._telemetry_age_seconds(),
             forecast_misconfigured=not self.cfg.forecast.location_configured,

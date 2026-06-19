@@ -1,8 +1,8 @@
 # Proxmox deployment
 
-> Published copy: [documentation site → Proxmox Deployment](https://oraad.github.io/solar-ai-optimizer/proxmox/)
-
 Deploy **Solar AI Optimizer** on Proxmox VE using a [community-scripts](https://github.com/community-scripts/ProxmoxVE)-style helper that creates a Debian LXC, installs Docker, and runs the published GHCR image.
+
+For other install paths see [Installation](installation.md).
 
 ## Quick install
 
@@ -23,7 +23,7 @@ Open the dashboard at `http://<lxc-ip>:8000`.
 
 ## Post-install
 
-1. Open **Settings** and set your Home Assistant URL and long-lived token.
+1. Open **Settings** and set your [Home Assistant URL and long-lived token](home-assistant-setup.md#long-lived-access-token).
 2. Map inverter entities, location, and battery settings.
 3. Leave **SHADOW MODE** on until you trust the decisions (default).
 4. Optionally set `API_TOKEN` in `/opt/solar-ai-optimizer/solar.env` on the LXC and the same value in **Settings → API security**.
@@ -83,14 +83,14 @@ bash -c "$(curl -fsSL ${SOLAR_REPO_RAW}/proxmox/ct/solar-ai-optimizer.sh)"
 
 ## Future: Proxmox OCI native (PVE 9.1+)
 
-Proxmox VE 9.1+ can run OCI images from GHCR as application LXCs ([official docs](https://pve.proxmox.com/pve-docs/chapter-pct.html), [tutorial](https://raymii.org/s/tutorials/Finally_run_Docker_containers_natively_in_Proxmox_9.1.html)). This feature is still a **technology preview** — updates require recreating the CT, and there is no Docker Compose support.
+Proxmox VE 9.1+ can run OCI images from GHCR as application LXCs. This feature is still a
+**technology preview** — updates require recreating the CT, and there is no Docker Compose support.
 
-The published image is **OCI-ready** (exec `ENTRYPOINT`, standard labels, `VOLUME /app/data`, env-driven config). Automated OCI helper scripts will be added when Proxmox stabilizes native OCI workflows.
+The published image is **OCI-ready** (exec `ENTRYPOINT`, standard labels, `VOLUME /app/data`, env-driven config).
 
 Manual steps for early adopters on PVE 9.1+:
 
-1. **Storage → CT Templates → Pull from OCI Registry**  
-   Reference: `ghcr.io/oraad/solar-ai-optimizer:latest`
+1. **Storage → CT Templates → Pull from OCI Registry** — `ghcr.io/oraad/solar-ai-optimizer:latest`
 2. **Create CT** from that template (`--ostype unmanaged`).
 3. Add mount point **`mp0` → `/app/data`** (4 GB+ recommended).
 4. In **Options → Environment**, set at minimum:
@@ -101,10 +101,12 @@ Manual steps for early adopters on PVE 9.1+:
 
 Until OCI support matures, the **Docker-in-LXC** helper above is the recommended production path.
 
-## Files
+## Repository files
 
 | Path | Role |
 |------|------|
-| [`ct/solar-ai-optimizer.sh`](ct/solar-ai-optimizer.sh) | Host script (Proxmox shell) |
-| [`install/solar-ai-optimizer-install.sh`](install/solar-ai-optimizer-install.sh) | Runs inside the new LXC |
-| [`lib/solar-common.sh`](lib/solar-common.sh) | Shared image/deploy helpers |
+| [`proxmox/ct/solar-ai-optimizer.sh`](https://github.com/oraad/solar-ai-optimizer/blob/main/proxmox/ct/solar-ai-optimizer.sh) | Host script (Proxmox shell) |
+| [`proxmox/install/solar-ai-optimizer-install.sh`](https://github.com/oraad/solar-ai-optimizer/blob/main/proxmox/install/solar-ai-optimizer-install.sh) | Runs inside the new LXC |
+| [`proxmox/lib/solar-common.sh`](https://github.com/oraad/solar-ai-optimizer/blob/main/proxmox/lib/solar-common.sh) | Shared image/deploy helpers |
+
+The canonical copy of this guide lives on the [documentation site](https://oraad.github.io/solar-ai-optimizer/proxmox/). The repository also keeps [`proxmox/README.md`](https://github.com/oraad/solar-ai-optimizer/blob/main/proxmox/README.md) for GitHub browsing.

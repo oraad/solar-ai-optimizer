@@ -1,7 +1,7 @@
 /**
  * Capture dashboard screenshots for docs/frontend-manual.md.
  *
- * Prerequisite: solar app running (docker compose up -d solar).
+ * Prerequisite: demo stack running with seeded data.
  * Usage: npm run docs:screenshots
  */
 import { mkdirSync } from "node:fs";
@@ -13,6 +13,12 @@ import { chromium, type Page } from "playwright";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(__dirname, "../../docs/images/frontend");
 const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:8000";
+
+const VIEWER_HEADERS = {
+  "X-Remote-User-Id": "viewer-demo",
+  "X-Remote-User-Name": "viewer",
+  "X-Remote-User-Display-Name": "Demo Viewer",
+};
 
 function app(page: Page) {
   return page.locator("solar-app");
@@ -58,57 +64,78 @@ async function expandDetails(page: Page, summaryText: string): Promise<void> {
   }
 }
 
+async function captureAdmin(page: Page): Promise<void> {
+  await waitForDashboard(page);
+
+  await clickMainTab(page, "Overview");
+  await shot(page, "overview.png");
+
+  await clickMainTab(page, "Forecast");
+  await shot(page, "forecast.png");
+
+  await clickMainTab(page, "History");
+  await shot(page, "history-chart.png");
+  await app(page)
+    .locator("solar-history-view .tabs button")
+    .filter({ hasText: "Decisions" })
+    .click();
+  await page.waitForTimeout(500);
+  await shot(page, "history-decisions.png");
+
+  await clickMainTab(page, "Assistant");
+  await shot(page, "assistant.png");
+
+  await clickMainTab(page, "Settings");
+  await expandDetails(page, "Home Assistant");
+  await expandDetails(page, "Load shedding");
+  await expandDetails(page, "Inverter entity map");
+  await shotFull(page, "settings.png");
+  const tierBlock = app(page)
+    .locator("solar-settings-panel details")
+    .filter({ hasText: "Load-shedding tiers" })
+    .first();
+  await tierBlock.screenshot({ path: path.join(OUT_DIR, "settings-load-shedding.png") });
+  console.log(`wrote ${path.join(OUT_DIR, "settings-load-shedding.png")}`);
+
+  await clickMainTab(page, "Overview");
+  await app(page)
+    .locator("solar-overrides-panel")
+    .first()
+    .screenshot({ path: path.join(OUT_DIR, "overrides.png") });
+  console.log(`wrote ${path.join(OUT_DIR, "overrides.png")}`);
+}
+
+async function captureViewer(page: Page): Promise<void> {
+  await waitForDashboard(page);
+  await clickMainTab(page, "Overview");
+  await shot(page, "viewer-overview.png");
+}
+
 async function main(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });
   const browser = await chromium.launch();
-  const context = await browser.newContext({
+
+  const adminContext = await browser.newContext({
     locale: "en-US",
     timezoneId: "UTC",
     viewport: { width: 1280, height: 900 },
   });
-  const page = await context.newPage();
+  const adminPage = await adminContext.newPage();
+
+  const viewerContext = await browser.newContext({
+    locale: "en-US",
+    timezoneId: "UTC",
+    viewport: { width: 1280, height: 900 },
+    extraHTTPHeaders: VIEWER_HEADERS,
+  });
+  const viewerPage = await viewerContext.newPage();
 
   try {
-    await waitForDashboard(page);
-
-    await clickMainTab(page, "Overview");
-    await shot(page, "overview.png");
-
-    await clickMainTab(page, "Forecast");
-    await shot(page, "forecast.png");
-
-    await clickMainTab(page, "History");
-    await shot(page, "history-chart.png");
-    await app(page)
-      .locator("solar-history-view .tabs button")
-      .filter({ hasText: "Decisions" })
-      .click();
-    await page.waitForTimeout(500);
-    await shot(page, "history-decisions.png");
-
-    await clickMainTab(page, "Assistant");
-    await shot(page, "assistant.png");
-
-    await clickMainTab(page, "Settings");
-    await expandDetails(page, "Home Assistant");
-    await expandDetails(page, "Load shedding");
-    await expandDetails(page, "Inverter entity map");
-    await shotFull(page, "settings.png");
-    const tierBlock = app(page)
-      .locator("solar-settings-panel details")
-      .filter({ hasText: "Load-shedding tiers" })
-      .first();
-    await tierBlock.screenshot({ path: path.join(OUT_DIR, "settings-load-shedding.png") });
-    console.log(`wrote ${path.join(OUT_DIR, "settings-load-shedding.png")}`);
-
-    await clickMainTab(page, "Overview");
-    await app(page)
-      .locator("solar-overrides-panel")
-      .first()
-      .screenshot({ path: path.join(OUT_DIR, "overrides.png") });
-    console.log(`wrote ${path.join(OUT_DIR, "overrides.png")}`);
+    await captureAdmin(adminPage);
+    await captureViewer(viewerPage);
   } finally {
-    await context.close();
+    await adminContext.close();
+    await viewerContext.close();
     await browser.close();
   }
 }

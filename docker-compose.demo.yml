@@ -1,0 +1,7 @@
+# Demo / documentation overlay — do NOT use in production.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+services:
+  solar:
+    environment:
+      DEMO_MODE: "true"
+      TRUST_INGRESS_HEADERS: "true"

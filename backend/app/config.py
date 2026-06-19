@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     session_ttl_hours: int = Field(default=24)
     session_cookie_secure: bool = Field(default=False)
 
+    # Documentation / screenshot mode only — injects synthetic telemetry.
+    demo_mode: bool = Field(default=False)
+
     @property
     def is_addon(self) -> bool:
         return bool(self.supervisor_token)

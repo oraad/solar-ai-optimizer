@@ -49,6 +49,10 @@ class Collector:
     def latest(self) -> Telemetry | None:
         return self._latest
 
+    def set_latest(self, telemetry: Telemetry) -> None:
+        """Inject cached telemetry (demo / test helpers)."""
+        self._latest = telemetry
+
     def set_grid_entity(self, entity_id: str | None) -> None:
         self._grid_entity = entity_id
 

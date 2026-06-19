@@ -21,6 +21,8 @@ services:
       # API_TOKEN: "change-me"  # optional: protect mutating /api endpoints
       DATA_DIR: /app/data
       DATABASE_URL: sqlite+aiosqlite:////app/data/solar.db
+      DEMO_MODE: ${DEMO_MODE:-false}
+      TRUST_INGRESS_HEADERS: ${TRUST_INGRESS_HEADERS:-false}
     # Optionally load extra env from a file if you choose to create one:
     # env_file:
     #   - path: .env

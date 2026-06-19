@@ -32,6 +32,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt \
     && if [ "$INSTALL_EXTRAS" = "1" ]; then pip install -r requirements-extras.txt; fi
 
 COPY backend/app ./app
+COPY backend/scripts ./scripts
 COPY config/config.yaml.example ./config/config.yaml
 COPY run.sh ./run.sh
 COPY --from=frontend /ui/dist ./static

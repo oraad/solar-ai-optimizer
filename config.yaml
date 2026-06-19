@@ -1,0 +1,52 @@
+# Home Assistant add-on manifest.
+name: "Solar AI Optimizer"
+version: "0.1.0"
+slug: "solar_ai_optimizer"
+description: "Resilience-first, vendor-agnostic solar/battery optimizer."
+url: "https://github.com/oraad/solar-ai-optimizer"
+arch:
+  - aarch64
+  - amd64
+init: false
+startup: application
+boot: auto
+build:
+  .: .
+  dockerfile: Dockerfile
+ingress: true
+ingress_port: 8000
+panel_icon: "mdi:solar-power-variant"
+panel_title: "Solar AI"
+hassio_api: true
+homeassistant_api: true
+host_network: false
+map:
+  - share:rw
+options:
+  shadow_mode: true
+  log_level: "INFO"
+  log_format: "text"
+  ml_load_enabled: false
+  llm_enabled: false
+  api_token: ""
+  ha_base_url: ""
+  ha_token: ""
+  ha_verify_ssl: true
+  solcast_api_key: ""
+  solcast_resource_id: ""
+  ollama_base_url: "http://localhost:11434"
+  ollama_model: "llama3.1"
+schema:
+  shadow_mode: bool
+  log_level: "list(DEBUG|INFO|WARNING|ERROR)"
+  log_format: "list(text|json)"
+  ml_load_enabled: bool
+  llm_enabled: bool
+  api_token: "str?"
+  ha_base_url: "str?"
+  ha_token: "str?"
+  ha_verify_ssl: bool
+  solcast_api_key: "str?"
+  solcast_resource_id: "str?"
+  ollama_base_url: "str?"
+  ollama_model: "str?"

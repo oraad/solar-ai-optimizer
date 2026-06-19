@@ -1,0 +1,63 @@
+# Example base config shipped with the image. The UI persists overrides to the
+# data volume; "Revert to file" clears overrides and returns to this baseline.
+
+ha:
+  base_url: ""
+  token: ""
+  verify_ssl: true
+
+battery:
+  capacity_kwh: 10.0
+  max_charge_a: 100.0
+  max_grid_charge_a: 60.0
+  nominal_voltage: 51.2
+  min_soc_floor: 20.0
+  max_soc_ceiling: 100.0
+  round_trip_efficiency: 0.9
+
+reserve:
+  critical_load_w: 400.0
+  min_autonomy_hours: 12.0
+  solar_bridge_buffer_pct: 15.0
+  cloudy_extra_buffer_pct: 15.0
+
+forecast:
+  provider: open-meteo
+  # Set your site coordinates in Settings — 0,0 disables solar forecast until configured.
+  latitude: 0.0
+  longitude: 0.0
+  timezone: auto
+  arrays:
+    - name: array
+      kwp: 5.0
+      tilt: 15.0
+      azimuth: 180.0
+  temperature:
+    enabled: true
+    ha_entity: null
+    hdd_base_c: 18.0
+    cdd_base_c: 24.0
+    use_month_fallback: true
+    min_load_fraction: 0.8
+    training_days: 45
+
+control:
+  loop_interval_seconds: 30
+  forecast_interval_minutes: 30
+  min_write_interval_seconds: 60
+  enforce_hard_bounds: true
+  ha_stale_after_seconds: 120
+
+engine:
+  mode: rules
+  mpc_horizon_hours: 48
+
+inverter:
+  read: {}
+  write: {}
+  work_modes: {}
+
+load_shedding:
+  enabled: false
+  restore_all_when_grid_present: true
+  tiers: []

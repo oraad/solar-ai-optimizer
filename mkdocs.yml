@@ -1,0 +1,34 @@
+site_name: Solar AI Optimizer
+site_url: https://oraad.github.io/solar-ai-optimizer/
+repo_url: https://github.com/oraad/solar-ai-optimizer
+repo_name: oraad/solar-ai-optimizer
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: amber
+      accent: orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: amber
+      accent: orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Dashboard User Guide: frontend-manual.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true

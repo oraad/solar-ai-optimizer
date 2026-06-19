@@ -1,0 +1,65 @@
+services:
+  solar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+      args:
+        INSTALL_EXTRAS: "1"
+    image: solar-ai-optimizer
+    container_name: solar-optimizer
+    restart: unless-stopped
+    # No .env or config.yaml required: configure everything (including the Home
+    # Assistant URL/token) from the dashboard Settings panel. It is persisted to
+    # the solar-data volume. The variables below are optional defaults; you may
+    # override or add any Settings env var here (HA_BASE_URL, HA_TOKEN,
+    # SHADOW_MODE, LOG_LEVEL, SOLCAST_API_KEY, LLM_ENABLED, ...).
+    environment:
+      SHADOW_MODE: "true"
+      LOG_LEVEL: INFO
+      # LOG_FORMAT: json  # optional: JSON logs for aggregators
+      # API_TOKEN: "change-me"  # optional: protect mutating /api endpoints
+      DATA_DIR: /app/data
+      DATABASE_URL: sqlite+aiosqlite:////app/data/solar.db
+    # Optionally load extra env from a file if you choose to create one:
+    # env_file:
+    #   - path: .env
+    #     required: false
+    volumes:
+      - solar-data:/app/data
+    ports:
+      # Dashboard + API are served together on 8000.
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+      args:
+        INSTALL_EXTRAS: "1"
+    image: solar-ai-optimizer-test
+
+  frontend-test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    image: solar-ai-optimizer-frontend-test
+    working_dir: /ui
+    volumes:
+      - ./frontend:/ui
+      - frontend-node-modules:/ui/node_modules
+    command: ["npm", "test"]
+
+volumes:
+  solar-data:
+  frontend-node-modules:

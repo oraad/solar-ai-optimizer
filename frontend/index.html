@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#0b0e13" />
+    <title>Solar AI Optimizer</title>
+    <!-- Apply the saved theme before first paint to avoid a flash. -->
+    <script>
+      try {
+        var t = localStorage.getItem("solar-theme");
+        if (t) document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    </script>
+    <style>
+      /* Design tokens live on :root (light DOM) so they inherit into every
+         web component's shadow tree and can be switched by [data-theme]. */
+      :root {
+        --bg: #0b0e13;
+        --panel: #151a21;
+        --panel-2: #1c222b;
+        --panel-3: #232a34;
+        --border: #2a313c;
+        --border-strong: #39414e;
+        --text: #e6e9ef;
+        --muted: #94a0b0;
+        --accent: #ffb020;
+        --accent-2: #4cc2ff;
+        --good: #2fbf71;
+        --warn: #f0a202;
+        --bad: #e5484d;
+        --critical: #ff2d55;
+        --radius: 14px;
+        --radius-sm: 9px;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.25);
+        --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.4);
+        --ring: 0 0 0 3px rgba(76, 194, 255, 0.35);
+        /* Responsive density (shrunk via media queries below). */
+        --app-pad: 20px;
+        --card-pad: 18px;
+        --gap: 16px;
+        --metric: 2rem;
+        color-scheme: dark;
+      }
+      @media (max-width: 760px) {
+        :root { --app-pad: 12px; --card-pad: 14px; --gap: 12px; --metric: 1.6rem; }
+      }
+      @media (max-width: 460px) {
+        :root { --app-pad: 10px; --card-pad: 12px; --gap: 10px; --metric: 1.4rem; }
+      }
+      html[data-theme="light"] {
+        --bg: #eef1f6;
+        --panel: #ffffff;
+        --panel-2: #f3f6fa;
+        --panel-3: #e8edf4;
+        --border: #dce2ea;
+        --border-strong: #c5cdd9;
+        --text: #121722;
+        --muted: #5b6675;
+        --accent: #d98a05;
+        --accent-2: #1a86c7;
+        --good: #1ea863;
+        --warn: #b9790a;
+        --bad: #d23b40;
+        --critical: #e11d48;
+        --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.08);
+        --shadow-lg: 0 12px 40px rgba(16, 24, 40, 0.14);
+        --ring: 0 0 0 3px rgba(26, 134, 199, 0.3);
+        color-scheme: light;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        background:
+          radial-gradient(1100px 600px at 100% -10%, rgba(255, 176, 32, 0.06), transparent 60%),
+          radial-gradient(1000px 700px at -10% 0%, rgba(76, 194, 255, 0.06), transparent 55%),
+          var(--bg);
+        background-attachment: fixed;
+        color: var(--text);
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        transition: background-color 0.25s ease, color 0.25s ease;
+      }
+      /* Pleasant scrollbars across the app. */
+      * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+      *::-webkit-scrollbar { width: 10px; height: 10px; }
+      *::-webkit-scrollbar-thumb {
+        background: var(--border-strong);
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+      }
+      *::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: padding-box; }
+    </style>
+  </head>
+  <body>
+    <solar-app></solar-app>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

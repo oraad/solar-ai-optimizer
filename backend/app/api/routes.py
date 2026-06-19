@@ -1,0 +1,332 @@
+"""REST endpoints for status, forecasts, plan, history, config, and overrides."""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+from fastapi import APIRouter, Body, HTTPException, Query, Request
+from pydantic import BaseModel, ValidationError
+
+from ..llm.assistant import Assistant
+from ..models import Override, utcnow
+from ..orchestrator import Orchestrator
+from ..storage import repo
+
+router = APIRouter(prefix="/api", tags=["solar"])
+
+
+def _orch(request: Request) -> Orchestrator:
+    return request.app.state.orchestrator
+
+
+@router.get("/health")
+async def health(request: Request) -> dict:
+    from ..observability.metrics import metrics
+
+    orch = _orch(request)
+    status = orch.build_status()
+    forecast = orch.forecast.current
+    return {
+        "status": "ok",
+        "ha_connected": status.ha_connected,
+        "shadow_mode": status.shadow_mode,
+        "paused": status.paused,
+        "telemetry_stale": status.telemetry_stale,
+        "telemetry_age_seconds": status.telemetry_age_seconds,
+        "forecast_misconfigured": status.forecast_misconfigured,
+        "forecast_degraded": status.forecast_degraded,
+        "engine_mode": status.engine_mode,
+        "engine_active": status.engine_active,
+        "metrics": metrics.as_dict(),
+        "time": utcnow().isoformat(),
+        "forecast_generated_at": (
+            forecast.generated_at.isoformat() if forecast else None
+        ),
+    }
+
+
+@router.get("/status")
+async def status(request: Request) -> dict:
+    return _orch(request).build_status().model_dump(mode="json")
+
+
+@router.get("/forecast")
+async def forecast(request: Request) -> dict:
+    cur = _orch(request).forecast.current
+    return cur.model_dump(mode="json") if cur else {}
+
+
+@router.post("/forecast/refresh")
+async def forecast_refresh(request: Request) -> dict:
+    orch = _orch(request)
+    await orch.forecast_cycle()
+    cur = orch.forecast.current
+    return cur.model_dump(mode="json") if cur else {}
+
+
+@router.get("/plan")
+async def plan(request: Request) -> dict:
+    orch = _orch(request)
+    decision = orch.latest_decision
+    return {
+        "decision": decision.model_dump(mode="json") if decision else None,
+        "results": [r.model_dump(mode="json") for r in orch.latest_results],
+        "shed_results": [r.model_dump(mode="json") for r in orch.latest_shed_results],
+        "shadow_mode": orch.shadow_mode,
+        "paused": orch.paused,
+    }
+
+
+@router.post("/cycle")
+async def force_cycle(request: Request) -> dict:
+    decision = await _orch(request).control_cycle()
+    return decision.model_dump(mode="json") if decision else {}
+
+
+@router.get("/grid-stats")
+async def grid_stats(request: Request) -> dict:
+    orch = _orch(request)
+    telemetry = orch.collector.latest
+    live = telemetry.grid_present if telemetry else None
+    stats = orch.latest_grid_stats or await orch.reactive.compute_stats(
+        live_present=live
+    )
+    return stats.model_dump(mode="json")
+
+
+@router.get("/history/telemetry")
+async def history_telemetry(
+    request: Request, hours: int = Query(default=24, ge=1, le=720)
+) -> list[dict]:
+    since = utcnow() - timedelta(hours=hours)
+    rows = await repo.get_telemetry_since(since)
+    return [r.model_dump(mode="json") for r in rows]
+
+
+@router.get("/history/decisions")
+async def history_decisions(
+    request: Request, limit: int = Query(default=100, ge=1, le=1000)
+) -> list[dict]:
+    return await repo.get_recent_decisions(limit=limit)
+
+
+@router.get("/history/grid-events")
+async def history_grid_events(
+    request: Request, days: int = Query(default=7, ge=1, le=90)
+) -> list[dict]:
+    since = utcnow() - timedelta(days=days)
+    events = await repo.get_grid_events_since(since)
+    return [e.model_dump(mode="json") for e in events]
+
+
+def _config_view(cfg) -> dict:
+    """Serialise config for the UI, masking the HA token (never leak secrets)."""
+    ha = cfg.ha.model_dump()
+    ha["token"] = ""  # masked; a blank token on save means "leave unchanged"
+    ha["has_token"] = bool(cfg.ha.token)
+    return {
+        "ha": ha,
+        "battery": cfg.battery.model_dump(),
+        "reserve": cfg.reserve.model_dump(),
+        "forecast": cfg.forecast.model_dump(),
+        "control": cfg.control.model_dump(),
+        "engine": cfg.engine.model_dump(),
+        "inverter": cfg.inverter.model_dump(),
+        "load_shedding": cfg.load_shedding.model_dump(),
+    }
+
+
+@router.get("/entities")
+async def entities(
+    request: Request, domain: str | None = Query(default=None)
+) -> dict:
+    """List Home Assistant entities for UI autocomplete.
+
+    Optional `domain` filter is a comma-separated list, e.g. "sensor,switch".
+    Returns {connected, entities:[{entity_id, name, domain}]}.
+    """
+    orch = _orch(request)
+    wanted = {d.strip() for d in domain.split(",") if d.strip()} if domain else None
+    try:
+        states = await orch.ha.get_states()
+    except Exception:  # noqa: BLE001 - HA may be unreachable; return empty list
+        return {"connected": False, "entities": []}
+
+    out: list[dict] = []
+    for s in states:
+        eid = s.get("entity_id")
+        if not eid:
+            continue
+        dom = eid.split(".", 1)[0]
+        if wanted and dom not in wanted:
+            continue
+        name = (s.get("attributes") or {}).get("friendly_name") or eid
+        out.append({"entity_id": eid, "name": name, "domain": dom})
+    out.sort(key=lambda e: e["entity_id"])
+    return {
+        "connected": orch.ha.is_reachable(orch.cfg.control.ha_stale_after_seconds),
+        "entities": out,
+    }
+
+
+@router.get("/config")
+async def get_config(request: Request) -> dict:
+    """Full (non-secret) effective config surfaced to the dashboard for editing."""
+    return _config_view(_orch(request).cfg)
+
+
+@router.put("/config")
+async def put_config(request: Request, patch: dict = Body(...)) -> dict:
+    """Apply a partial config update from the UI (deep-merged + persisted)."""
+    orch = _orch(request)
+    # Don't overwrite a stored HA token with the masked/blank value from the UI,
+    # and ignore the read-only helper flag.
+    ha_patch = patch.get("ha")
+    if isinstance(ha_patch, dict):
+        ha_patch.pop("has_token", None)
+        if not ha_patch.get("token"):
+            ha_patch.pop("token", None)
+        if not ha_patch:
+            patch.pop("ha", None)
+    try:
+        cfg = await orch.reload_config(patch)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=e.errors()) from e
+    except Exception as e:  # noqa: BLE001 - surface validation errors to the UI
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {"ok": True, "config": _config_view(cfg)}
+
+
+@router.post("/config/reset")
+async def reset_config(request: Request) -> dict:
+    cfg = await _orch(request).reset_config()
+    return {"ok": True, "config": _config_view(cfg)}
+
+
+@router.get("/model/export")
+async def model_export(request: Request) -> dict:
+    """Export the learned model (bias factors + load profile) as JSON."""
+    return _orch(request).forecast.export_model()
+
+
+@router.post("/model/import")
+async def model_import(request: Request, data: dict = Body(...)) -> dict:
+    orch = _orch(request)
+    try:
+        async with orch.forecast._refresh_lock:
+            orch.forecast.import_model(data)
+            orch.forecast.save_model(orch.model_path)
+        await orch.forecast_cycle()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {"ok": True, "ml_import_locked": orch.forecast.ml_import_locked}
+
+
+@router.post("/model/retrain")
+async def model_retrain(request: Request) -> dict:
+    orch = _orch(request)
+    trained = await orch.forecast.retrain_ml_load()
+    orch.forecast.save_model(orch.model_path)
+    await orch.forecast_cycle()
+    return {
+        "ok": True,
+        "trained": trained,
+        "ml_import_locked": orch.forecast.ml_import_locked,
+    }
+
+
+class OverrideRequest(Override):
+    """REST override body; kill_switch requires confirm=true."""
+
+    confirm: bool = False
+
+
+@router.post("/override")
+async def post_override(request: Request, body: OverrideRequest) -> dict:
+    if body.kill_switch and not body.confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="kill_switch requires confirm=true",
+        )
+    ov = Override(**body.model_dump(exclude={"confirm"}))
+    return await _orch(request).apply_override(ov)
+
+
+@router.post("/override/clear")
+async def clear_override(request: Request) -> dict:
+    orch = _orch(request)
+    result = orch.clear_overrides()
+    await orch.control_cycle()
+    return result
+
+
+@router.get("/history/executions")
+async def history_executions(
+    request: Request, limit: int = Query(default=100, ge=1, le=1000)
+) -> list[dict]:
+    return await repo.get_recent_executions(limit=limit)
+
+
+@router.get("/history/shed-executions")
+async def history_shed_executions(
+    request: Request, limit: int = Query(default=100, ge=1, le=1000)
+) -> list[dict]:
+    return await repo.get_recent_shed_executions(limit=limit)
+
+
+class AssistRequest(BaseModel):
+    question: str
+    apply: bool = False
+
+
+@router.post("/assistant/ask")
+async def assistant_ask(request: Request, body: AssistRequest) -> dict:
+    """Natural-language Q&A and (optional) control via the local LLM assistant.
+
+    The LLM only writes prose; control intents are parsed deterministically and
+    applied only when `apply=true`.
+    """
+    orch = _orch(request)
+    assistant = Assistant(orch.settings)
+
+    status = orch.build_status()
+    forecast = orch.forecast.current
+    context = {
+        "telemetry": status.telemetry.model_dump(mode="json") if status.telemetry else None,
+        "decision": status.decision.model_dump(mode="json") if status.decision else None,
+        "grid_stats": status.grid_stats.model_dump(mode="json") if status.grid_stats else None,
+        "forecast": {
+            "solar_today_kwh": forecast.solar_today_kwh if forecast else None,
+            "solar_tomorrow_kwh": forecast.solar_tomorrow_kwh if forecast else None,
+            "cloudy_tomorrow": forecast.cloudy_tomorrow if forecast else None,
+        },
+        "shadow_mode": orch.shadow_mode,
+        "paused": orch.paused,
+    }
+
+    intent = assistant.parse_intent(body.question)
+    answer = await assistant.answer(body.question, context)
+
+    applied = None
+    blocked = False
+    block_reason: str | None = None
+    if body.apply and intent is not None:
+        if intent.kill_switch and not assistant.kill_switch_confirmed(body.question):
+            answer = (
+                f"{answer}\n\n"
+                "Kill switch requires explicit confirmation. "
+                "Re-send with apply and include 'confirm' in your message."
+            ).strip()
+            blocked = True
+            block_reason = "kill_switch_confirm_required"
+        else:
+            applied = await orch.apply_override(intent)
+
+    return {
+        "answer": answer,
+        "intent": intent.model_dump(mode="json") if intent else None,
+        "applied": applied,
+        "blocked": blocked,
+        "block_reason": block_reason,
+        "llm_enabled": assistant.enabled,
+    }

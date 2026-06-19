@@ -1,0 +1,330 @@
+"""Phase 2 rule-based decision engine (deterministic, explainable).
+
+Core stance: the grid is assumed ABSENT for planning. We defend a conservative
+reserve floor so the home survives even if the grid never returns. If the grid
+does appear, the reactive layer exploits it immediately as a bonus.
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timedelta, timezone
+
+from ..config import BatteryConfig, EngineConfig, LoadSheddingConfig, ReserveConfig
+from ..grid.reactive import ReactiveGrid
+from ..models import (
+    BlackoutRisk,
+    Capability,
+    ControlAction,
+    Decision,
+    ForecastBundle,
+    GridStats,
+    Override,
+    ReserveTarget,
+    Telemetry,
+    utcnow,
+)
+from .shedding import LoadSheddingController
+
+log = logging.getLogger("engine.rules")
+
+
+class RuleEngine:
+    def __init__(
+        self,
+        battery: BatteryConfig,
+        reserve: ReserveConfig,
+        engine_cfg: EngineConfig,
+        reactive: ReactiveGrid,
+        shedding: LoadSheddingConfig | None = None,
+    ) -> None:
+        self._battery = battery
+        self._reserve = reserve
+        self._engine_cfg = engine_cfg
+        self._reactive = reactive
+        self._shedding = LoadSheddingController(shedding or LoadSheddingConfig())
+        self._total_kwp = 1.0
+
+    def set_total_kwp(self, total_kwp: float) -> None:
+        self._total_kwp = max(0.1, total_kwp)
+
+    # --------------------------------------------------------- reserve floor --
+    def compute_reserve(
+        self, telemetry: Telemetry, forecast: ForecastBundle | None
+    ) -> ReserveTarget:
+        cap_wh = self._battery.capacity_kwh * 1000.0
+
+        # 1) Minimum autonomy floor: survive min_autonomy_hours of critical load.
+        autonomy_wh = self._reserve.critical_load_w * self._reserve.min_autonomy_hours
+        autonomy_pct = 100.0 * autonomy_wh / cap_wh
+        autonomy_floor_soc = max(self._battery.min_soc_floor, autonomy_pct)
+
+        # 2) Solar-bridge: peak overnight cumulative deficit until solar recovers.
+        bridge_wh = self._solar_bridge_wh(forecast)
+        buffer = self._reserve.solar_bridge_buffer_pct
+        degraded_note = ""
+        if forecast and forecast.cloudy_tomorrow:
+            buffer += self._reserve.cloudy_extra_buffer_pct
+        if forecast and forecast.degraded:
+            buffer += self._reserve.cloudy_extra_buffer_pct
+            degraded_note = " Degraded/stale forecast — extra conservative buffer applied."
+        bridge_wh *= 1.0 + buffer / 100.0
+        bridge_pct = 100.0 * bridge_wh / cap_wh
+        solar_bridge_soc = min(
+            self._battery.max_soc_ceiling,
+            self._battery.min_soc_floor + bridge_pct,
+        )
+
+        target = min(
+            self._battery.max_soc_ceiling,
+            max(autonomy_floor_soc, solar_bridge_soc),
+        )
+        driver = (
+            "solar-bridge"
+            if solar_bridge_soc >= autonomy_floor_soc
+            else "autonomy-floor"
+        )
+        rationale = (
+            f"Reserve target {target:.0f}% (driver: {driver}). "
+            f"Autonomy floor {autonomy_floor_soc:.0f}% "
+            f"({self._reserve.min_autonomy_hours:.0f}h @ "
+            f"{self._reserve.critical_load_w:.0f}W); "
+            f"solar-bridge {solar_bridge_soc:.0f}% "
+            f"(bridge {bridge_wh/1000:.1f} kWh incl. {buffer:.0f}% buffer)."
+        )
+        if forecast:
+            hdh = forecast.heating_degree_hours_24h
+            cdh = forecast.cooling_degree_hours_24h
+            if hdh >= 5.0:
+                rationale += f" Cold snap: {hdh:.0f} heating degree-hrs (24h) raising expected load."
+            elif cdh >= 5.0:
+                rationale += f" Heat wave: {cdh:.0f} cooling degree-hrs (24h) raising expected load."
+        if degraded_note:
+            rationale += degraded_note
+        return ReserveTarget(
+            target_soc=round(target, 1),
+            solar_bridge_soc=round(solar_bridge_soc, 1),
+            autonomy_floor_soc=round(autonomy_floor_soc, 1),
+            rationale=rationale,
+        )
+
+    def _solar_bridge_wh(self, forecast: ForecastBundle | None) -> float:
+        """Peak cumulative (load - solar) deficit over the next 24h, in Wh.
+
+        This is the energy the battery must supply to carry loads through the
+        dark hours until tomorrow's solar takes over.
+        """
+        if not forecast or not forecast.load:
+            # No forecast yet: bridge critical load through a default night.
+            return self._reserve.critical_load_w * 12.0
+
+        solar_by_hour = {
+            p.ts.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0): p.pv_power_w
+            for p in forecast.solar
+        }
+        now = utcnow().replace(minute=0, second=0, microsecond=0)
+        cum = 0.0
+        peak = 0.0
+        for i in range(24):
+            ts = now + timedelta(hours=i)
+            load_w = self._load_at(forecast, ts)
+            solar_w = solar_by_hour.get(ts, 0.0)
+            net_deficit = max(0.0, load_w - solar_w)
+            surplus = max(0.0, solar_w - load_w)
+            cum += net_deficit
+            cum -= surplus * self._battery.round_trip_efficiency
+            cum = max(0.0, cum)
+            peak = max(peak, cum)
+        return peak
+
+    def _load_at(self, forecast: ForecastBundle, ts: datetime) -> float:
+        key = ts.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        for p in forecast.load:
+            if p.ts.astimezone(timezone.utc).replace(
+                minute=0, second=0, microsecond=0
+            ) == key:
+                return p.load_power_w
+        if not forecast.load:
+            return self._reserve.critical_load_w
+        nearest = min(
+            forecast.load,
+            key=lambda p: abs(
+                (
+                    p.ts.astimezone(timezone.utc).replace(
+                        minute=0, second=0, microsecond=0
+                    )
+                    - key
+                ).total_seconds()
+            ),
+        )
+        delta = abs(
+            (
+                nearest.ts.astimezone(timezone.utc).replace(
+                    minute=0, second=0, microsecond=0
+                )
+                - key
+            ).total_seconds()
+        )
+        if delta <= 3600:
+            return nearest.load_power_w
+        return self._reserve.critical_load_w
+
+    # ------------------------------------------------------------- decision --
+    def decide(
+        self,
+        telemetry: Telemetry,
+        forecast: ForecastBundle | None,
+        grid_stats: GridStats | None,
+        override: Override | None,
+        shadow_mode: bool,
+        telemetry_stale: bool = False,
+    ) -> Decision:
+        reserve = self.compute_reserve(telemetry, forecast)
+        target_soc = reserve.target_soc
+
+        # Operator can pin a reserve target.
+        if override and override.reserve_soc is not None:
+            target_soc = max(
+                self._battery.min_soc_floor,
+                min(self._battery.max_soc_ceiling, override.reserve_soc),
+            )
+
+        actions: list[ControlAction] = []
+        advisories: list[str] = []
+
+        # Opportunistic grid top-up (reactive; no prediction).
+        if override and override.force_grid_charge:
+            actions.append(
+                ControlAction(
+                    capability=Capability.GRID_CHARGE_ENABLE,
+                    value=True,
+                    reason="Operator override: force grid charge.",
+                    priority=120,
+                )
+            )
+            actions.append(
+                ControlAction(
+                    capability=Capability.MAX_GRID_CHARGE_CURRENT,
+                    value=self._battery.max_grid_charge_a,
+                    reason="Operator override: grid charge at max safe current.",
+                    priority=110,
+                )
+            )
+        elif override and override.force_grid_charge is False:
+            actions.append(
+                ControlAction(
+                    capability=Capability.GRID_CHARGE_ENABLE,
+                    value=False,
+                    reason="Operator override: disable grid charge.",
+                    priority=120,
+                )
+            )
+            actions.append(
+                ControlAction(
+                    capability=Capability.MAX_GRID_CHARGE_CURRENT,
+                    value=0.0,
+                    reason="Operator override: grid charge current set to 0.",
+                    priority=110,
+                )
+            )
+        elif not telemetry_stale:
+            actions.extend(self._reactive.opportunistic_actions(telemetry, target_soc))
+
+        # Surplus diversion advisory (no deferrable-load capability is written;
+        # surfaced for the operator / future automations).
+        soc = telemetry.battery_soc or 0.0
+        pv = telemetry.pv_power or 0.0
+        load = telemetry.load_power or 0.0
+        if soc >= min(99.0, self._battery.max_soc_ceiling - 1) and pv > load:
+            advisories.append(
+                f"Surplus available ({(pv - load) / 1000:.1f} kW) with battery full: "
+                f"divert to deferrable loads (geyser/EV/pumps) instead of curtailing."
+            )
+
+        # Blackout risk.
+        risk, score = self._blackout_risk(telemetry, reserve, forecast)
+
+        summary = self._summary(telemetry, reserve, target_soc, risk)
+        if advisories:
+            summary += " | " + " ".join(advisories)
+
+        shed_actions = self._shedding.plan(telemetry, telemetry_stale=telemetry_stale)
+
+        return Decision(
+            ts=utcnow(),
+            reserve=ReserveTarget(
+                target_soc=round(target_soc, 1),
+                solar_bridge_soc=reserve.solar_bridge_soc,
+                autonomy_floor_soc=reserve.autonomy_floor_soc,
+                rationale=reserve.rationale,
+            ),
+            actions=sorted(actions, key=lambda a: a.priority, reverse=True),
+            shed_actions=shed_actions,
+            blackout_risk=risk,
+            blackout_risk_score=round(score, 3),
+            summary=summary,
+            shadow_mode=shadow_mode,
+        )
+
+    def _blackout_risk(
+        self,
+        telemetry: Telemetry,
+        reserve: ReserveTarget,
+        forecast: ForecastBundle | None,
+    ) -> tuple[BlackoutRisk, float]:
+        soc = telemetry.battery_soc
+        if soc is None:
+            return BlackoutRisk.MODERATE, 0.5
+
+        if soc <= self._battery.min_soc_floor:
+            return BlackoutRisk.CRITICAL, 1.0
+
+        target = max(reserve.target_soc, 1.0)
+        deficit_ratio = max(0.0, min(1.0, (target - soc) / target))
+
+        from ..forecast.helpers import expected_clear_sky_kwh
+
+        expected_clear = expected_clear_sky_kwh(self._total_kwp)
+        if forecast:
+            tomorrow = forecast.solar_tomorrow_kwh
+            solar_factor = 1.0 - max(
+                0.0, min(1.0, tomorrow / expected_clear)
+            )
+        else:
+            solar_factor = 0.5
+
+        score = 0.6 * deficit_ratio + 0.4 * solar_factor
+        if telemetry.grid_present:
+            score *= 0.5  # grid physically here right now lowers immediate risk
+
+        if soc <= reserve.autonomy_floor_soc:
+            score = max(score, 0.7)
+
+        if score < 0.25:
+            risk = BlackoutRisk.LOW
+        elif score < 0.5:
+            risk = BlackoutRisk.MODERATE
+        elif score < 0.75:
+            risk = BlackoutRisk.HIGH
+        else:
+            risk = BlackoutRisk.CRITICAL
+        return risk, score
+
+    @staticmethod
+    def _summary(
+        telemetry: Telemetry,
+        reserve: ReserveTarget,
+        target_soc: float,
+        risk: BlackoutRisk,
+    ) -> str:
+        soc = telemetry.battery_soc
+        grid = (
+            "grid PRESENT"
+            if telemetry.grid_present
+            else "grid absent"
+        )
+        soc_str = f"{soc:.0f}%" if soc is not None else "?"
+        return (
+            f"SOC {soc_str} vs reserve {target_soc:.0f}% | {grid} | "
+            f"blackout risk: {risk.value}. {reserve.rationale}"
+        )

@@ -7,6 +7,7 @@ unpredictable grid outages.
 ## Quick links
 
 - [Dashboard user guide](frontend-manual.md) — screenshot walkthrough of every tab
+- [Home Assistant fail-safe](home-assistant-failsafe.md) — heartbeat watchdog and grid-charge-at-max
 - [GitHub repository](https://github.com/oraad/solar-ai-optimizer) — source, issues, releases
 - [Changelog](https://github.com/oraad/solar-ai-optimizer/blob/main/CHANGELOG.md)
 

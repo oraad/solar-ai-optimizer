@@ -12,6 +12,8 @@ const SECTION_TITLES: Record<string, string> = {
 
   control: "Control",
 
+  fail_safe: "Fail-safe",
+
   load_shedding: "Load shedding",
 
   engine: "Engine",
@@ -83,6 +85,16 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
     enforce_hard_bounds: "Enforce hard bounds",
 
     ha_stale_after_seconds: "HA stale timeout (s)",
+
+  },
+
+  fail_safe: {
+
+    heartbeat_entity: "Heartbeat entity",
+
+    heartbeat_enabled: "Heartbeat enabled",
+
+    shutdown_failsafe_enabled: "Shutdown fail-safe enabled",
 
   },
 

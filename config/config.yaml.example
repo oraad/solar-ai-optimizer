@@ -48,6 +48,11 @@ control:
   enforce_hard_bounds: true
   ha_stale_after_seconds: 120
 
+fail_safe:
+  heartbeat_entity: input_datetime.solar_optimizer_heartbeat
+  heartbeat_enabled: true
+  shutdown_failsafe_enabled: true
+
 engine:
   mode: rules
   mpc_horizon_hours: 48

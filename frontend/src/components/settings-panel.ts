@@ -22,7 +22,7 @@ const FORM_SECTIONS = [
 ] as const;
 
 // Sections persisted on save (includes custom-rendered sections).
-const SAVE_SECTIONS = [...FORM_SECTIONS, "engine", "inverter", "ha"] as const;
+const SAVE_SECTIONS = [...FORM_SECTIONS, "engine", "inverter", "ha", "fail_safe"] as const;
 
 // Read-only helper fields returned by the API that must not be edited.
 const HIDDEN_FIELDS = new Set(["has_token"]);
@@ -43,6 +43,7 @@ const DATALIST_DOMAINS = [
   "input_boolean",
   "number",
   "select",
+  "input_datetime",
 ] as const;
 
 function isScalar(v: unknown): v is number | string | boolean {
@@ -454,6 +455,51 @@ export class SettingsPanel extends LitElement {
       const inv = { ...((draft.inverter ?? {}) as Record<string, unknown>), [key]: value };
       draft.inverter = inv;
     });
+  }
+
+  private renderFailSafeSection() {
+    const d = this.draft as unknown as Record<string, any>;
+    const fs = (d.fail_safe ?? {}) as Record<string, unknown>;
+    const heartbeatEntity = (fs.heartbeat_entity ?? "") as string;
+    return html`
+      <details>
+        <summary>
+          <span class="summary-label">
+            ${sectionTitle("fail_safe")}
+            <solar-info-tip .text=${sectionHelp("fail_safe")!}></solar-info-tip>
+          </span>
+        </summary>
+        <p class="label">
+          Import the HA fail-safe package to create
+          <code>input_datetime.solar_optimizer_heartbeat</code>, or pick an existing
+          helper. Max grid charge current comes from Battery → Max grid charge current (A).
+        </p>
+        <div class="fields">
+          ${typeof fs.heartbeat_enabled === "boolean"
+            ? this.renderField("fail_safe", "heartbeat_enabled", fs.heartbeat_enabled)
+            : null}
+          <div class="field">
+            <label>${this.lbl("fail_safe", "heartbeat_entity")}</label>
+            <solar-entity-input
+              .entityId=${heartbeatEntity}
+              .entities=${this.entities}
+              .domains=${["input_datetime"]}
+              .listId=${this.hasEntitiesForDomain("input_datetime") ? "dl-input_datetime" : ""}
+              placeholder="input_datetime.solar_optimizer_heartbeat"
+              @entity-id-change=${(e: CustomEvent<string | null>) =>
+                this.setField("fail_safe", "heartbeat_entity", e.detail)}
+            />
+          </div>
+          ${typeof fs.shutdown_failsafe_enabled === "boolean"
+            ? this.renderField(
+                "fail_safe",
+                "shutdown_failsafe_enabled",
+                fs.shutdown_failsafe_enabled,
+              )
+            : null}
+        </div>
+      </details>
+    `;
   }
 
   private renderHaSection() {
@@ -874,6 +920,7 @@ export class SettingsPanel extends LitElement {
         <h3>Settings (config from UI)</h3>
         ${this.renderDatalists()}
         ${this.renderHaSection()}
+        ${this.renderFailSafeSection()}
         ${this.renderSecuritySection()}
         ${FORM_SECTIONS.map((s) => this.renderSection(s))}
         ${this.renderSolcastNote()}

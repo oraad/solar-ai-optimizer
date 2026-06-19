@@ -189,4 +189,4 @@ class Override(BaseModel):
     force_grid_charge: bool | None = None
     reserve_soc: float | None = None     # pin reserve target (None = auto)
     pause_engine: bool | None = None
-    kill_switch: bool | None = None      # return inverter to safe defaults
+    kill_switch: bool | None = None      # grid charge at max; pause engine (orchestrator)

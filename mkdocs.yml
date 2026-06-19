@@ -26,6 +26,7 @@ theme:
 nav:
   - Home: index.md
   - Dashboard User Guide: frontend-manual.md
+  - Home Assistant Fail-safe: home-assistant-failsafe.md
 
 markdown_extensions:
   - admonition

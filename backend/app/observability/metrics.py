@@ -16,6 +16,8 @@ class Metrics:
     forecast_refresh_failures: int = 0
     mpc_fallbacks: int = 0
     ha_ws_restarts: int = 0
+    heartbeat_pulses_total: int = 0
+    heartbeat_failures: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return {k: int(v) for k, v in self.__dict__.items()}

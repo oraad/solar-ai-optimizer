@@ -45,7 +45,7 @@ class Assistant:
         ov = Override()
         matched = False
 
-        if re.search(r"\b(kill switch|emergency|safe default)", q):
+        if re.search(r"\b(kill switch|emergency|grid charge at max|charge at max)\b", q):
             return Override(kill_switch=True)
         if re.search(r"\b(force|start).*(grid )?charg", q):
             ov.force_grid_charge = True

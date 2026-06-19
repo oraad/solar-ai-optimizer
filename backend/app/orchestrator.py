@@ -22,6 +22,7 @@ from .engine.rules import RuleEngine
 from .forecast.service import ForecastService
 from .grid.reactive import ReactiveGrid
 from .ha.client import HAClient
+from .ha.heartbeat import HAHeartbeat
 from .ingest.collector import Collector
 from .models import (
     Decision,
@@ -46,6 +47,7 @@ class Orchestrator:
 
         base_url, token, verify_ssl = self._resolve_ha()
         self.ha = HAClient(base_url, token, verify_ssl)
+        self.heartbeat = HAHeartbeat(self.ha)
         self.adapter = HAEntityAdapter(self.ha, self.cfg.inverter)
         self.forecast = ForecastService(self.cfg, settings)
         self.collector = Collector(
@@ -103,6 +105,7 @@ class Orchestrator:
         with contextlib.suppress(Exception):
             await self.ha.aclose()
         self.ha = HAClient(base_url, token, verify_ssl)
+        self.heartbeat.set_ha(self.ha)
         self.adapter.set_ha(self.ha)
         self.collector.set_ha(self.ha)
         self._build_engine_components()  # executor picks up the new client
@@ -152,9 +155,31 @@ class Orchestrator:
         with contextlib.suppress(Exception):
             await self.collector.sample()
         self._stream_task = asyncio.create_task(self.collector.run_stream_safe())
+        await self._pulse_heartbeat()
         log.info("Orchestrator ready (shadow_mode=%s).", self.shadow_mode)
 
+    def _grid_charge_mapped(self) -> bool:
+        w = self.cfg.inverter.write
+        return bool(w.grid_charge_enable or w.max_grid_charge_current)
+
+    async def _pulse_heartbeat(self) -> None:
+        fs = self.cfg.fail_safe
+        if not fs.heartbeat_enabled:
+            return
+        with contextlib.suppress(Exception):
+            await self.heartbeat.pulse(fs.heartbeat_entity)
+
     async def shutdown(self) -> None:
+        if self.cfg.fail_safe.shutdown_failsafe_enabled and self._grid_charge_mapped():
+            async with self._cycle_lock:
+                prev_shadow = self.shadow_mode
+                self.shadow_mode = False
+                try:
+                    await self.executor.apply_grid_charge_at_max()
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Shutdown fail-safe failed: %s", e)
+                finally:
+                    self.shadow_mode = prev_shadow
         if self._stream_task:
             self._stream_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -246,6 +271,7 @@ class Orchestrator:
             telemetry = self.collector.latest
         if telemetry is None:
             await self._broadcast()
+            await self._pulse_heartbeat()
             return None
 
         from .observability.metrics import metrics
@@ -284,6 +310,7 @@ class Orchestrator:
             self.latest_shed_results = []
 
         await self._broadcast()
+        await self._pulse_heartbeat()
         return decision
 
     def _decide(self, telemetry, forecast, telemetry_stale: bool = False) -> Decision:

@@ -190,6 +190,7 @@ export interface AppConfigView {
   reserve: Record<string, number>;
   forecast: Record<string, unknown>;
   control: Record<string, unknown>;
+  fail_safe?: Record<string, unknown>;
   engine: Record<string, unknown>;
   inverter?: Record<string, unknown>;
   load_shedding?: Record<string, unknown>;

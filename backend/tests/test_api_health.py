@@ -31,6 +31,11 @@ def client():
         paused=False,
         last_updated=utcnow(),
     )
+    fs = MagicMock()
+    fs.heartbeat_enabled = True
+    fs.heartbeat_entity = "input_datetime.test"
+    orch.cfg.fail_safe = fs
+    orch.heartbeat.last_pulse_at = utcnow()
     app = FastAPI()
     app.state.orchestrator = orch
     app.include_router(router)
@@ -46,3 +51,6 @@ def test_health_includes_monitoring_fields(client):
     assert "engine_active" in body
     assert "metrics" in body
     assert "control_cycles" in body["metrics"]
+    assert "heartbeat_configured" in body
+    assert body["heartbeat_configured"] is True
+    assert "heartbeat_last_pulse" in body

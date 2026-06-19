@@ -100,6 +100,22 @@ const FIELD_HELP: Record<string, Record<string, string>> = {
 
   },
 
+  fail_safe: {
+
+    heartbeat_entity:
+
+      "input_datetime helper pulsed each control cycle (default: input_datetime.solar_optimizer_heartbeat from the HA fail-safe package).",
+
+    heartbeat_enabled:
+
+      "When enabled and an entity is set, pulse the heartbeat each control cycle.",
+
+    shutdown_failsafe_enabled:
+
+      "On graceful shutdown, enable grid charge at max current before exiting.",
+
+  },
+
   load_shedding: {
 
     enabled: "Turn on automatic shedding of discretionary loads when SOC is low.",
@@ -264,7 +280,7 @@ const OVERRIDE_HELP: Record<string, string> = {
 
   kill_switch:
 
-    "Emergency stop: safe inverter defaults, pause engine, restore shed switches.",
+    "Emergency: enable grid charge at max current, pause engine, restore shed switches.",
 
 };
 
@@ -371,6 +387,10 @@ export function sectionHelp(section: string): string | undefined {
     forecast: "Location, provider, and training settings for solar and load prediction.",
 
     control: "Timing and safety limits for the control loop and HA writes.",
+
+    fail_safe:
+
+      "Heartbeat for HA watchdog automation and grid-charge-at-max on shutdown.",
 
     load_shedding: "Optional tiers of switches to shed when SOC is low.",
 

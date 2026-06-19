@@ -1,0 +1,45 @@
+# Heartbeat helper — optimizer pulses this each control cycle (Settings → Fail-safe).
+input_datetime:
+  solar_optimizer_heartbeat:
+    name: Solar Optimizer Heartbeat
+    has_date: true
+    has_time: true
+
+# Set initial to match Settings → Battery → Max grid charge current (A)
+input_number:
+  solar_optimizer_max_grid_charge_a:
+    name: Solar Optimizer Max Grid Charge Current
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: A
+    mode: box
+    initial: 60
+
+template:
+  - binary_sensor:
+      - name: Solar Optimizer Healthy
+        unique_id: solar_optimizer_healthy
+        state: >
+          {% set ts = states('input_datetime.solar_optimizer_heartbeat') %}
+          {% if ts in ['unknown', 'unavailable', ''] %} false
+          {% else %} {{ (now() - as_datetime(ts)).total_seconds() < 120 }}
+          {% endif %}
+
+automation:
+  - alias: Solar optimizer fail-safe grid charge at max
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.solar_optimizer_healthy
+        to: "off"
+        for: "00:02:00"
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.YOUR_GRID_CHARGE_ENTITY
+      - service: number.set_value
+        target:
+          entity_id: number.YOUR_MAX_GRID_CHARGE_CURRENT
+        data:
+          value: "{{ states('input_number.solar_optimizer_max_grid_charge_a') | float(60) }}"

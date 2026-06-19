@@ -224,22 +224,84 @@ class Executor:
             applied=True, verified=verified,
         )
 
-    async def kill_switch(self) -> list[ExecutionResult]:
-        """Return the inverter to conservative safe defaults immediately.
+    async def apply_grid_charge_at_max(
+        self,
+        *,
+        bypass_watchdog: bool = True,
+    ) -> list[ExecutionResult]:
+        """Fail-safe: enable grid charge at max configured current.
 
-        Safe defaults: disable grid charge and select the self-use work mode.
-        Bypasses rate limiting and the HA stale watchdog intentionally
-        (emergency > wear); writes may fail if HA is unreachable.
+        Bypasses rate limiting and the HA stale watchdog when ``bypass_watchdog``
+        is True (emergency > wear). Never changes work mode.
         """
-        log.warning("KILL SWITCH engaged: applying safe defaults.")
-        results: list[ExecutionResult] = []
-        safe: list[tuple[Capability, float | bool | str]] = [
-            (Capability.GRID_CHARGE_ENABLE, False),
-            (Capability.WORK_MODE, "self_use"),
+        log.warning("Applying fail-safe: grid charge ON at max current.")
+        amps, _ = self._guard.clamp(
+            Capability.MAX_GRID_CHARGE_CURRENT, self._battery.max_grid_charge_a
+        )
+        pairs: list[tuple[Capability, float | bool | str]] = [
+            (Capability.GRID_CHARGE_ENABLE, True),
+            (Capability.MAX_GRID_CHARGE_CURRENT, amps),
         ]
-        for cap, value in safe:
+        return await self._apply_emergency_writes(pairs, bypass_watchdog=bypass_watchdog)
+
+    async def kill_switch(self) -> list[ExecutionResult]:
+        """Operator emergency: grid charge at max, then pause engine (orchestrator)."""
+        log.warning("KILL SWITCH engaged: grid charge at max current.")
+        return await self.apply_grid_charge_at_max()
+
+    async def _apply_emergency_writes(
+        self,
+        pairs: list[tuple[Capability, float | bool | str]],
+        *,
+        bypass_watchdog: bool,
+    ) -> list[ExecutionResult]:
+        results: list[ExecutionResult] = []
+        for cap, requested in pairs:
             if not self._adapter.supports(cap):
+                results.append(
+                    ExecutionResult(
+                        capability=cap,
+                        requested=requested,
+                        applied=False,
+                        verified=False,
+                        skipped_reason="capability not mapped",
+                    )
+                )
                 continue
+
+            reject = self._guard.violates_hard_bounds(cap, requested)
+            if reject:
+                log.warning("REJECT emergency write %s=%s: %s", cap.value, requested, reject)
+                results.append(
+                    ExecutionResult(
+                        capability=cap,
+                        requested=requested,
+                        applied=False,
+                        verified=False,
+                        skipped_reason=f"hard-bound reject: {reject}",
+                    )
+                )
+                continue
+
+            value, note = self._guard.clamp(cap, requested)
+            if note:
+                log.info("Clamp %s: %s", cap.value, note)
+
+            if (
+                not bypass_watchdog
+                and self._ha.is_stale(self._control.ha_stale_after_seconds)
+            ):
+                results.append(
+                    ExecutionResult(
+                        capability=cap,
+                        requested=value,
+                        applied=False,
+                        verified=False,
+                        skipped_reason="HA stale; watchdog blocked write",
+                    )
+                )
+                continue
+
             try:
                 await self._adapter.apply(cap, value)
                 self._guard.record_write(cap, value)
@@ -249,7 +311,10 @@ class Executor:
                 )
             except Exception as e:  # noqa: BLE001
                 res = ExecutionResult(
-                    capability=cap, requested=value, applied=False, verified=False,
+                    capability=cap,
+                    requested=value,
+                    applied=False,
+                    verified=False,
                     error=str(e),
                 )
             results.append(res)

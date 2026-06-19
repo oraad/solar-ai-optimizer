@@ -16,6 +16,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ForecastProvider = Literal["open-meteo", "solcast"]
+
+DEFAULT_HEARTBEAT_ENTITY = "input_datetime.solar_optimizer_heartbeat"
 class Settings(BaseSettings):
     """Process settings sourced from environment variables / .env."""
 
@@ -186,6 +188,14 @@ class ControlConfig(BaseModel):
     ha_stale_after_seconds: int = 120
 
 
+class FailSafeConfig(BaseModel):
+    """Heartbeat + shutdown fail-safe (grid charge at max when optimizer stops)."""
+
+    heartbeat_entity: str | None = DEFAULT_HEARTBEAT_ENTITY
+    heartbeat_enabled: bool = True
+    shutdown_failsafe_enabled: bool = True
+
+
 class LoadTier(BaseModel):
     """A sheddable load tier mapped to one or more HA switches.
 
@@ -269,6 +279,7 @@ class AppConfig(BaseModel):
     reserve: ReserveConfig = Field(default_factory=ReserveConfig)
     forecast: ForecastConfig = Field(default_factory=ForecastConfig)
     control: ControlConfig = Field(default_factory=ControlConfig)
+    fail_safe: FailSafeConfig = Field(default_factory=FailSafeConfig)
     engine: EngineConfig = Field(default_factory=EngineConfig)
     load_shedding: LoadSheddingConfig = Field(default_factory=LoadSheddingConfig)
 

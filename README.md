@@ -166,7 +166,8 @@ Set `LOG_FORMAT=json` for production log aggregators (one JSON object per line).
 
 - **Shadow mode** is the default until you trust it.
 - Every write is screened: bounds → watchdog → rate limit → read-back verification.
-- **Kill switch** returns safe inverter defaults, restores shed tiers, and pauses the engine. Use **Clear overrides** to resume.
+- **Kill switch** enables grid charge at max current, restores shed tiers, and pauses the engine. Use **Clear overrides** to resume.
+- **Fail-safe:** heartbeat to Home Assistant plus grid-charge-at-max on shutdown; configure HA automation for when the optimizer is dead — see [Home Assistant fail-safe](docs/home-assistant-failsafe.md).
 - **Watchdog:** if Home Assistant is unreachable, writes stop; the inverter keeps
   its last safe configuration.
 

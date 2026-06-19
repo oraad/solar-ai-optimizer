@@ -26,6 +26,8 @@ async def health(request: Request) -> dict:
     orch = _orch(request)
     status = orch.build_status()
     forecast = orch.forecast.current
+    fs = orch.cfg.fail_safe
+    hb = orch.heartbeat.last_pulse_at
     return {
         "status": "ok",
         "ha_connected": status.ha_connected,
@@ -37,6 +39,10 @@ async def health(request: Request) -> dict:
         "forecast_degraded": status.forecast_degraded,
         "engine_mode": status.engine_mode,
         "engine_active": status.engine_active,
+        "heartbeat_configured": bool(
+            fs.heartbeat_enabled and fs.heartbeat_entity
+        ),
+        "heartbeat_last_pulse": hb.isoformat() if hb else None,
         "metrics": metrics.as_dict(),
         "time": utcnow().isoformat(),
         "forecast_generated_at": (
@@ -130,6 +136,7 @@ def _config_view(cfg) -> dict:
         "reserve": cfg.reserve.model_dump(),
         "forecast": cfg.forecast.model_dump(),
         "control": cfg.control.model_dump(),
+        "fail_safe": cfg.fail_safe.model_dump(),
         "engine": cfg.engine.model_dump(),
         "inverter": cfg.inverter.model_dump(),
         "load_shedding": cfg.load_shedding.model_dump(),

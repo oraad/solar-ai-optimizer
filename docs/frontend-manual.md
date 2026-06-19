@@ -108,6 +108,7 @@ Major sections:
 | Section | What to configure |
 |---------|-------------------|
 | **Home Assistant connection** | URL, token, SSL verification |
+| **Fail-safe** | Heartbeat entity, shutdown grid-charge-at-max |
 | **API security** | Browser-stored API token when `API_TOKEN` is set on the server |
 | **Battery / Reserve / Forecast / Control** | Physical and algorithm parameters |
 | **PV arrays** | Tilt, azimuth, and kWp per array |

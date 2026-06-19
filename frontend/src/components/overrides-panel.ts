@@ -115,10 +115,10 @@ export class OverridesPanel extends LitElement {
     this.run(() => api.clearOverride(), "Overrides cleared (auto mode).");
 
   private killSwitch = () => {
-    if (!confirm("Engage KILL SWITCH? This returns the inverter to safe defaults and pauses the engine.")) return;
+    if (!confirm("Engage KILL SWITCH? This enables grid charge at max current, pauses the engine, and restores shed tiers.")) return;
     return this.run(
       () => api.override({ kill_switch: true, confirm: true }),
-      "Kill switch engaged; safe defaults applied.",
+      "Kill switch engaged; grid charge at max current.",
     );
   };
 

@@ -43,6 +43,8 @@ else
   msg_warn "Check logs: docker logs ${SOLAR_CONTAINER}"
 fi
 
+solar_show_admin_credentials
+
 motd_ssh
 customize
 cleanup_lxc

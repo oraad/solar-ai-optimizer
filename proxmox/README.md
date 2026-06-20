@@ -21,14 +21,17 @@ The wizard provisions:
 
 Open the dashboard at `http://<lxc-ip>:8000`.
 
+The install script writes `/opt/solar-ai-optimizer/solar.env` with `TRUST_INGRESS_HEADERS=true` (for Home Assistant ingress) and auto-generated local admin credentials. The username and password are printed once at the end of the install — save them.
+
 ## Post-install
 
-1. Open **Settings** and set your Home Assistant URL and long-lived token.
-2. Map inverter entities, location, and battery settings.
-3. Leave **SHADOW MODE** on until you trust the decisions (default).
-4. Optionally set `API_TOKEN` in `/opt/solar-ai-optimizer/solar.env` on the LXC and the same value in **Settings → API security**.
+1. **Save the local admin password** shown at install completion (username defaults to `admin`). Use it to sign in at `http://<lxc-ip>:8000` when not using HA ingress.
+2. Open **Settings** and set your Home Assistant URL and long-lived token.
+3. Map inverter entities, location, and battery settings.
+4. Leave **SHADOW MODE** on until you trust the decisions (default).
+5. Optionally set `API_TOKEN` in `/opt/solar-ai-optimizer/solar.env` on the LXC and the same value in **Settings → API security**.
 
-No `.env` file is required at install time — the UI persists config to the data volume.
+Re-running the update helper on an install that already has local admin credentials does **not** rotate the password. To change it manually, generate a new bcrypt hash (see [ingress-auth.md](../docs/ingress-auth.md)) and edit `solar.env`.
 
 ## Update
 
@@ -38,7 +41,7 @@ Re-run the helper script against the existing container (community-scripts updat
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer.sh)"
 ```
 
-This pulls the latest image, recreates the `solar-optimizer` container, and preserves the `solar-data` volume.
+This pulls the latest image, recreates the `solar-optimizer` container, and preserves the `solar-data` volume. It also migrates older installs: if `TRUST_INGRESS_HEADERS` or local admin credentials are missing from `solar.env`, they are added automatically and any new password is shown once.
 
 Or update manually inside the LXC:
 

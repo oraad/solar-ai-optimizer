@@ -50,17 +50,25 @@ function update_script() {
     exit
   fi
 
-  local previous current
+  local previous current env_patched=0
   previous="$(solar_installed_ref)"
+
+  msg_info "Ensuring auth configuration"
+  solar_ensure_env_auth
+  env_patched="${SOLAR_ENV_PATCHED:-0}"
 
   msg_info "Pulling latest image"
   $STD docker pull "$(solar_image_ref)"
   msg_ok "Pulled $(solar_image_ref)"
 
   current="$(solar_current_image_ref)"
-  if [[ -n "$previous" && "$previous" == "$current" ]]; then
+  if [[ -n "$previous" && "$previous" == "$current" && "$env_patched" != "1" ]]; then
     msg_ok "No update required. ${APP} is already running the latest image."
     exit
+  fi
+
+  if [[ -n "$previous" && "$previous" == "$current" ]]; then
+    msg_ok "${APP} is already running the latest image."
   fi
 
   msg_info "Recreating container (data volume preserved)"
@@ -75,6 +83,8 @@ function update_script() {
     msg_warn "Health check timed out — check: docker logs ${SOLAR_CONTAINER}"
   fi
 
+  solar_show_admin_credentials
+
   msg_ok "Updated successfully!"
   exit
 }
@@ -88,3 +98,15 @@ echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
 echo -e "${INFO}${YW}Access the dashboard at:${CL}"
 echo -e "${GATEWAY}${BGN}http://${IP}:${SOLAR_PORT:-8000}${CL}"
 echo -e "${INFO}${YW}Starts in SHADOW MODE — configure Home Assistant in Settings before going live.${CL}"
+
+_SOLAR_CREDS_FILE="/opt/solar-ai-optimizer/.install-admin-credentials"
+if pct exec "$CTID" test -f "$_SOLAR_CREDS_FILE" 2>/dev/null; then
+  _solar_admin_user="$(pct exec "$CTID" sed -n '1p' "$_SOLAR_CREDS_FILE" 2>/dev/null | tr -d '\r')"
+  _solar_admin_pass="$(pct exec "$CTID" sed -n '2p' "$_SOLAR_CREDS_FILE" 2>/dev/null | tr -d '\r')"
+  pct exec "$CTID" rm -f "$_SOLAR_CREDS_FILE" 2>/dev/null || true
+  if [[ -n "$_solar_admin_user" && -n "$_solar_admin_pass" ]]; then
+    echo -e "${INFO}${YW}Local admin login (save these — not shown again):${CL}"
+    echo -e "${INFO}${YW}Username:${CL} ${_solar_admin_user}"
+    echo -e "${INFO}${YW}Password:${CL} ${_solar_admin_pass}"
+  fi
+fi

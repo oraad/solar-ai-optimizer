@@ -27,7 +27,7 @@ Generate a bcrypt hash:
 python -c "import bcrypt; print(bcrypt.hashpw(b'your-password', bcrypt.gensalt()).decode())"
 ```
 
-The browser shows a login page until `POST /api/auth/login` succeeds. Sign out from **Settings → API security**.
+The browser shows a login page until `POST /api/auth/login` succeeds. Sign out from **Settings → API security**. The login form supports browser password save and autofill (Chrome, Edge, Firefox).
 
 ### B. Standalone + hass_ingress (Docker)
 

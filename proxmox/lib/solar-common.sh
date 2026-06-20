@@ -123,6 +123,15 @@ solar_show_admin_credentials() {
   echo -e "${INFO}${YW}Password:${CL} ${SOLAR_ADMIN_PASSWORD}"
 }
 
+solar_write_update_command() {
+  local repo_raw="${SOLAR_REPO_RAW:-https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main}"
+  cat > /usr/bin/update <<EOF
+#!/bin/bash
+bash -c "\$(curl -fsSL ${repo_raw}/proxmox/ct/solar-ai-optimizer.sh)"
+EOF
+  chmod +x /usr/bin/update
+}
+
 solar_write_env_file() {
   mkdir -p "$SOLAR_INSTALL_DIR"
   solar_default_env >"$SOLAR_ENV_FILE"

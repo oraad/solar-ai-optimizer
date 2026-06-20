@@ -41,7 +41,15 @@ Re-run the helper script against the existing container (community-scripts updat
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer.sh)"
 ```
 
-This pulls the latest image, recreates the `solar-optimizer` container, and preserves the `solar-data` volume. It also migrates older installs: if `TRUST_INGRESS_HEADERS` or local admin credentials are missing from `solar.env`, they are added automatically and any new password is shown once.
+This pulls the latest image, recreates the `solar-optimizer` container, and preserves the `solar-data` volume. It also migrates older installs: if `TRUST_INGRESS_HEADERS` or local admin credentials are missing from `solar.env`, they are added automatically and any new password is shown once. Each update run also rewrites `/usr/bin/update` to point at this repository (fixes older installs that pointed at community-scripts).
+
+From **inside the LXC**, you can also run:
+
+```bash
+update
+```
+
+That command runs the same Solar helper script. Helper functions are vendored under [`vendor/community-scripts/`](vendor/community-scripts/) and loaded via `SOLAR_REPO_RAW` at runtime.
 
 Or update manually inside the LXC:
 
@@ -111,3 +119,4 @@ Until OCI support matures, the **Docker-in-LXC** helper above is the recommended
 | [`ct/solar-ai-optimizer.sh`](ct/solar-ai-optimizer.sh) | Host script (Proxmox shell) |
 | [`install/solar-ai-optimizer-install.sh`](install/solar-ai-optimizer-install.sh) | Runs inside the new LXC |
 | [`lib/solar-common.sh`](lib/solar-common.sh) | Shared image/deploy helpers |
+| [`vendor/community-scripts/`](vendor/community-scripts/) | Vendored community-scripts helpers (pinned upstream) |

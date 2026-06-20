@@ -47,4 +47,5 @@ solar_show_admin_credentials
 
 motd_ssh
 customize
+solar_write_update_command
 cleanup_lxc

@@ -41,7 +41,15 @@ Re-run the helper script against the existing container (community-scripts updat
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer.sh)"
 ```
 
-This pulls the latest image, recreates the `solar-optimizer` container, and preserves the `solar-data` volume. It also migrates older installs: if `TRUST_INGRESS_HEADERS` or local admin credentials are missing from `solar.env`, they are added automatically and any new password is shown once.
+This pulls the latest image, recreates the `solar-optimizer` container, and preserves the `solar-data` volume. It also migrates older installs: if `TRUST_INGRESS_HEADERS` or local admin credentials are missing from `solar.env`, they are added automatically and any new password is shown once. Each update run also rewrites `/usr/bin/update` to point at this repository (fixes older installs that pointed at community-scripts).
+
+From **inside the LXC**, you can also run:
+
+```bash
+update
+```
+
+That command runs the same Solar helper script (not community-scripts). Helper functions are vendored under [`proxmox/vendor/community-scripts/`](https://github.com/oraad/solar-ai-optimizer/tree/main/proxmox/vendor/community-scripts) and loaded via `SOLAR_REPO_RAW` at runtime.
 
 Or update manually inside the LXC:
 
@@ -111,5 +119,6 @@ Until OCI support matures, the **Docker-in-LXC** helper above is the recommended
 | [`proxmox/ct/solar-ai-optimizer.sh`](https://github.com/oraad/solar-ai-optimizer/blob/main/proxmox/ct/solar-ai-optimizer.sh) | Host script (Proxmox shell) |
 | [`proxmox/install/solar-ai-optimizer-install.sh`](https://github.com/oraad/solar-ai-optimizer/blob/main/proxmox/install/solar-ai-optimizer-install.sh) | Runs inside the new LXC |
 | [`proxmox/lib/solar-common.sh`](https://github.com/oraad/solar-ai-optimizer/blob/main/proxmox/lib/solar-common.sh) | Shared image/deploy helpers |
+| [`proxmox/vendor/community-scripts/`](https://github.com/oraad/solar-ai-optimizer/tree/main/proxmox/vendor/community-scripts) | Vendored community-scripts helpers (pinned upstream) |
 
 The canonical copy of this guide lives on the [documentation site](https://oraad.github.io/solar-ai-optimizer/proxmox/). The repository also keeps [`proxmox/README.md`](https://github.com/oraad/solar-ai-optimizer/blob/main/proxmox/README.md) for GitHub browsing.

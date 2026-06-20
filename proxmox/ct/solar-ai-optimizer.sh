@@ -5,18 +5,28 @@
 # Source: https://github.com/oraad/solar-ai-optimizer
 
 SOLAR_REPO_RAW="${SOLAR_REPO_RAW:-https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main}"
+SOLAR_VENDOR_RAW="${SOLAR_REPO_RAW}/proxmox/vendor/community-scripts"
 
-# build.func fetches install scripts from community-scripts; redirect ours.
+# Redirect community-scripts fetches to vendored copies and our install script.
 _solar_real_curl="$(command -v curl)"
 curl() {
-  if [[ "$1" == "-fsSL" && "${2:-}" == *"community-scripts/ProxmoxVE/main/install/"*"-install.sh" ]]; then
-    "$_solar_real_curl" -fsSL "${SOLAR_REPO_RAW}/proxmox/install/solar-ai-optimizer-install.sh"
-    return
+  if [[ "$1" == "-fsSL" && -n "${2:-}" ]]; then
+    case "$2" in
+      *community-scripts/ProxmoxVE/main/install/*-install.sh)
+        "$_solar_real_curl" -fsSL "${SOLAR_REPO_RAW}/proxmox/install/solar-ai-optimizer-install.sh"
+        return
+        ;;
+      *community-scripts/ProxmoxVE/main/*)
+        local vendor_url="${2/https:\/\/raw.githubusercontent.com\/community-scripts\/ProxmoxVE\/main/${SOLAR_VENDOR_RAW}}"
+        "$_solar_real_curl" -fsSL "$vendor_url"
+        return
+        ;;
+    esac
   fi
   "$_solar_real_curl" "$@"
 }
 
-source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func)
+source <(curl -fsSL "${SOLAR_REPO_RAW}/proxmox/vendor/community-scripts/misc/build.func")
 
 APP="Solar AI Optimizer"
 var_tags="${var_tags:-homeassistant;solar;docker}"
@@ -49,6 +59,8 @@ function update_script() {
     msg_error "No ${APP} Installation Found!"
     exit
   fi
+
+  solar_write_update_command
 
   local previous current env_patched=0
   previous="$(solar_installed_ref)"

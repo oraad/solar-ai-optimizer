@@ -92,7 +92,9 @@ async def lifespan(app: FastAPI):
     orchestrator = Orchestrator(settings, store)
     await orchestrator.setup()
     app.state.orchestrator = orchestrator
-    app.state.admin_resolver = HAAdminResolver(settings, orchestrator.ha)
+    admin_resolver = HAAdminResolver(settings, orchestrator.ha)
+    orchestrator.set_admin_resolver(admin_resolver)
+    app.state.admin_resolver = admin_resolver
 
     scheduler = build_scheduler(orchestrator)
     orchestrator.attach_scheduler(scheduler)

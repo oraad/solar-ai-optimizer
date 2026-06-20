@@ -1,4 +1,4 @@
-"""Home Assistant user admin lookup via WebSocket auth/list."""
+"""Home Assistant user admin lookup via WebSocket config/auth/list."""
 
 from __future__ import annotations
 
@@ -31,6 +31,13 @@ class HAAdminResolver:
 
     def _ttl(self) -> float:
         return max(30, self._settings.admin_cache_ttl_seconds)
+
+    def set_ha(self, ha: HAClient) -> None:
+        """Point at a new HA client after reconnect; clears cached user list."""
+        self._ha = ha
+        self._cache.clear()
+        self._users = None
+        self._users_loaded_at = 0.0
 
     async def is_admin(self, user_id: str) -> bool:
         if user_id in self._settings.admin_user_id_set:
@@ -84,16 +91,18 @@ async def _fetch_auth_list(ha: HAClient) -> dict[str, dict[str, Any]]:
                 raise HAError(f"WebSocket auth failed: {auth_result}")
 
             msg_id = 1
-            await ws.send(json.dumps({"id": msg_id, "type": "auth/list"}))
+            await ws.send(
+                json.dumps({"id": msg_id, "type": "config/auth/list"})
+            )
             while True:
                 raw = json.loads(await ws.recv())
                 if raw.get("id") != msg_id:
                     continue
                 if not raw.get("success"):
-                    log.warning("auth/list failed: %s", raw)
+                    log.warning("config/auth/list failed: %s", raw)
                     return {}
                 result = raw.get("result") or []
                 return {u["id"]: u for u in result if u.get("id")}
     except Exception as e:  # noqa: BLE001
-        log.warning("Failed to fetch HA auth/list: %s", e)
+        log.warning("Failed to fetch HA config/auth/list: %s", e)
         return {}

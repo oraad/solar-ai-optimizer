@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-06-20
+
+### Fixed
+
+- hass_ingress / add-on: HA owner and `system-admin` users no longer shown as viewers — admin lookup now uses the correct WebSocket command `config/auth/list` (was `auth/list`)
+- hass_ingress: first-load flash of the Home Assistant UI inside the panel iframe — ingress bootstrap adds `<base href>` and enforces a trailing slash so relative assets resolve under `/api/ingress/<panel>/`
+- WebSocket `/ws`: quieter handling of normal client disconnects (keepalive / close)
+- Proxmox update helper selects the correct community-scripts CT script on Alpine vs Debian
+
+### Changed
+
+- `HAAdminResolver` stays in sync when HA credentials change via Settings (`set_ha` on reconnect)
+- Dynamic API path prefix (`getBase()`) for ingress-safe fetch and WebSocket URLs
+- Proxmox: Alpine LXC install path (`solar-ai-optimizer-alpine.sh`) and Docker install helper
+- Ingress troubleshooting docs (VIEWER badge, iframe flash, hass_ingress config)
+
+### Added
+
+- Tests for HA admin resolver (`test_ha_users.py`) and WebSocket endpoint (`test_ws.py`)
+
 ## [0.4.1] - 2026-06-20
 
 ### Fixed
@@ -86,6 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.4.2]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.2
+[0.4.1]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.1
 [0.4.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.0
 [0.3.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.3.0
 [0.2.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.2.0

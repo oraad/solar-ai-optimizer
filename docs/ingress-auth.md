@@ -64,6 +64,8 @@ ingress:
 
 Reload ingress in **Developer tools → YAML → INGRESS**.
 
+For [hass_ingress](https://github.com/lovelylain/hass_ingress) (HACS), use `work_mode: ingress` and `ui_mode: normal`. Do not use `ui_mode: replace` — that mode is for embedding HA pages, not external apps. hass_ingress v1.3.0+ supports `$user_id`, `$username`, and `$user_name` in the `headers` block.
+
 ### C. Home Assistant add-on
 
 When `SUPERVISOR_TOKEN` is set, ingress is trusted automatically (user headers and sidebar iframe framing). Local login is optional and off by default. Open the panel from the HA sidebar.
@@ -110,3 +112,20 @@ ADMIN_USER_IDS=abc123,def456
 - Set `SESSION_COOKIE_SECURE=true` when served over HTTPS.
 - Keep `API_TOKEN` for CI/scripts; it grants admin access without the login page.
 - Block direct LAN access to port `8000` when all users should come through HA ingress.
+
+## Troubleshooting
+
+### Owner or admin sees VIEWER badge
+
+1. Open DevTools → Network and check `GET .../api/me`. Expect `auth_mode: "ingress"` and `is_admin: true` for HA owners.
+2. If `is_admin` is false, check optimizer logs for `config/auth/list failed` or `Failed to fetch HA config/auth/list`.
+3. Ensure the HA long-lived token (env `HA_TOKEN` or **Settings → Home Assistant connection**) was created from an admin/owner account — the user list API requires admin credentials on the token.
+4. Break-glass: set `ADMIN_USER_IDS=<your-user-id>` (copy `user_id` from `/api/me`) and restart the container.
+
+### HA UI flashes inside the panel iframe on first load
+
+Common with hass_ingress when the ingress URL lacks a trailing slash: relative asset paths resolve to `/api/ingress/assets/...` instead of `/api/ingress/<panel>/assets/...`, briefly loading HA's frontend.
+
+1. Use `work_mode: ingress` and `ui_mode: normal` in your hass_ingress panel config.
+2. In DevTools → Network, confirm JS bundles load from `/api/ingress/<panel>/assets/...`, not `/api/ingress/assets/...`.
+3. Current builds inject a `<base href>` and trailing-slash redirect in the dashboard HTML to prevent this; upgrade if you still see the flash on an older image.

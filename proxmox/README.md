@@ -2,9 +2,9 @@
 
 > Published copy: [documentation site → Proxmox Deployment](https://oraad.github.io/solar-ai-optimizer/proxmox/)
 
-Deploy **Solar AI Optimizer** on Proxmox VE using a [community-scripts](https://github.com/community-scripts/ProxmoxVE)-style helper that creates a Debian LXC, installs Docker, and runs the published GHCR image.
+Deploy **Solar AI Optimizer** on Proxmox VE using a [community-scripts](https://github.com/community-scripts/ProxmoxVE)-style helper that creates an LXC (Debian or Alpine), installs Docker, and runs the published GHCR image.
 
-## Quick install
+## Quick install (Debian)
 
 Run on your **Proxmox host** (as root):
 
@@ -23,6 +23,22 @@ Open the dashboard at `http://<lxc-ip>:8000`.
 
 The install script writes `/opt/solar-ai-optimizer/solar.env` with `TRUST_INGRESS_HEADERS=true` (trusts HA ingress user headers and sets `X-Frame-Options: SAMEORIGIN` for the sidebar panel) and auto-generated local admin credentials. The username and password are printed once at the end of the install — save them.
 
+## Quick install (Alpine)
+
+For a smaller LXC base OS, use the Alpine helper instead:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer-alpine.sh)"
+```
+
+The Alpine wizard provisions:
+
+- Alpine 3.23 LXC (4 GB disk by default) with **nesting** and **keyctl**
+- Docker Engine via `apk` (OpenRC service, `json-file` log driver)
+- Same `solar-optimizer` container and `solar-data` volume as the Debian path
+
+Use the **Alpine script for updates** on Alpine installs (the in-LXC `update` command points at the matching script automatically).
+
 ## Post-install
 
 1. **Save the local admin password** shown at install completion (username defaults to `admin`). Use it to sign in at `http://<lxc-ip>:8000` when not using HA ingress.
@@ -35,10 +51,18 @@ Re-running the update helper on an install that already has local admin credenti
 
 ## Update
 
-Re-run the helper script against the existing container (community-scripts update flow):
+Re-run the helper script you used for install against the existing container (community-scripts update flow).
+
+**Debian LXC:**
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer.sh)"
+```
+
+**Alpine LXC:**
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer-alpine.sh)"
 ```
 
 This pulls the latest image, recreates the `solar-optimizer` container, and preserves the `solar-data` volume. It also migrates older installs: if `TRUST_INGRESS_HEADERS` or local admin credentials are missing from `solar.env`, they are added automatically and any new password is shown once. Each update run also rewrites `/usr/bin/update` to point at this repository (fixes older installs that pointed at community-scripts).
@@ -79,7 +103,7 @@ Important files: `solar.db`, `config.runtime.yaml`, `model.json`.
 | Issue | Check |
 |-------|--------|
 | Sidebar panel blank / `X-Frame-Options: deny` | `TRUST_INGRESS_HEADERS=true` in `/opt/solar-ai-optimizer/solar.env`; ingress `url` must point to `http://<lxc-ip>:8000` (not your HA URL); update to a current image and reload ingress in HA |
-| Docker won't start in LXC | Container needs `nesting=1` and `keyctl=1` (set by default in the helper script) |
+| Docker won't start in LXC | Container needs `nesting=1` and `keyctl=1` (set by default in the helper script); on Alpine also check `rc-service docker status` |
 | Can't reach Home Assistant | LXC must route to HA on your LAN; use HA IP instead of mDNS if needed |
 | Health check fails | `docker logs solar-optimizer` inside the LXC |
 | Port 8000 in use | Change host mapping in `/opt/solar-ai-optimizer/solar.env` deployment or edit the `docker run` port |
@@ -90,7 +114,8 @@ Point at your own git ref:
 
 ```bash
 export SOLAR_REPO_RAW="https://raw.githubusercontent.com/you/solar-ai-optimizer/your-branch"
-bash -c "$(curl -fsSL ${SOLAR_REPO_RAW}/proxmox/ct/solar-ai-optimizer.sh)"
+bash -c "$(curl -fsSL ${SOLAR_REPO_RAW}/proxmox/ct/solar-ai-optimizer.sh)"          # Debian
+bash -c "$(curl -fsSL ${SOLAR_REPO_RAW}/proxmox/ct/solar-ai-optimizer-alpine.sh)"   # Alpine
 ```
 
 ## Future: Proxmox OCI native (PVE 9.1+)
@@ -117,7 +142,8 @@ Until OCI support matures, the **Docker-in-LXC** helper above is the recommended
 
 | Path | Role |
 |------|------|
-| [`ct/solar-ai-optimizer.sh`](ct/solar-ai-optimizer.sh) | Host script (Proxmox shell) |
+| [`ct/solar-ai-optimizer.sh`](ct/solar-ai-optimizer.sh) | Host script — Debian LXC (default) |
+| [`ct/solar-ai-optimizer-alpine.sh`](ct/solar-ai-optimizer-alpine.sh) | Host script — Alpine LXC |
 | [`install/solar-ai-optimizer-install.sh`](install/solar-ai-optimizer-install.sh) | Runs inside the new LXC |
 | [`lib/solar-common.sh`](lib/solar-common.sh) | Shared image/deploy helpers |
 | [`vendor/community-scripts/`](vendor/community-scripts/) | Vendored community-scripts helpers (pinned upstream) |

@@ -6,7 +6,7 @@ import io
 import json
 import logging
 
-from app.logging_setup import configure_logging, request_id_var
+from app.logging_setup import ShieldedKeepaliveFilter, configure_logging, request_id_var
 
 
 def test_json_log_format_emits_parseable_line():
@@ -38,3 +38,22 @@ def test_json_log_format_emits_parseable_line():
     assert "timestamp" in payload
 
     configure_logging("INFO", fmt="text")
+
+
+def test_shielded_keepalive_filter_downgrades_asyncio_error():
+    filt = ShieldedKeepaliveFilter()
+    record = logging.LogRecord(
+        name="asyncio",
+        level=logging.ERROR,
+        pathname="",
+        lineno=0,
+        msg=(
+            "ConnectionClosedError exception in shielded future "
+            "keepalive ping timeout"
+        ),
+        args=(),
+        exc_info=None,
+    )
+    assert filt.filter(record) is True
+    assert record.levelno == logging.DEBUG
+    assert record.levelname == "DEBUG"

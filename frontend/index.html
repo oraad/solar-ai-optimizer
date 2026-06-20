@@ -6,6 +6,22 @@
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#0b0e13" />
     <title>Solar AI Optimizer</title>
+    <!-- Ingress subpath: trailing slash + base href so relative assets resolve correctly. -->
+    <script>
+      (function () {
+        var p = location.pathname;
+        var m = p.match(/^(\/api\/(?:hassio_ingress|ingress)\/[^/]+)/);
+        if (!m) return;
+        var prefix = m[1];
+        if (p === prefix) {
+          location.replace(prefix + "/" + location.search + location.hash);
+          return;
+        }
+        var base = document.createElement("base");
+        base.href = prefix + "/";
+        document.head.appendChild(base);
+      })();
+    </script>
     <!-- Apply the saved theme before first paint to avoid a flash. -->
     <script>
       try {

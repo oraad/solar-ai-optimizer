@@ -108,15 +108,21 @@ Full HA wiring (entities, packages, ingress auth): [Home Assistant setup](home-a
 ## Proxmox LXC
 
 !!! info "One-liner on Proxmox VE"
-    Community-scripts-style helper creates a Debian LXC with Docker-in-LXC (nesting +
-    keyctl), pulls the GHCR image, and exposes port 8000.
+    Community-scripts-style helper creates a Debian or Alpine LXC with Docker-in-LXC
+    (nesting + keyctl), pulls the GHCR image, and exposes port 8000.
 
 **Prerequisites:** Proxmox VE host with root shell access.
 
-On the **Proxmox host**:
+On the **Proxmox host** (Debian LXC — default):
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer.sh)"
+```
+
+Or for a smaller Alpine LXC base:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer-alpine.sh)"
 ```
 
 Open **http://&lt;lxc-ip&gt;:8000**.

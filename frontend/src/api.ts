@@ -24,7 +24,10 @@ export function basePrefix(): string {
   return "";
 }
 
-export const BASE = basePrefix();
+/** Current API path prefix (re-read on each call for ingress redirect safety). */
+export function getBase(): string {
+  return basePrefix();
+}
 
 export function getApiToken(): string {
   try {
@@ -90,14 +93,14 @@ export class AuthRequiredError extends Error {
 }
 
 async function getJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, fetchInit());
+  const res = await fetch(`${getBase()}${path}`, fetchInit());
   if (!res.ok) throw new Error(await parseError(res, path));
   return (await res.json()) as T;
 }
 
 async function sendJSON<T>(method: string, path: string, body: unknown): Promise<T> {
   const res = await fetch(
-    `${BASE}${path}`,
+    `${getBase()}${path}`,
     fetchInit({
       method,
       headers: { "Content-Type": "application/json" },
@@ -113,7 +116,7 @@ const putJSON = <T>(path: string, body: unknown) => sendJSON<T>("PUT", path, bod
 
 export const api = {
   me: async (): Promise<SessionInfo> => {
-    const res = await fetch(`${BASE}/api/me`, fetchInit());
+    const res = await fetch(`${getBase()}/api/me`, fetchInit());
     if (res.status === 401) throw new AuthRequiredError();
     if (!res.ok) throw new Error(await parseError(res, "/api/me"));
     return (await res.json()) as SessionInfo;
@@ -210,7 +213,7 @@ export class LiveSocket {
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const token = getApiToken();
     const qs = token ? `?token=${encodeURIComponent(token)}` : "";
-    const url = `${proto}://${location.host}${BASE}/ws${qs}`;
+    const url = `${proto}://${location.host}${getBase()}/ws${qs}`;
     this.ws = new WebSocket(url);
     this.ws.onopen = () => {
       this.reconnectAttempt = 0;

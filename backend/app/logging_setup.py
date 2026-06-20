@@ -28,6 +28,22 @@ class RequestIdFilter(logging.Filter):
         return True
 
 
+class ShieldedKeepaliveFilter(logging.Filter):
+    """Downgrade benign uvicorn WS keepalive close noise from asyncio ERROR to DEBUG."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name != "asyncio":
+            return True
+        msg = record.getMessage()
+        if (
+            "ConnectionClosedError exception in shielded future" in msg
+            and "keepalive ping timeout" in msg
+        ):
+            record.levelno = logging.DEBUG
+            record.levelname = logging.getLevelName(logging.DEBUG)
+        return True
+
+
 class JsonLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, object] = {
@@ -59,6 +75,7 @@ def configure_logging(level: str = "INFO", fmt: LogFormat = "text") -> None:
 
     handler = logging.StreamHandler(sys.stdout)
     handler.addFilter(RequestIdFilter())
+    handler.addFilter(ShieldedKeepaliveFilter())
     if fmt == "json":
         handler.setFormatter(JsonLogFormatter())
     else:

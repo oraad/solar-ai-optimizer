@@ -46,4 +46,10 @@ PY
 )"
 fi
 
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+# WebSocket keepalive: align with the 30s app heartbeat in api/ws.py; tolerate LAN latency.
+WS_PING_INTERVAL="${WS_PING_INTERVAL:-30}"
+WS_PING_TIMEOUT="${WS_PING_TIMEOUT:-60}"
+
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000 \
+  --ws-ping-interval "$WS_PING_INTERVAL" \
+  --ws-ping-timeout "$WS_PING_TIMEOUT"

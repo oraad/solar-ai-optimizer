@@ -16,14 +16,13 @@ Unmodified copies of [community-scripts/ProxmoxVE](https://github.com/community-
 | `misc/error_handler.func` | Error handling |
 | `misc/tools.func` | Addon/update tool helpers |
 | `misc/install.func` | In-container install helpers (`motd_ssh`, `customize`, etc.) |
-
-`alpine-install.func` is not vendored (Solar uses Debian 13).
+| `misc/alpine-install.func` | Alpine LXC install helpers (`motd_ssh`, `customize`, etc.) |
 
 ## Re-sync
 
 ```bash
 SHA=6c55f61efc960330dea01db3dad1fb9fa00acadf  # or newer commit after testing
-for f in build.func api.func core.func error_handler.func tools.func install.func; do
+for f in build.func api.func core.func error_handler.func tools.func install.func alpine-install.func; do
   curl -fsSL "https://raw.githubusercontent.com/community-scripts/ProxmoxVE/${SHA}/misc/${f}" \
     -o "proxmox/vendor/community-scripts/misc/${f}"
 done

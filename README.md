@@ -71,7 +71,7 @@ confirm the decisions look right, then switch to live control from the dashboard
 ### Other deployment paths
 
 - **Home Assistant add-on** — [HA setup guide](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/#supervisor-add-on)
-- **Proxmox LXC** — [one-liner install](https://oraad.github.io/solar-ai-optimizer/proxmox/)
+- **Proxmox LXC** — [one-liner install](https://oraad.github.io/solar-ai-optimizer/proxmox/) (Debian or Alpine)
 
 ### Tests
 

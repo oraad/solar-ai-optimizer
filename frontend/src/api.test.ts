@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basePrefix } from "./api.js";
+import { basePrefix, getBase } from "./api.js";
 
 function setPath(pathname: string) {
   window.history.pushState({}, "", pathname);
@@ -34,5 +34,12 @@ describe("basePrefix", () => {
   it("returns empty string at site root", () => {
     setPath("/");
     expect(basePrefix()).toBe("");
+  });
+
+  it("getBase matches basePrefix on each call", () => {
+    setPath("/api/ingress/solar_ai/");
+    expect(getBase()).toBe("/api/ingress/solar_ai");
+    setPath("/");
+    expect(getBase()).toBe("");
   });
 });

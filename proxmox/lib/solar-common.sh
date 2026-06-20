@@ -123,13 +123,55 @@ solar_show_admin_credentials() {
   echo -e "${INFO}${YW}Password:${CL} ${SOLAR_ADMIN_PASSWORD}"
 }
 
+solar_ct_script_name() {
+  if [[ -f /etc/alpine-release ]]; then
+    echo "solar-ai-optimizer-alpine.sh"
+  else
+    echo "solar-ai-optimizer.sh"
+  fi
+}
+
 solar_write_update_command() {
   local repo_raw="${SOLAR_REPO_RAW:-https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main}"
+  local ct_script
+  ct_script="$(solar_ct_script_name)"
   cat > /usr/bin/update <<EOF
 #!/bin/bash
-bash -c "\$(curl -fsSL ${repo_raw}/proxmox/ct/solar-ai-optimizer.sh)"
+bash -c "\$(curl -fsSL ${repo_raw}/proxmox/ct/${ct_script})"
 EOF
   chmod +x /usr/bin/update
+}
+
+solar_install_docker() {
+  local docker_config_path='/etc/docker/daemon.json'
+  local i
+
+  if [[ -f /etc/alpine-release ]]; then
+    msg_info "Installing Docker Engine (Alpine)"
+    $STD apk add --no-cache docker openssl
+    if ! grep -q 'rc_cgroup_mode' /etc/rc.conf 2>/dev/null; then
+      echo 'rc_cgroup_mode="unified"' >>/etc/rc.conf
+    fi
+    mkdir -p "$(dirname "$docker_config_path")"
+    echo -e '{\n  "log-driver": "json-file"\n}' >"$docker_config_path"
+    rc-update add docker boot
+    rc-service docker start
+    for i in $(seq 1 30); do
+      if docker info >/dev/null 2>&1; then
+        msg_ok "Installed Docker Engine"
+        return 0
+      fi
+      sleep 1
+    done
+    msg_error "Docker failed to start — check: rc-service docker status"
+    return 1
+  fi
+
+  msg_info "Installing Docker Engine"
+  mkdir -p "$(dirname "$docker_config_path")"
+  echo -e '{\n  "log-driver": "journald"\n}' >"$docker_config_path"
+  $STD sh <(curl -fsSL https://get.docker.com)
+  msg_ok "Installed Docker Engine"
 }
 
 solar_write_env_file() {

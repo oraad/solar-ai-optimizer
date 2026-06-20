@@ -23,6 +23,7 @@ from .forecast.service import ForecastService
 from .grid.reactive import ReactiveGrid
 from .ha.client import HAClient
 from .ha.heartbeat import HAHeartbeat
+from .ha.users import HAAdminResolver
 from .ingest.collector import Collector
 from .models import (
     BatterySummary,
@@ -83,6 +84,10 @@ class Orchestrator:
         self._stream_task: asyncio.Task | None = None
         self._cycle_lock = asyncio.Lock()
         self._scheduler = None
+        self._admin_resolver: HAAdminResolver | None = None
+
+    def set_admin_resolver(self, resolver: HAAdminResolver | None) -> None:
+        self._admin_resolver = resolver
 
     def _resolve_ha(self) -> tuple[str, str, bool]:
         """HA connection: UI config wins when set, else environment/Supervisor."""
@@ -107,6 +112,8 @@ class Orchestrator:
         with contextlib.suppress(Exception):
             await self.ha.aclose()
         self.ha = HAClient(base_url, token, verify_ssl)
+        if self._admin_resolver is not None:
+            self._admin_resolver.set_ha(self.ha)
         self.heartbeat.set_ha(self.ha)
         self.adapter.set_ha(self.ha)
         self.collector.set_ha(self.ha)

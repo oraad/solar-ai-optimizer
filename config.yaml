@@ -1,6 +1,6 @@
 # Home Assistant add-on manifest.
 name: "Solar AI Optimizer"
-version: "0.4.0"
+version: "0.4.2"
 slug: "solar_ai_optimizer"
 description: "Resilience-first, vendor-agnostic solar/battery optimizer."
 url: "https://github.com/oraad/solar-ai-optimizer"

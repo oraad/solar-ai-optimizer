@@ -16,12 +16,7 @@ _SOLAR_REPO_RAW="${SOLAR_REPO_RAW:-https://raw.githubusercontent.com/oraad/solar
 # shellcheck disable=SC1090
 source <(curl -fsSL "${_SOLAR_REPO_RAW}/proxmox/lib/solar-common.sh")
 
-msg_info "Installing Docker Engine"
-DOCKER_CONFIG_PATH='/etc/docker/daemon.json'
-mkdir -p "$(dirname "$DOCKER_CONFIG_PATH")"
-echo -e '{\n  "log-driver": "journald"\n}' >"$DOCKER_CONFIG_PATH"
-$STD sh <(curl -fsSL https://get.docker.com)
-msg_ok "Installed Docker Engine"
+solar_install_docker
 
 msg_info "Pulling ${APP:-Solar AI Optimizer} image"
 $STD docker pull "$(solar_image_ref)"

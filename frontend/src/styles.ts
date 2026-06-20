@@ -114,6 +114,7 @@ export const sharedStyles = css`
   button.danger { background: rgba(229, 72, 77, 0.15); color: var(--bad); border-color: rgba(229, 72, 77, 0.45); }
   button.danger:hover { background: rgba(229, 72, 77, 0.25); }
 
+  input:not([type]),
   input[type="number"],
   input[type="text"],
   input[type="password"],
@@ -126,6 +127,14 @@ export const sharedStyles = css`
     border-radius: var(--radius-sm);
     padding: 8px 10px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--text);
+    -webkit-box-shadow: 0 0 0 1000px var(--panel-2) inset;
+    box-shadow: 0 0 0 1000px var(--panel-2) inset;
+    transition: background-color 99999s ease-in-out 0s;
   }
   input:focus-visible,
   select:focus-visible,

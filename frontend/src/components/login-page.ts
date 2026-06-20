@@ -6,6 +6,11 @@ import { sharedStyles } from "../styles.js";
 
 @customElement("solar-login-page")
 export class LoginPage extends LitElement {
+  /** Light DOM so password managers can discover the login form reliably. */
+  createRenderRoot() {
+    return this;
+  }
+
   static styles = [
     sharedStyles,
     css`
@@ -55,18 +60,20 @@ export class LoginPage extends LitElement {
     `,
   ];
 
-  @state() private username = "admin";
-  @state() private password = "";
   @state() private error = "";
   @state() private busy = false;
 
   private async submit(e: Event): Promise<void> {
     e.preventDefault();
     if (this.busy) return;
+    const form = e.currentTarget as HTMLFormElement;
+    const data = new FormData(form);
+    const username = String(data.get("username") ?? "").trim();
+    const password = String(data.get("password") ?? "");
     this.busy = true;
     this.error = "";
     try {
-      await api.login(this.username.trim(), this.password);
+      await api.login(username, password);
       this.dispatchEvent(new CustomEvent("solar-login-success", { bubbles: true, composed: true }));
     } catch (err) {
       this.error = err instanceof Error ? err.message : "Login failed";
@@ -81,14 +88,17 @@ export class LoginPage extends LitElement {
         <h1>Solar AI Optimizer</h1>
         <p class="sub">Sign in with your local admin account.</p>
         ${this.error ? html`<div class="err">${this.error}</div>` : null}
-        <form @submit=${this.submit}>
+        <form method="post" action="#" @submit=${this.submit}>
           <label for="username">Username</label>
           <input
             id="username"
             name="username"
+            type="text"
             autocomplete="username"
-            .value=${this.username}
-            @input=${(e: Event) => (this.username = (e.target as HTMLInputElement).value)}
+            placeholder="admin"
+            spellcheck="false"
+            autocapitalize="off"
+            required
           />
           <label for="password">Password</label>
           <input
@@ -96,8 +106,7 @@ export class LoginPage extends LitElement {
             name="password"
             type="password"
             autocomplete="current-password"
-            .value=${this.password}
-            @input=${(e: Event) => (this.password = (e.target as HTMLInputElement).value)}
+            required
           />
           <button class="primary" type="submit" ?disabled=${this.busy}>
             ${this.busy ? "Signing in…" : "Sign in"}

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-06-20
+
+### Fixed
+
+- Login page: username field now uses themed input styling (was missing `type="text"`)
+- Login page: browser password managers can detect and save/fill credentials — light DOM form, uncontrolled inputs, and autofill styling
+
 ## [0.4.2] - 2026-06-20
 
 ### Fixed
@@ -106,6 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.4.3]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.3
 [0.4.2]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.2
 [0.4.1]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.1
 [0.4.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.0

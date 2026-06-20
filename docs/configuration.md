@@ -36,7 +36,7 @@ Common overrides:
 | `HA_BASE_URL` / `HA_TOKEN` | Home Assistant connection (or set in UI) |
 | `SHADOW_MODE` | `true` = observe only (default) |
 | `LOCAL_ADMIN_PASSWORD_HASH` / `SESSION_SECRET` | Local admin login for standalone access |
-| `TRUST_INGRESS_HEADERS` | Trust HA ingress user headers (auto on add-on) |
+| `TRUST_INGRESS_HEADERS` | Trust HA ingress user headers and allow sidebar iframe (`SAMEORIGIN`; auto on add-on) |
 | `API_TOKEN` | Bearer token for scripts; protects API when set |
 | `CORS_ORIGINS` | Comma-separated CORS origins (default `*`) |
 | `ML_LOAD_ENABLED` | Gradient-boosting load forecast (needs sklearn in image) |

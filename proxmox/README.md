@@ -21,7 +21,7 @@ The wizard provisions:
 
 Open the dashboard at `http://<lxc-ip>:8000`.
 
-The install script writes `/opt/solar-ai-optimizer/solar.env` with `TRUST_INGRESS_HEADERS=true` (for Home Assistant ingress) and auto-generated local admin credentials. The username and password are printed once at the end of the install — save them.
+The install script writes `/opt/solar-ai-optimizer/solar.env` with `TRUST_INGRESS_HEADERS=true` (trusts HA ingress user headers and sets `X-Frame-Options: SAMEORIGIN` for the sidebar panel) and auto-generated local admin credentials. The username and password are printed once at the end of the install — save them.
 
 ## Post-install
 
@@ -78,6 +78,7 @@ Important files: `solar.db`, `config.runtime.yaml`, `model.json`.
 
 | Issue | Check |
 |-------|--------|
+| Sidebar panel blank / `X-Frame-Options: deny` | `TRUST_INGRESS_HEADERS=true` in `/opt/solar-ai-optimizer/solar.env`; ingress `url` must point to `http://<lxc-ip>:8000` (not your HA URL); update to a current image and reload ingress in HA |
 | Docker won't start in LXC | Container needs `nesting=1` and `keyctl=1` (set by default in the helper script) |
 | Can't reach Home Assistant | LXC must route to HA on your LAN; use HA IP instead of mDNS if needed |
 | Health check fails | `docker logs solar-optimizer` inside the LXC |

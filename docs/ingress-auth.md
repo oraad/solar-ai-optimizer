@@ -44,6 +44,8 @@ TRUST_INGRESS_HEADERS=true
 
 Do not publish port `8000` publicly when using ingress-only access.
 
+When ingress is trusted — native add-on (`SUPERVISOR_TOKEN`) or `TRUST_INGRESS_HEADERS=true` — the backend sets `X-Frame-Options: SAMEORIGIN` so the HA sidebar iframe can embed the panel, and trusts proxied user identity headers. Standalone direct access (neither flag) keeps `DENY` and does not trust ingress headers.
+
 **Home Assistant `configuration.yaml`:**
 
 ```yaml
@@ -64,7 +66,7 @@ Reload ingress in **Developer tools → YAML → INGRESS**.
 
 ### C. Home Assistant add-on
 
-When `SUPERVISOR_TOKEN` is set, ingress headers are trusted automatically. Local login is optional and off by default. Open the panel from the HA sidebar.
+When `SUPERVISOR_TOKEN` is set, ingress is trusted automatically (user headers and sidebar iframe framing). Local login is optional and off by default. Open the panel from the HA sidebar.
 
 !!! info "Roles at a glance"
     **Admin** users see all five dashboard tabs (including Assistant and Settings).

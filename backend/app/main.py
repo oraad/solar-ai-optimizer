@@ -139,7 +139,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(RequestIdMiddleware)
-    app.add_middleware(SecurityHeadersMiddleware, allow_frames=settings.is_addon)
+    app.add_middleware(SecurityHeadersMiddleware, allow_frames=settings.ingress_trusted)
     app.add_middleware(AuthGateMiddleware)
     app.add_middleware(UserContextMiddleware)
     app.include_router(auth_router)

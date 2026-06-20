@@ -56,7 +56,7 @@ Add-on options (Supervisor UI) map to environment variables via `run.sh`:
 | `solcast_api_key` | `SOLCAST_API_KEY` |
 | `api_token` | `API_TOKEN` |
 
-Ingress headers are trusted automatically (`TRUST_INGRESS_HEADERS` when `SUPERVISOR_TOKEN` is set).
+Ingress is trusted automatically when running as an add-on (`SUPERVISOR_TOKEN`); set `TRUST_INGRESS_HEADERS=true` for external Docker/Proxmox deployments. This enables proxied user identity and `X-Frame-Options: SAMEORIGIN` for the sidebar panel.
 See [Roles and access](ingress-auth.md) for admin vs viewer behavior.
 
 ---
@@ -119,6 +119,8 @@ ingress:
 ```
 
 Reload ingress: **Developer tools → YAML → INGRESS**.
+
+Requires `TRUST_INGRESS_HEADERS=true` on the optimizer so HA can embed the panel in the sidebar (`X-Frame-Options: SAMEORIGIN`).
 
 Full auth patterns: [Roles and access](ingress-auth.md).
 

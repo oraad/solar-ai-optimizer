@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-20
+
+### Fixed
+
+- Home Assistant sidebar iframe for hass_ingress and Proxmox deployments: set `X-Frame-Options: SAMEORIGIN` when ingress is trusted (`TRUST_INGRESS_HEADERS=true` or native add-on), instead of `DENY` blocking the panel
+
+### Changed
+
+- Documentation and tests for ingress iframe framing (`ingress_trusted` behavior)
+
 ## [0.4.0] - 2026-06-19
 
 ### Added

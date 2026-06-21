@@ -8,6 +8,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app import __version__
 from app.api.auth import AuthGateMiddleware, UserContextMiddleware
 from app.api.routes import router
 from app.models import SystemStatus, utcnow
@@ -58,6 +59,7 @@ def test_me_open_mode(me_client, monkeypatch):
     assert res.status_code == 200
     assert res.json()["auth_mode"] == "open"
     assert res.json()["is_admin"] is True
+    assert res.json()["version"] == __version__
 
 
 def test_me_ingress_mode(me_client, monkeypatch):

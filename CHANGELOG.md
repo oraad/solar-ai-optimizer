@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-06-21
+
+### Added
+
+- Dashboard topbar shows the running app version (from `/api/me`)
+- Root `VERSION` file as the single canonical release semver
+- `scripts/sync-version.py` to sync or verify `config.yaml` and `frontend/package.json`
+- CI drift check and release-tag validation against `VERSION`
+
 ## [0.5.0] - 2026-06-21
 
 ### Added
@@ -134,6 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.5.1]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.1
 [0.5.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.0
 [0.4.3]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.3
 [0.4.2]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.2

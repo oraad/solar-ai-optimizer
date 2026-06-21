@@ -323,10 +323,13 @@ export class SolarApp extends LitElement {
   }
 
   private get brandSubtitle(): string {
+    const version = this.session?.version ? `v${this.session.version}` : "";
+    const withVersion = (text: string) =>
+      version ? `${text} · ${version}` : text;
     if (!this.isAdmin && this.session?.display_name) {
-      return this.session.display_name;
+      return withVersion(this.session.display_name);
     }
-    return "Resilience-first energy control";
+    return withVersion("Resilience-first energy control");
   }
 
   private get visibleTabs() {

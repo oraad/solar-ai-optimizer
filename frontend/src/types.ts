@@ -126,6 +126,7 @@ export interface SessionInfo {
   display_name: string | null;
   is_admin: boolean;
   login_required: boolean;
+  version: string;
 }
 
 export interface DecisionHistoryRow {

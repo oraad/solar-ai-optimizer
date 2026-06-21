@@ -31,6 +31,7 @@ ARG INSTALL_EXTRAS=1
 RUN pip install --upgrade pip && pip install -r requirements.txt \
     && if [ "$INSTALL_EXTRAS" = "1" ]; then pip install -r requirements-extras.txt; fi
 
+COPY VERSION ./VERSION
 COPY backend/app ./app
 COPY backend/scripts ./scripts
 COPY config/config.yaml.example ./config/config.yaml
@@ -69,9 +70,15 @@ ENTRYPOINT ["/app/run.sh"]
 FROM app AS test
 COPY backend/requirements-dev.txt ./
 RUN pip install -r requirements-dev.txt
+COPY VERSION ./VERSION
+COPY scripts ./scripts
+COPY config.yaml ./config.yaml
+COPY frontend/package.json ./frontend/package.json
 COPY backend/tests ./tests
 ENV PYTHONPATH=/app
 WORKDIR /app
+# Clear production entrypoint so CMD runs pytest (not uvicorn via run.sh).
+ENTRYPOINT []
 CMD ["python", "-m", "pytest", "tests/", "-q"]
 
 # Default image for `docker build` and HA add-on (no --target). Must stay last.

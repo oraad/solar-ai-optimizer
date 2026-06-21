@@ -15,6 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify release tag matches VERSION
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          test "$(cat VERSION)" = "$tag"
+
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 

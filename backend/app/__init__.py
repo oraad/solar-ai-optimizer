@@ -1,3 +1,5 @@
 """Solar AI Optimizer backend package."""
 
-__version__ = "0.4.0"
+from .version import read_version
+
+__version__ = read_version()

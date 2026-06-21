@@ -16,6 +16,7 @@ import bcrypt
 from fastapi import HTTPException, Request
 from starlette.requests import HTTPConnection
 
+from .. import __version__
 from ..config import Settings, get_settings
 from ..models import Override
 
@@ -59,6 +60,7 @@ class SessionUser:
             "display_name": self.display_name,
             "is_admin": self.is_admin,
             "login_required": login_required,
+            "version": __version__,
         }
 
 

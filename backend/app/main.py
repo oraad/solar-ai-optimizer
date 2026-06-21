@@ -20,6 +20,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from . import __version__
 from .api import api_router, auth_router, metrics_router, ws_router
 from .api.auth import AuthGateMiddleware, UserContextMiddleware
 from .config import get_settings
@@ -117,7 +118,7 @@ def create_app() -> FastAPI:
     openapi_url = None if auth_locked else "/openapi.json"
     app = FastAPI(
         title="Solar AI Optimizer",
-        version="0.1.0",
+        version=__version__,
         description=(
             "Vendor-agnostic solar/battery optimizer for Home Assistant. "
             "Resilience first, then savings and self-sufficiency."

@@ -182,12 +182,26 @@ Major sections:
 | **API security** | Browser-stored API token when `API_TOKEN` is set on the server |
 | **Battery / Reserve / Forecast / Control** | Physical and algorithm parameters |
 | **PV arrays** | Tilt, azimuth, and kWp per array |
-| **Engine** | Rules vs MPC mode |
+| **Engine** | Rules vs MPC mode; **optimization priority** order (resilience, savings, self-sufficiency) |
 | **Temperature** | Heating/cooling load model and outdoor sensor |
 | **Inverter entity map** | HA entities for read sensors and write controls |
 | **Load shedding** | Tiers with **multiple shed entities** per tier, SOC thresholds, priority |
 
 Entity fields support autocomplete when Home Assistant is connected. See [Home Assistant setup](home-assistant-setup.md).
+
+### Engine and optimization priorities
+
+Under **Engine**, choose **Rules** or **MPC**, then reorder **optimization priorities**
+(highest first):
+
+1. **Resilience** — larger reserve buffers and stronger blackout-risk response
+2. **Savings** — more opportunistic grid charging when the grid is present (not tariff/TOU optimization)
+3. **Self-sufficiency** — stronger solar-trim in grid-charge ramp; prefers PV over grid top-up
+
+The summary under the list reflects the active order. Default order matches the
+product stance: resilience → savings → self-sufficiency. Grid charge **factor order**
+(in the Grid charge section) still applies; priorities scale how strongly each factor
+bucket influences the cap chain.
 
 ### Load-shedding tiers
 

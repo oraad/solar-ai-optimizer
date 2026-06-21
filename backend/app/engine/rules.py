@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from ..config import BatteryConfig, EngineConfig, GridChargeConfig, LoadSheddingConfig, ReserveConfig
+from ..config import BatteryConfig, EngineConfig, GridChargeConfig, LoadSheddingConfig, OptimizationPriority, ReserveConfig
 from ..grid.reactive import ReactiveGrid
 from ..models import (
     BlackoutRisk,
@@ -24,6 +24,13 @@ from ..models import (
     ReserveTarget,
     Telemetry,
     utcnow,
+)
+from .priorities import (
+    buffer_scale,
+    format_priority_order,
+    grid_present_risk_multiplier,
+    resolve_weights,
+    savings_buffer_relief,
 )
 from .shedding import LoadSheddingController
 
@@ -48,6 +55,7 @@ class RuleEngine:
         self._shedding = LoadSheddingController(shedding or LoadSheddingConfig())
         self._total_kwp = 1.0
         self._last_grid_charge_amps: float | None = None
+        self._weights = resolve_weights(engine_cfg.priority_order)
 
     def set_last_grid_charge_amps(self, amps: float | None) -> None:
         self._last_grid_charge_amps = amps
@@ -75,6 +83,8 @@ class RuleEngine:
         if forecast and forecast.degraded:
             buffer += self._reserve.cloudy_extra_buffer_pct
             degraded_note = " Degraded/stale forecast — extra conservative buffer applied."
+        buffer *= buffer_scale(self._weights[OptimizationPriority.resilience])
+        buffer *= savings_buffer_relief(self._weights[OptimizationPriority.savings])
         bridge_wh *= 1.0 + buffer / 100.0
         bridge_pct = 100.0 * bridge_wh / cap_wh
         solar_bridge_soc = min(
@@ -290,6 +300,10 @@ class RuleEngine:
             )
 
         summary = self._summary(telemetry, reserve, target_soc, risk)
+        summary = (
+            f"Priorities: {format_priority_order(self._engine_cfg.priority_order)}. "
+            + summary
+        )
         if advisories:
             summary += " | " + " ".join(advisories)
 
@@ -367,7 +381,10 @@ class RuleEngine:
 
         score = 0.6 * deficit_ratio + 0.4 * solar_factor
         if telemetry.grid_present:
-            score *= 0.5  # grid physically here right now lowers immediate risk
+            score *= grid_present_risk_multiplier(
+                self._weights[OptimizationPriority.resilience],
+                self._weights[OptimizationPriority.savings],
+            )
 
         if soc <= reserve.autonomy_floor_soc:
             score = max(score, 0.7)

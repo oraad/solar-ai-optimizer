@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-06-21
+
+### Added
+
+- **Settings → Engine:** reorderable optimization priorities (resilience, savings, self-sufficiency) with per-priority effect tooltips and a live summary
+- `engine.priority_order` config field and backend priority resolver that tunes reserve buffers, blackout risk scoring, MPC objective weights, and grid-charge ramp factor strength
+- LLM assistant system prompt reflects the active priority order from config
+
+### Changed
+
+- Default priority order remains resilience → savings → self-sufficiency (behavior-neutral at default); reordering shifts engine tradeoffs
+- README and docs describe configurable priorities and `engine.priority_order` in configuration reference
+
 ## [0.5.2] - 2026-06-21
 
 ### Added
@@ -157,6 +170,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.5.3]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.3
+[0.5.2]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.2
 [0.5.1]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.1
 [0.5.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.0
 [0.4.3]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.3

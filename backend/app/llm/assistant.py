@@ -15,18 +15,14 @@ import re
 import httpx
 
 from ..config import Settings
+from ..engine.priorities import system_prompt_priorities
 from ..models import Override
 
 log = logging.getLogger("llm.assistant")
 
-SYSTEM_PROMPT = (
+SYSTEM_PROMPT_BASE = (
     "You are the assistant for a home solar/battery optimizer running on Home "
-    "Assistant. Priorities: 1) resilience (never blackout critical loads), "
-    "2) savings, 3) self-sufficiency. The grid is unpredictable and is treated "
-    "as a reactive, opportunistic resource only (never predicted). Answer "
-    "concisely and concretely using the provided live context. If asked to "
-    "explain a decision, reference the reserve target, SOC, solar forecast, and "
-    "grid state."
+    "Assistant. "
 )
 
 
@@ -89,8 +85,23 @@ class Assistant:
         return self._heuristic(question, context)
 
     async def _ollama(self, question: str, context: dict) -> str:
+        from ..config import OptimizationPriority
+
+        order_raw = context.get("priority_order")
+        order = None
+        if isinstance(order_raw, list):
+            try:
+                order = [OptimizationPriority(str(x)) for x in order_raw]
+            except ValueError:
+                order = None
+        system = (
+            f"{SYSTEM_PROMPT_BASE}{system_prompt_priorities(order)} "
+            "Answer concisely and concretely using the provided live context. "
+            "If asked to explain a decision, reference the reserve target, SOC, "
+            "solar forecast, and grid state."
+        )
         prompt = (
-            f"{SYSTEM_PROMPT}\n\nLive context (JSON):\n{context}\n\n"
+            f"{system}\n\nLive context (JSON):\n{context}\n\n"
             f"User: {question}\nAssistant:"
         )
         async with httpx.AsyncClient(timeout=60.0) as client:

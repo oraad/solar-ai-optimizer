@@ -10,8 +10,9 @@ through Home Assistant, forecasts solar and load, and reactively controls
 charge/discharge/grid-charge settings to keep your home powered through
 unpredictable outages while wasting as little solar as possible.
 
-**Priorities, in order:** 1) resilience (never blackout critical loads),
-2) savings, 3) self-sufficiency.
+**Priorities, in order (default):** 1) resilience (never blackout critical loads),
+2) savings, 3) self-sufficiency. Reorder them in **Settings → Engine**; default
+order preserves the resilience-first stance.
 
 Because the tariff is flat and the grid is unpredictable, the core intelligence
 is **not** price optimization and **not** grid prediction. It is: forecast solar,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 
 
-import { capabilityLabel, entityLabel, fieldLabel, gridChargeFactorLabel, sectionTitle } from "./field-labels.js";
+import { capabilityLabel, entityLabel, fieldLabel, gridChargeFactorLabel, optimizationPriorityLabel, sectionTitle } from "./field-labels.js";
 
 
 
@@ -127,6 +127,20 @@ describe("gridChargeFactorLabel", () => {
   it("returns factor labels", () => {
 
     expect(gridChargeFactorLabel("soc_gap")).toBe("SOC gap to reserve");
+
+  });
+
+});
+
+
+
+describe("optimizationPriorityLabel", () => {
+
+  it("returns priority labels", () => {
+
+    expect(optimizationPriorityLabel("resilience")).toBe("Resilience");
+
+    expect(optimizationPriorityLabel("self_sufficiency")).toBe("Self-sufficiency");
 
   });
 

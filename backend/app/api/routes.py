@@ -376,6 +376,7 @@ async def assistant_ask(
         },
         "shadow_mode": orch.shadow_mode,
         "paused": orch.paused,
+        "priority_order": [p.value for p in orch.cfg.engine.priority_order],
     }
 
     intent = assistant.parse_intent(body.question)

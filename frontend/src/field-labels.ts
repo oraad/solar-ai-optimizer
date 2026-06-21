@@ -198,6 +198,18 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
 
 
 
+const OPTIMIZATION_PRIORITY_LABELS: Record<string, string> = {
+
+  resilience: "Resilience",
+
+  savings: "Savings",
+
+  self_sufficiency: "Self-sufficiency",
+
+};
+
+
+
 const ENTITY_LABELS: Record<string, string> = {
 
   grid_present: "Grid present sensor",
@@ -283,6 +295,14 @@ export function capabilityLabel(key: string): string {
 export function gridChargeFactorLabel(key: string): string {
 
   return FIELD_LABELS.grid_charge?.[key] ?? titleCaseSnake(key);
+
+}
+
+
+
+export function optimizationPriorityLabel(key: string): string {
+
+  return OPTIMIZATION_PRIORITY_LABELS[key] ?? titleCaseSnake(key);
 
 }
 

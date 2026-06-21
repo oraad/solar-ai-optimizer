@@ -18,7 +18,14 @@ from datetime import timedelta, timezone
 # Hard dependency for this optional engine. ImportError -> fallback to rules.
 import pulp  # noqa: F401
 
-from ..config import BatteryConfig, EngineConfig, GridChargeConfig, LoadSheddingConfig, ReserveConfig
+from ..config import (
+    BatteryConfig,
+    EngineConfig,
+    GridChargeConfig,
+    LoadSheddingConfig,
+    OptimizationPriority,
+    ReserveConfig,
+)
 from ..grid.reactive import ReactiveGrid
 from ..models import (
     BlackoutRisk,
@@ -30,6 +37,7 @@ from ..models import (
     utcnow,
 )
 from .rules import RuleEngine
+from .priorities import buffer_scale, mpc_weights, resolve_weights
 
 log = logging.getLogger("engine.mpc")
 
@@ -51,6 +59,7 @@ class MPCEngine:
         self._grid_charge = grid_charge or GridChargeConfig()
         self._total_kwp = total_kwp
         self._rule: RuleEngine | None = None
+        self._weights = resolve_weights(engine_cfg.priority_order)
 
     def _rule_engine(self, reactive: ReactiveGrid) -> RuleEngine:
         if self._rule is None:
@@ -172,8 +181,7 @@ class MPCEngine:
             prob += e[t + 1] == e[t] + (ch[t] * eff - dch[t]) * dt
 
         # Objective: resilience (unserved) >> self-sufficiency (curtailment).
-        w_resilience = 1000.0
-        w_curtail = 1.0
+        w_resilience, w_curtail = mpc_weights(self._weights)
         prob += w_resilience * pulp.lpSum(uns) + w_curtail * pulp.lpSum(cur)
 
         try:
@@ -188,6 +196,7 @@ class MPCEngine:
 
         # Reserve = peak forward cumulative deficit (Wh) -> % on top of floor.
         peak_def = self._peak_forward_deficit(pv, load, eff)
+        peak_def *= buffer_scale(self._weights[OptimizationPriority.resilience])
         reserve_pct = min(
             self._battery.max_soc_ceiling,
             self._battery.min_soc_floor + 100.0 * peak_def / cap_wh,

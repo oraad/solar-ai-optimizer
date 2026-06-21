@@ -2,8 +2,8 @@ import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { api, getApiToken, setApiToken } from "../api.js";
-import { entityLabel, fieldLabel, gridChargeFactorLabel, INVERTER_READ_ENTITY_KEYS, pvLabel, sectionTitle } from "../field-labels.js";
-import { entityHelp, fieldHelp, pvHelp, sectionHelp } from "../field-help.js";
+import { entityLabel, fieldLabel, gridChargeFactorLabel, INVERTER_READ_ENTITY_KEYS, optimizationPriorityLabel, pvLabel, sectionTitle } from "../field-labels.js";
+import { entityHelp, fieldHelp, priorityEffectHelp, priorityRankBlurb, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
 import { sharedStyles } from "../styles.js";
 import "./entity-input.js";
@@ -36,6 +36,14 @@ const DEFAULT_GRID_CHARGE_FACTORS = [
 ] as const;
 
 const ALL_GRID_CHARGE_FACTORS = [...DEFAULT_GRID_CHARGE_FACTORS] as const;
+
+const DEFAULT_PRIORITY_ORDER = [
+  "resilience",
+  "savings",
+  "self_sufficiency",
+] as const;
+
+type OptimizationPriorityKey = (typeof DEFAULT_PRIORITY_ORDER)[number];
 
 // Read-only helper fields returned by the API that must not be edited.
 const HIDDEN_FIELDS = new Set(["has_token"]);
@@ -251,6 +259,7 @@ export class SettingsPanel extends LitElement {
     this.patchDraft((d) => {
       this.normalizeTiersForSave(d);
       this.normalizeGridChargeForSave(d);
+      this.normalizePriorityOrderForSave(d);
     });
     const tierErr = this.validateTiers();
     if (tierErr) {
@@ -851,6 +860,47 @@ export class SettingsPanel extends LitElement {
     `;
   }
 
+  private priorityOrderFromDraft(d: Record<string, unknown>): OptimizationPriorityKey[] {
+    const raw = (d.engine as Record<string, unknown> | undefined)?.priority_order;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return [...DEFAULT_PRIORITY_ORDER];
+    }
+    const seen = new Set<string>();
+    const out: OptimizationPriorityKey[] = [];
+    for (const item of raw) {
+      const key = String(item);
+      if (!DEFAULT_PRIORITY_ORDER.includes(key as OptimizationPriorityKey)) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(key as OptimizationPriorityKey);
+    }
+    for (const key of DEFAULT_PRIORITY_ORDER) {
+      if (!seen.has(key)) out.push(key);
+    }
+    return out;
+  }
+
+  private priorityOrder(): OptimizationPriorityKey[] {
+    if (!this.draft) return [...DEFAULT_PRIORITY_ORDER];
+    return this.priorityOrderFromDraft(this.draft as unknown as Record<string, unknown>);
+  }
+
+  private movePriority(i: number, dir: -1 | 1): void {
+    this.patchDraft((d) => {
+      const list = this.priorityOrderFromDraft(d);
+      const j = i + dir;
+      if (j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+      d.engine = { ...(d.engine ?? {}), priority_order: list };
+    });
+  }
+
+  private normalizePriorityOrderForSave(d: Record<string, any>): void {
+    const eng = (d.engine ?? {}) as Record<string, unknown>;
+    eng.priority_order = this.priorityOrderFromDraft(d);
+    d.engine = eng;
+  }
+
   private renderEngineSection() {
     const d = this.draft as unknown as Record<string, any>;
     const eng = (d.engine ?? {}) as Record<string, unknown>;
@@ -862,6 +912,13 @@ export class SettingsPanel extends LitElement {
             <solar-info-tip .text=${sectionHelp("engine")!}></solar-info-tip>
           </span>
         </summary>
+        <p class="label">
+          Reorder to set which tradeoff wins when goals conflict. Savings means
+          opportunistic grid use when present — not tariff or time-of-use
+          optimization. Grid charge factor order (below) still applies; priorities
+          scale how strongly each factor bucket influences the cap chain. When ramp
+          is disabled, priorities affect reserve and risk only.
+        </p>
         <div class="fields">
           <div class="field">
             <label>${this.lbl("engine", "mode")}</label>
@@ -878,6 +935,34 @@ export class SettingsPanel extends LitElement {
             ? this.renderField("engine", "mpc_horizon_hours", eng.mpc_horizon_hours)
             : null}
         </div>
+        <p class="label" style="margin-top:12px">Optimization priority (highest first)</p>
+        ${this.priorityOrder().map(
+          (key, i) => html`
+            <div class="row" style="margin-bottom:6px">
+              <span style="flex:1">
+                ${labelWithTip(
+                  `${i + 1}. ${optimizationPriorityLabel(key)}`,
+                  priorityEffectHelp(key),
+                )}
+              </span>
+              <button type="button" ?disabled=${i === 0} @click=${() => this.movePriority(i, -1)}>
+                ↑
+              </button>
+              <button
+                type="button"
+                ?disabled=${i === this.priorityOrder().length - 1}
+                @click=${() => this.movePriority(i, 1)}
+              >
+                ↓
+              </button>
+            </div>
+          `,
+        )}
+        <p class="label">
+          ${this.priorityOrder()
+            .map((key, i) => `${i + 1}. ${optimizationPriorityLabel(key)} — ${priorityRankBlurb(key)}`)
+            .join(" ")}
+        </p>
         ${eng.mode === "mpc" && !this.mpcAvailable
           ? html`<p class="label" style="color:var(--warn)">
               MPC is selected but PuLP is not installed in this image. Rebuild with

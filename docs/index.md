@@ -31,9 +31,14 @@ Open **http://localhost:8000**. The app starts in **shadow mode** (no inverter w
 
 ## Priorities
 
+Default order (configurable in **Settings → Engine**):
+
 1. **Resilience** — never blackout critical loads
-2. **Savings** — opportunistic grid use when available
+2. **Savings** — opportunistic grid use when available (not tariff optimization)
 3. **Self-sufficiency** — minimize wasted solar
+
+Reorder the list to emphasize different tradeoffs. The default order preserves the
+resilience-first stance described above.
 
 The optimizer does **not** predict grid availability. It forecasts solar and load, defends
 a conservative battery reserve, and reacts when the grid appears.

@@ -76,6 +76,25 @@ Set `LOG_FORMAT=json` for production log aggregators (one JSON object per line).
 
 Set **Engine → mode** in Settings. MPC falls back to rules if PuLP is unavailable.
 
+### Optimization priority order
+
+In **Settings → Engine**, reorder `priority_order` (default: resilience, savings,
+self_sufficiency). The list must include each value exactly once. Example in
+`config.runtime.yaml`:
+
+```yaml
+engine:
+  mode: rules
+  priority_order:
+    - resilience
+    - savings
+    - self_sufficiency
+```
+
+Higher-ranked priorities influence reserve buffers, blackout-risk scoring, MPC
+objective weights, and grid-charge ramp factor strength. **Savings** means
+opportunistic grid use when present — not time-of-use or tariff optimization.
+
 ## Docker build extras
 
 The default image installs Phase 3/4 extras (PuLP, scikit-learn, numpy) via `INSTALL_EXTRAS=1`.

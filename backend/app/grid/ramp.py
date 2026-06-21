@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..config import BatteryConfig, GridChargeConfig, GridChargeFactor
+from ..engine.priorities import FACTOR_BLEND, RANK_WEIGHTS, blend_ceiling, resolve_weights
 from ..models import (
     BlackoutRisk,
     ForecastBundle,
@@ -31,6 +32,7 @@ class RampContext:
     grid_charge: GridChargeConfig
     last_amps: float | None = None
     site_timezone: str = "auto"
+    priority_weights: dict[str, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -257,12 +259,22 @@ def compute_ramp_plan(ctx: RampContext) -> GridChargePlan:
 
     target = max_a
     notes: list[str] = []
+    weights = ctx.priority_weights or {
+        k.value: v for k, v in resolve_weights().items()
+    }
     for factor in cfg.factor_order:
         evaluator = _EVALUATORS.get(factor)
         if evaluator is None:
             continue
         result = evaluator(ctx)
         ceiling = _clamp(result.ceiling_a, 0.0, max_a)
+        bucket = FACTOR_BLEND.get(factor.value)
+        if bucket is not None:
+            priority, mode = bucket
+            weight = weights.get(priority.value, RANK_WEIGHTS[-1])
+            ceiling = _clamp(
+                blend_ceiling(ceiling, max_a, weight, mode, priority), 0.0, max_a
+            )
         target = min(target, ceiling)
         notes.append(f"{factor.value}: {result.note} -> {ceiling:.0f} A")
 

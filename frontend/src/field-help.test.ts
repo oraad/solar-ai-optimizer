@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { entityHelp, fieldHelp, overrideHelp, sectionHelp } from "./field-help.js";
+import { entityHelp, fieldHelp, overrideHelp, priorityEffectHelp, priorityRankBlurb, sectionHelp } from "./field-help.js";
 
 describe("fieldHelp", () => {
   it("returns help for known settings", () => {
@@ -30,5 +30,15 @@ describe("sectionHelp", () => {
   it("returns section summaries", () => {
     expect(sectionHelp("forecast")).toContain("solar");
     expect(sectionHelp("grid_charge")).toContain("lowest ceiling");
+    expect(sectionHelp("engine")).toContain("priorities");
+  });
+});
+
+describe("priorityHelp", () => {
+  it("returns effect text for each priority", () => {
+    expect(priorityEffectHelp("resilience")).toContain("reserve");
+    expect(priorityEffectHelp("savings")).toContain("tariff");
+    expect(priorityEffectHelp("self_sufficiency")).toContain("solar");
+    expect(priorityRankBlurb("savings")).toContain("grid");
   });
 });

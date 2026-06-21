@@ -133,6 +133,13 @@ class Orchestrator:
         self.reactive = ReactiveGrid(
             cfg.battery, cfg.reserve, cfg.grid_charge, cfg.forecast.timezone
         )
+        self.reactive.update_config(
+            cfg.battery,
+            cfg.reserve,
+            cfg.grid_charge,
+            cfg.forecast.timezone,
+            cfg.engine.priority_order,
+        )
         from .forecast.helpers import total_kwp
 
         self.engine = RuleEngine(

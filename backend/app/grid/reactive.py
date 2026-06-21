@@ -6,7 +6,8 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from ..config import BatteryConfig, GridChargeConfig, ReserveConfig
+from ..config import BatteryConfig, GridChargeConfig, OptimizationPriority, ReserveConfig
+from ..engine.priorities import resolve_weights
 from ..grid.ramp import RampContext, compute_ramp_plan, legacy_plan
 from ..models import (
     BlackoutRisk,
@@ -43,6 +44,9 @@ class ReactiveGrid:
         self._reserve = reserve
         self._grid_charge = grid_charge or GridChargeConfig()
         self._site_timezone = site_timezone
+        self._priority_weights = {
+            k.value: v for k, v in resolve_weights().items()
+        }
 
     def update_config(
         self,
@@ -50,6 +54,7 @@ class ReactiveGrid:
         reserve: ReserveConfig,
         grid_charge: GridChargeConfig | None = None,
         site_timezone: str | None = None,
+        priority_order: list[OptimizationPriority] | None = None,
     ) -> None:
         self._battery = battery
         self._reserve = reserve
@@ -57,6 +62,10 @@ class ReactiveGrid:
             self._grid_charge = grid_charge
         if site_timezone is not None:
             self._site_timezone = site_timezone
+        if priority_order is not None:
+            self._priority_weights = {
+                k.value: v for k, v in resolve_weights(priority_order).items()
+            }
 
     # --------------------------------------------------- opportunistic top-up --
     def opportunistic_actions(
@@ -95,6 +104,7 @@ class ReactiveGrid:
             grid_charge=self._grid_charge,
             last_amps=last_amps,
             site_timezone=self._site_timezone,
+            priority_weights=self._priority_weights,
         )
         plan = compute_ramp_plan(ctx)
         return self._plan_to_result(plan, telemetry, target_soc)

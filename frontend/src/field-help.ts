@@ -302,6 +302,36 @@ const ENTITY_HELP: Record<string, string> = {
 
 
 
+const PRIORITY_EFFECT_HELP: Record<string, string> = {
+
+  resilience:
+
+    "Higher rank: larger solar-bridge reserve buffers, stronger blackout-risk response, and more defensive planning when the grid is present.",
+
+  savings:
+
+    "Higher rank: more opportunistic grid charging when the grid is available and slightly leaner bridge buffers. Does not model electricity tariffs or time-of-use rates.",
+
+  self_sufficiency:
+
+    "Higher rank: stronger solar-trim factors in the grid-charge ramp and higher MPC penalty on curtailed PV — prefers using solar over grid top-up.",
+
+};
+
+
+
+const PRIORITY_RANK_BLURBS: Record<string, string> = {
+
+  resilience: "defend reserve and outage survival",
+
+  savings: "use grid opportunistically when present",
+
+  self_sufficiency: "prefer solar over grid import",
+
+};
+
+
+
 const OVERRIDE_HELP: Record<string, string> = {
 
   mode:
@@ -388,6 +418,22 @@ export function fieldHelp(section: string, key: string): string | undefined {
 
 
 
+export function priorityEffectHelp(key: string): string | undefined {
+
+  return PRIORITY_EFFECT_HELP[key];
+
+}
+
+
+
+export function priorityRankBlurb(key: string): string {
+
+  return PRIORITY_RANK_BLURBS[key] ?? "";
+
+}
+
+
+
 export function entityHelp(key: string): string | undefined {
 
   return ENTITY_HELP[key];
@@ -450,7 +496,10 @@ export function sectionHelp(section: string): string | undefined {
 
       "Cap-chain factors that limit grid charge current each cycle (engine uses the lowest ceiling).",
 
-    engine: "Rules vs model-predictive control for charge/discharge decisions.",
+    engine:
+
+      "Rules vs MPC mode, plus reorderable optimization priorities (resilience, savings, self-sufficiency).",
+
 
     ha: "Connection settings for reading sensors and writing inverter controls.",
 

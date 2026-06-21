@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from app.config import BatteryConfig, EngineConfig, ReserveConfig
+from app.config import BatteryConfig, EngineConfig, OptimizationPriority, ReserveConfig
 from app.engine.rules import RuleEngine
 from app.grid.reactive import ReactiveGrid
 from app.models import (
@@ -73,3 +73,43 @@ def test_decision_does_not_emit_min_soc_write():
     decision = eng.decide(t, _flat_forecast(400, 1000), None, None, shadow_mode=True)
     caps = {a.capability.value for a in decision.actions}
     assert "min_soc" not in caps
+
+
+def test_resilience_first_higher_reserve_than_self_sufficiency_first():
+    battery = BatteryConfig(capacity_kwh=10.0, min_soc_floor=20.0, max_soc_ceiling=100.0)
+    reserve = ReserveConfig(
+        critical_load_w=400.0,
+        min_autonomy_hours=12.0,
+        solar_bridge_buffer_pct=15.0,
+        cloudy_extra_buffer_pct=15.0,
+    )
+    reactive = ReactiveGrid(battery, reserve)
+    resilient = RuleEngine(
+        battery,
+        reserve,
+        EngineConfig(
+            priority_order=[
+                OptimizationPriority.resilience,
+                OptimizationPriority.savings,
+                OptimizationPriority.self_sufficiency,
+            ]
+        ),
+        reactive,
+    )
+    self_first = RuleEngine(
+        battery,
+        reserve,
+        EngineConfig(
+            priority_order=[
+                OptimizationPriority.self_sufficiency,
+                OptimizationPriority.savings,
+                OptimizationPriority.resilience,
+            ]
+        ),
+        reactive,
+    )
+    t = Telemetry(battery_soc=80.0, grid_present=False)
+    forecast = _flat_forecast(load_w=500, solar_w=0)
+    resilient_bridge = resilient.compute_reserve(t, forecast).solar_bridge_soc
+    self_first_bridge = self_first.compute_reserve(t, forecast).solar_bridge_soc
+    assert resilient_bridge >= self_first_bridge

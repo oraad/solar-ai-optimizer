@@ -335,9 +335,25 @@ class GridChargeConfig(BaseModel):
         return out or list(_DEFAULT_FACTOR_ORDER)
 
 
+class OptimizationPriority(str, Enum):
+    resilience = "resilience"
+    savings = "savings"
+    self_sufficiency = "self_sufficiency"
+
+
+_DEFAULT_PRIORITY_ORDER = [
+    OptimizationPriority.resilience,
+    OptimizationPriority.savings,
+    OptimizationPriority.self_sufficiency,
+]
+
+
 class EngineConfig(BaseModel):
     mode: str = "rules"
     mpc_horizon_hours: int = 48
+    priority_order: list[OptimizationPriority] = Field(
+        default_factory=lambda: list(_DEFAULT_PRIORITY_ORDER)
+    )
 
     @field_validator("mode")
     @classmethod
@@ -345,6 +361,34 @@ class EngineConfig(BaseModel):
         if v not in {"rules", "mpc"}:
             raise ValueError("engine.mode must be 'rules' or 'mpc'")
         return v
+
+    @field_validator("priority_order", mode="before")
+    @classmethod
+    def _normalize_priority_order(cls, v: object) -> list[OptimizationPriority]:
+        if not v:
+            return list(_DEFAULT_PRIORITY_ORDER)
+        out: list[OptimizationPriority] = []
+        seen: set[str] = set()
+        for item in v:
+            if isinstance(item, OptimizationPriority):
+                priority = item
+                key = item.value
+            else:
+                try:
+                    priority = OptimizationPriority(str(item))
+                except ValueError:
+                    continue
+                key = priority.value
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(priority)
+        if len(out) != len(_DEFAULT_PRIORITY_ORDER):
+            raise ValueError(
+                "engine.priority_order must list each of "
+                "resilience, savings, self_sufficiency exactly once"
+            )
+        return out
 
 
 class HaConfig(BaseModel):

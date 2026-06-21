@@ -48,3 +48,6 @@ jobs:
           docker image inspect solar-ai-optimizer --format '{{json .Config.Labels}}' | grep -q 'org.opencontainers.image.title'
           docker image inspect solar-ai-optimizer --format '{{json .Config.Entrypoint}}' | grep -q '/app/run.sh'
           docker image inspect solar-ai-optimizer --format '{{json .Config.ExposedPorts}}' | grep -q '8000/tcp'
+      - name: Verify Docker CLI for dashboard self-update
+        run: |
+          docker run --rm --entrypoint sh solar-ai-optimizer -c 'command -v docker && docker --version'

@@ -219,7 +219,7 @@ with socket mount). Use **Check for updates** to force a fresh release lookup. T
 bar **UPDATE** badge appears when a newer version is available.
 
 !!! note "Image version"
-    One-click update requires **v0.5.2+** (Docker CLI in the image). Older images need a
+    One-click update requires **v0.5.5+** (Docker CLI in the image). v0.5.2–0.5.4 need a
     manual `docker pull` and recreate once — see [Installation](installation.md).
 
 ### Toast notifications

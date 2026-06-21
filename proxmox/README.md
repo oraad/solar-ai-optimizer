@@ -81,7 +81,8 @@ update
 
 That command runs the same Solar helper script. Helper functions are vendored under [`vendor/community-scripts/`](vendor/community-scripts/) and loaded via `SOLAR_REPO_RAW` at runtime.
 
-Or update manually inside the LXC:
+Or update manually inside the LXC (include the Docker socket and self-update flags so
+**Settings → Software updates → Update now** keeps working):
 
 ```bash
 docker pull ghcr.io/oraad/solar-ai-optimizer:latest
@@ -90,19 +91,30 @@ docker run -d --name solar-optimizer --restart unless-stopped \
   --env-file /opt/solar-ai-optimizer/solar.env \
   -v solar-data:/app/data \
   -p 8000:8000 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e SELF_UPDATE_ENABLED=true \
+  -e SELF_UPDATE_ENV_FILE=/opt/solar-ai-optimizer/solar.env \
+  -e SELF_UPDATE_IMAGE=ghcr.io/oraad/solar-ai-optimizer:latest \
   ghcr.io/oraad/solar-ai-optimizer:latest
 ```
+
+Prefer the `update` command or host-side helper script — same pull-and-recreate flow, less error-prone.
 
 ### Dashboard one-click update
 
 New Proxmox installs mount the Docker socket and set `SELF_UPDATE_ENABLED=true` on the
-`solar-optimizer` container. Admins can then open **Settings → Software updates** in the
-dashboard to see release notes and click **Update now** (same pull-and-recreate flow as above).
+`solar-optimizer` container. Admins can open **Settings → Software updates** to see release
+notes and click **Update now** (same pull-and-recreate flow as `update`).
 
 !!! warning "Docker socket access"
     Mounting `/var/run/docker.sock` grants effective root on the LXC. The update API is
     admin-only, but only enable this on hosts you trust. Re-run the install/update helper
     script to apply the socket mount on older LXC installs.
+
+One-click update requires **v0.5.5 or newer** (the image includes the Docker CLI via the
+`docker-cli` package). v0.5.2–0.5.4 images on Debian Trixie installed `docker.io`, which
+no longer provides `/usr/bin/docker`. If you see *"Docker CLI is not available in this
+container"*, pull **v0.5.5+** and recreate (`update` or the manual `docker run` above).
 
 ## Backup
 
@@ -119,6 +131,7 @@ Important files: `solar.db`, `config.runtime.yaml`, `model.json`.
 
 | Issue | Check |
 |-------|--------|
+| *Docker CLI is not available in this container* (Settings → Software updates) | Fixed in **v0.5.5+** (`docker-cli` in the image). On v0.5.2–0.5.4, `docker exec solar-optimizer command -v docker` is empty even after recreate. Run `update` after pulling v0.5.5+, or recreate with the full manual `docker run` flags (socket + `SELF_UPDATE_*` env). |
 | Sidebar panel blank / `X-Frame-Options: deny` | `TRUST_INGRESS_HEADERS=true` in `/opt/solar-ai-optimizer/solar.env`; ingress `url` must point to `http://<lxc-ip>:8000` (not your HA URL); update to a current image and reload ingress in HA |
 | Docker won't start in LXC | Container needs `nesting=1` and `keyctl=1` (set by default in the helper script); on Alpine also check `rc-service docker status` |
 | Can't reach Home Assistant | LXC must route to HA on your LAN; use HA IP instead of mDNS if needed |

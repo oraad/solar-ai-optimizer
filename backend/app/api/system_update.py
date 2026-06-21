@@ -29,7 +29,7 @@ DOCKER_SOCKET = Path("/var/run/docker.sock")
 UPDATE_LOCK_FILE = ".update_in_progress"
 MISSING_DOCKER_CLI_DETAIL = (
     "Docker CLI is not available in this container. Pull "
-    "ghcr.io/oraad/solar-ai-optimizer:latest (v0.5.2+) and recreate the "
+    "ghcr.io/oraad/solar-ai-optimizer:latest (v0.5.5+) and recreate the "
     "container once manually; see docs/installation.md."
 )
 RELEASE_CACHE_TTL_SECONDS = 15 * 60

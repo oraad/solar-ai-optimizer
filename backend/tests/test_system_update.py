@@ -175,7 +175,7 @@ def test_get_update_info_socket_without_cli(
     assert data["can_apply"] is False
     assert data["deployment"] == "docker"
     assert "Docker CLI" in data["apply_instructions"]
-    assert "v0.5.2+" in data["apply_instructions"]
+    assert "v0.5.5+" in data["apply_instructions"]
 
 
 @patch("app.api.system_update._spawn_updater")

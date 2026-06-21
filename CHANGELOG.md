@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-06-21
+
+### Fixed
+
+- **Dashboard self-update on Proxmox/Docker:** install `docker-cli` instead of `docker.io` in the image — Debian Trixie ships the daemon in `docker.io` but the client in `docker-cli`, so v0.5.2–0.5.4 images reported *Docker CLI is not available* even after a container recreate
+
 ## [0.5.4] - 2026-06-21
 
 ### Added

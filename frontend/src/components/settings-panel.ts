@@ -8,7 +8,7 @@ import { labelWithTip } from "../label-tip.js";
 import { sharedStyles } from "../styles.js";
 import "./entity-input.js";
 import "./info-tip.js";
-import type { AppConfigView, EntityInfo, SessionInfo, SystemStatus } from "../types.js";
+import type { AppConfigView, EntityInfo, SessionInfo, SystemStatus, UpdateInfo } from "../types.js";
 
 type Section = Record<string, unknown>;
 
@@ -92,12 +92,48 @@ export class SettingsPanel extends LitElement {
       .msg { color: var(--muted); font-size: 0.78rem; margin-top: 8px; min-height: 1em; }
       .msg.err { color: var(--bad); }
       button.link { background: none; border: none; color: var(--accent, #6ad); padding: 0; cursor: pointer; text-decoration: underline; font: inherit; }
+      .release-notes {
+        margin-top: 10px;
+        max-height: 240px;
+        overflow: auto;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        font-size: 0.8rem;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .upgrade-cmd {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        font-family: ui-monospace, monospace;
+        font-size: 0.75rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .badge-update {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        background: color-mix(in srgb, var(--accent) 22%, transparent);
+        color: var(--accent);
+        vertical-align: middle;
+      }
     `,
   ];
 
   @property({ attribute: false }) config: AppConfigView | null = null;
   @property({ attribute: false }) status: SystemStatus | null = null;
   @property({ attribute: false }) session: SessionInfo | null = null;
+  @property({ attribute: false }) updateInfo: UpdateInfo | null = null;
 
   @state() private draft: AppConfigView | null = null;
   @state() private raw = "";
@@ -110,6 +146,9 @@ export class SettingsPanel extends LitElement {
   @state() private mpcAvailable = false;
   @state() private mlAvailable = false;
   @state() private mlLoadEnabled = false;
+  @state() private updateBusy = false;
+  @state() private updateMsg = "";
+  @state() private updateErr = false;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -590,6 +629,138 @@ export class SettingsPanel extends LitElement {
             />
           </div>
         </div>
+      </details>
+    `;
+  }
+
+  private formatPublishedAt(iso: string | null): string {
+    if (!iso) return "";
+    try {
+      return new Date(iso).toLocaleString();
+    } catch {
+      return iso;
+    }
+  }
+
+  private async refreshUpdateInfo(): Promise<void> {
+    try {
+      const info = await api.updateInfo();
+      this.updateInfo = info;
+      this.dispatchEvent(
+        new CustomEvent("solar-update-info", { detail: info, bubbles: true, composed: true }),
+      );
+    } catch (e) {
+      this.updateErr = true;
+      this.updateMsg = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  private async waitForHealth(timeoutMs = 120_000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 3000));
+      try {
+        const h = await api.health();
+        if (h.status === "ok") return true;
+      } catch {
+        /* service restarting */
+      }
+    }
+    return false;
+  }
+
+  private async applyUpdate(): Promise<void> {
+    if (!this.updateInfo?.can_apply || !this.updateInfo.update_available) return;
+    if (
+      !window.confirm(
+        "Install the latest release now? The service will restart and this page may disconnect briefly.",
+      )
+    ) {
+      return;
+    }
+    this.updateBusy = true;
+    this.updateErr = false;
+    this.updateMsg = "Updating… pulling image and restarting the container.";
+    try {
+      await api.applyUpdate();
+      const ok = await this.waitForHealth();
+      if (ok) {
+        this.updateMsg = "Update complete. Reloading…";
+        window.location.reload();
+      } else {
+        this.updateErr = true;
+        this.updateMsg =
+          "Update started but the service did not respond in time. Check container logs on the host.";
+      }
+    } catch (e) {
+      this.updateErr = true;
+      this.updateMsg = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.updateBusy = false;
+      void this.refreshUpdateInfo();
+    }
+  }
+
+  private renderUpdatesSection() {
+    const info = this.updateInfo;
+    const current = info?.current_version ?? this.session?.version ?? "—";
+    const latest = info?.latest_version;
+    const upToDate = info && !info.update_available && latest;
+
+    return html`
+      <details open>
+        <summary>
+          Software updates
+          ${info?.update_available
+            ? html`<span class="badge-update">v${latest} available</span>`
+            : null}
+        </summary>
+        <p class="label">
+          Running <strong>v${current}</strong>
+          ${latest ? html` · latest release <strong>v${latest}</strong>` : null}
+          ${info?.published_at && info.update_available
+            ? html` · published ${this.formatPublishedAt(info.published_at)}`
+            : null}
+        </p>
+        ${upToDate
+          ? html`<p class="label">You are on the latest release.</p>`
+          : info?.update_available
+            ? html`<p class="label">A newer release is available.</p>`
+            : html`<p class="label">Could not check for updates right now.</p>`}
+        ${info?.release_url
+          ? html`<p class="label">
+              <a href=${info.release_url} target="_blank" rel="noopener noreferrer">View on GitHub</a>
+            </p>`
+          : null}
+        ${info?.release_notes
+          ? html`<div class="release-notes">${info.release_notes}</div>`
+          : null}
+        ${info?.can_apply && info.update_available
+          ? html`
+              <div class="buttons">
+                <button
+                  class="primary"
+                  ?disabled=${this.updateBusy || info.update_in_progress}
+                  @click=${() => void this.applyUpdate()}
+                >
+                  ${this.updateBusy || info.update_in_progress ? "Updating…" : "Update now"}
+                </button>
+                <button type="button" ?disabled=${this.updateBusy} @click=${() => void this.refreshUpdateInfo()}>
+                  Check again
+                </button>
+              </div>
+            `
+          : html`
+              ${info?.apply_instructions
+                ? html`<pre class="upgrade-cmd">${info.apply_instructions}</pre>`
+                : null}
+              <div class="buttons">
+                <button type="button" @click=${() => void this.refreshUpdateInfo()}>Check for updates</button>
+              </div>
+            `}
+        ${this.updateMsg
+          ? html`<p class="msg ${this.updateErr ? "err" : ""}">${this.updateMsg}</p>`
+          : null}
       </details>
     `;
   }
@@ -1107,6 +1278,7 @@ export class SettingsPanel extends LitElement {
         ${this.renderHaSection()}
         ${this.renderFailSafeSection()}
         ${this.renderSecuritySection()}
+        ${this.renderUpdatesSection()}
         ${FORM_SECTIONS.map((s) => this.renderSection(s))}
         ${this.renderSolcastNote()}
         ${this.renderPvArrays()}

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-06-21
+
+### Added
+
+- Dashboard **Settings → Software updates**: check GitHub releases, show release notes, and optional one-click update
+- `GET/POST /api/system/update` (admin-only) with GitHub release check and opt-in Docker self-update
+- `docker-compose.self-update.yml` overlay and Proxmox socket mount for dashboard-driven updates
+- `scripts/changelog-excerpt.py`; release workflow populates GitHub release body from `CHANGELOG.md`
+- Topbar **UPDATE** badge when a newer release is available (admin)
+
+### Changed
+
+- Docker image includes `docker.io` CLI to support self-update when the socket is mounted
+
 ## [0.5.1] - 2026-06-21
 
 ### Added

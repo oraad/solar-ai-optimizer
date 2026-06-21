@@ -254,13 +254,19 @@ solar_ensure_data_volume() {
 
 solar_run_container() {
   solar_ensure_data_volume
-  docker run -d \
-    --name "$SOLAR_CONTAINER" \
-    --restart unless-stopped \
-    --env-file "$SOLAR_ENV_FILE" \
-    -v "${SOLAR_DATA_VOLUME}:${SOLAR_DATA_PATH}" \
-    -p "${SOLAR_PORT}:8000" \
-    "$(solar_image_ref)"
+  local -a run_args=(
+    -d
+    --name "$SOLAR_CONTAINER"
+    --restart unless-stopped
+    --env-file "$SOLAR_ENV_FILE"
+    -v "${SOLAR_DATA_VOLUME}:${SOLAR_DATA_PATH}"
+    -p "${SOLAR_PORT}:8000"
+    -v /var/run/docker.sock:/var/run/docker.sock
+    -e SELF_UPDATE_ENABLED=true
+    -e "SELF_UPDATE_ENV_FILE=${SOLAR_ENV_FILE}"
+    -e "SELF_UPDATE_IMAGE=$(solar_image_ref)"
+  )
+  docker run "${run_args[@]}" "$(solar_image_ref)"
 }
 
 solar_recreate_container() {

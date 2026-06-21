@@ -12,6 +12,7 @@ import type {
   ShedResult,
   SystemStatus,
   Telemetry,
+  UpdateInfo,
 } from "./types.js";
 
 // Derive a path prefix from the current location so the app works both
@@ -182,6 +183,13 @@ export const api = {
       "/api/model/retrain",
       {},
     ),
+  updateInfo: () => getJSON<UpdateInfo>("/api/system/update"),
+  applyUpdate: async (): Promise<void> => {
+    const res = await fetch(`${getBase()}/api/system/update`, fetchInit({ method: "POST" }));
+    if (res.status === 202) return;
+    if (!res.ok) throw new Error(await parseError(res, "/api/system/update"));
+  },
+  health: () => getJSON<{ status: string }>("/api/health"),
 };
 
 export type StatusListener = (status: SystemStatus) => void;

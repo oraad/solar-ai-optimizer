@@ -47,6 +47,19 @@ docker compose run --rm frontend-test
 Optional environment overrides go in `docker-compose.yml` `environment:` or an `.env` file
 (see [Configuration](configuration.md)).
 
+### Dashboard updates (optional)
+
+Admins can check for new releases under **Settings → Software updates**. The panel shows
+the current version, latest GitHub release notes, and manual upgrade steps.
+
+To enable **one-click updates** from the dashboard (pull image and recreate the container),
+use the self-update overlay. This mounts the host Docker socket into the app container —
+only use on trusted homelab hosts:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.self-update.yml up -d
+```
+
 ---
 
 ## Docker (standalone image)

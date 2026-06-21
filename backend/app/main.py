@@ -21,7 +21,13 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from . import __version__
-from .api import api_router, auth_router, metrics_router, ws_router
+from .api import (
+    api_router,
+    auth_router,
+    metrics_router,
+    system_update_router,
+    ws_router,
+)
 from .api.auth import AuthGateMiddleware, UserContextMiddleware
 from .config import get_settings
 from .config_store import ConfigStore
@@ -148,6 +154,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(metrics_router)
     app.include_router(api_router)
+    app.include_router(system_update_router)
     app.include_router(ws_router)
 
     # Serve the built dashboard if it was bundled into the image.

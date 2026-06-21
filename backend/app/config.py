@@ -81,6 +81,17 @@ class Settings(BaseSettings):
     # Documentation / screenshot mode only — injects synthetic telemetry.
     demo_mode: bool = Field(default=False)
 
+    # Opt-in self-update from the dashboard (requires Docker socket mount).
+    self_update_enabled: bool = Field(default=False)
+    self_update_image: str = Field(
+        default="ghcr.io/oraad/solar-ai-optimizer:latest"
+    )
+    self_update_container: str = Field(default="solar-optimizer")
+    self_update_env_file: str = Field(default="")
+    self_update_data_volume: str = Field(default="solar-data")
+    self_update_data_path: str = Field(default="/app/data")
+    self_update_port: int = Field(default=8000)
+
     @property
     def is_addon(self) -> bool:
         return bool(self.supervisor_token)

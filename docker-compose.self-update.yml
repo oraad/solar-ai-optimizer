@@ -1,0 +1,15 @@
+# Optional overlay: enable one-click self-update from the dashboard (admin-only).
+# Requires mounting the host Docker socket into the app container.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.self-update.yml up -d
+#
+# Security: the socket grants effective root on the Docker host. Use only on
+# trusted homelab hosts.
+
+services:
+  solar:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      SELF_UPDATE_ENABLED: "true"
+      SELF_UPDATE_IMAGE: ghcr.io/oraad/solar-ai-optimizer:latest

@@ -129,6 +129,21 @@ export interface SessionInfo {
   version: string;
 }
 
+export type DeploymentKind = "addon" | "docker" | "compose" | "unknown";
+
+export interface UpdateInfo {
+  current_version: string;
+  latest_version: string | null;
+  update_available: boolean;
+  release_notes: string | null;
+  release_url: string | null;
+  published_at: string | null;
+  can_apply: boolean;
+  deployment: DeploymentKind;
+  apply_instructions: string | null;
+  update_in_progress?: boolean;
+}
+
 export interface DecisionHistoryRow {
   ts: string;
   target_soc: number;

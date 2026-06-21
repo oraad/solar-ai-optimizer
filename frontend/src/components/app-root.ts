@@ -11,6 +11,7 @@ import type {
   SessionInfo,
   ShedResult,
   SystemStatus,
+  UpdateInfo,
 } from "../types.js";
 
 import "./status-cards.js";
@@ -185,6 +186,7 @@ export class SolarApp extends LitElement {
   @state() private lastUpdate = 0;
   @state() private now = Date.now();
   @state() private apiError = "";
+  @state() private updateInfo: UpdateInfo | null = null;
 
   private unsub?: () => void;
   private pollTimer?: number;
@@ -201,6 +203,7 @@ export class SolarApp extends LitElement {
     window.addEventListener("solar-plan-refresh", this.onPlanRefresh);
     window.addEventListener("solar-login-success", this.onLoginSuccess);
     window.addEventListener("solar-logout", this.onLogout);
+    window.addEventListener("solar-update-info", this.onUpdateInfo as EventListener);
     void this.initAuth();
     this.clockTimer = window.setInterval(() => (this.now = Date.now()), 1000);
   }
@@ -212,6 +215,7 @@ export class SolarApp extends LitElement {
     window.removeEventListener("solar-plan-refresh", this.onPlanRefresh);
     window.removeEventListener("solar-login-success", this.onLoginSuccess);
     window.removeEventListener("solar-logout", this.onLogout);
+    window.removeEventListener("solar-update-info", this.onUpdateInfo as EventListener);
     if (this.pollTimer) window.clearInterval(this.pollTimer);
     if (this.clockTimer) window.clearInterval(this.clockTimer);
   }
@@ -233,10 +237,16 @@ export class SolarApp extends LitElement {
     this.needsLogin = true;
     this.status = null;
     this.gridStats = null;
+    this.updateInfo = null;
     if (this.pollTimer) {
       window.clearInterval(this.pollTimer);
       this.pollTimer = undefined;
     }
+  };
+
+  private onUpdateInfo = (e: Event): void => {
+    const detail = (e as CustomEvent<UpdateInfo>).detail;
+    if (detail) this.updateInfo = detail;
   };
 
   private async initAuth(): Promise<void> {
@@ -269,6 +279,17 @@ export class SolarApp extends LitElement {
     if (!this.pollTimer) {
       void this.bootstrap();
       this.pollTimer = window.setInterval(() => void this.refreshSlow(), 60_000);
+    }
+    if (this.isAdmin) {
+      void this.refreshUpdateInfo();
+    }
+  }
+
+  private async refreshUpdateInfo(): Promise<void> {
+    try {
+      this.updateInfo = await api.updateInfo();
+    } catch {
+      /* non-fatal */
     }
   }
 
@@ -324,8 +345,12 @@ export class SolarApp extends LitElement {
 
   private get brandSubtitle(): string {
     const version = this.session?.version ? `v${this.session.version}` : "";
+    const updateHint =
+      this.isAdmin && this.updateInfo?.update_available && this.updateInfo.latest_version
+        ? ` · v${this.updateInfo.latest_version} available`
+        : "";
     const withVersion = (text: string) =>
-      version ? `${text} · ${version}` : text;
+      version ? `${text} · ${version}${updateHint}` : text;
     if (!this.isAdmin && this.session?.display_name) {
       return withVersion(this.session.display_name);
     }
@@ -431,7 +456,7 @@ export class SolarApp extends LitElement {
       case "assistant":
         return html`<div class="layout"><solar-assistant-panel class="span-12 center"></solar-assistant-panel></div>`;
       case "settings":
-        return html`<div class="layout"><solar-settings-panel class="span-12 center" .config=${this.config} .status=${this.status} .session=${this.session}></solar-settings-panel></div>`;
+        return html`<div class="layout"><solar-settings-panel class="span-12 center" .config=${this.config} .status=${this.status} .session=${this.session} .updateInfo=${this.updateInfo}></solar-settings-panel></div>`;
       default:
         return html`
           <div class="layout">
@@ -498,6 +523,14 @@ export class SolarApp extends LitElement {
                     ? " (rules)"
                     : ""}
                 </span>`
+              : null}
+            ${this.isAdmin && this.updateInfo?.update_available
+              ? html`<span
+                  class="pill warn"
+                  title="A newer release is available — open Settings"
+                  @click=${() => this.setTab("settings")}
+                  style="cursor:pointer"
+                >UPDATE</span>`
               : null}
             ${this.isAdmin && this.status?.forecast_misconfigured
               ? html`<span class="pill bad">SET LOCATION</span>`

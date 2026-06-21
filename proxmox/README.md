@@ -93,6 +93,17 @@ docker run -d --name solar-optimizer --restart unless-stopped \
   ghcr.io/oraad/solar-ai-optimizer:latest
 ```
 
+### Dashboard one-click update
+
+New Proxmox installs mount the Docker socket and set `SELF_UPDATE_ENABLED=true` on the
+`solar-optimizer` container. Admins can then open **Settings → Software updates** in the
+dashboard to see release notes and click **Update now** (same pull-and-recreate flow as above).
+
+!!! warning "Docker socket access"
+    Mounting `/var/run/docker.sock` grants effective root on the LXC. The update API is
+    admin-only, but only enable this on hosts you trust. Re-run the install/update helper
+    script to apply the socket mount on older LXC installs.
+
 ## Backup
 
 Back up the Docker volume before upgrades:

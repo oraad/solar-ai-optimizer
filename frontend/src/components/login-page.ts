@@ -3,6 +3,7 @@ import { customElement, state } from "lit/decorators.js";
 
 import { api } from "../api.js";
 import { sharedStyles } from "../styles.js";
+import { runWithToast } from "../toast.js";
 
 @customElement("solar-login-page")
 export class LoginPage extends LitElement {
@@ -48,19 +49,9 @@ export class LoginPage extends LitElement {
         width: 100%;
         margin-top: 4px;
       }
-      .err {
-        margin: 0 0 12px;
-        padding: 8px 10px;
-        border-radius: var(--radius-sm);
-        font-size: 0.82rem;
-        color: var(--bad);
-        background: color-mix(in srgb, var(--bad) 12%, var(--panel-2));
-        border: 1px solid var(--border);
-      }
     `,
   ];
 
-  @state() private error = "";
   @state() private busy = false;
 
   private async submit(e: Event): Promise<void> {
@@ -71,15 +62,16 @@ export class LoginPage extends LitElement {
     const username = String(data.get("username") ?? "").trim();
     const password = String(data.get("password") ?? "");
     this.busy = true;
-    this.error = "";
-    try {
-      await api.login(username, password);
+    const ok = await runWithToast(
+      async () => {
+        await api.login(username, password);
+      },
+      { loading: "Signing in…", success: "Signed in." },
+    );
+    if (ok) {
       this.dispatchEvent(new CustomEvent("solar-login-success", { bubbles: true, composed: true }));
-    } catch (err) {
-      this.error = err instanceof Error ? err.message : "Login failed";
-    } finally {
-      this.busy = false;
     }
+    this.busy = false;
   }
 
   render() {
@@ -87,7 +79,6 @@ export class LoginPage extends LitElement {
       <div class="card">
         <h1>Solar AI Optimizer</h1>
         <p class="sub">Sign in with your local admin account.</p>
-        ${this.error ? html`<div class="err">${this.error}</div>` : null}
         <form method="post" action="#" @submit=${this.submit}>
           <label for="username">Username</label>
           <input

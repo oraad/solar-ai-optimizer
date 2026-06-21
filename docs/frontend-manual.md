@@ -211,6 +211,23 @@ Each tier can control **several switches** (e.g. pool pump + heater). All entiti
 
 **Advanced** sections at the bottom support raw JSON edit, model import/export, and ML retrain.
 
+### Software updates
+
+Under **Software updates** (admin), the dashboard checks GitHub for new releases, shows
+release notes, and offers **Update now** when self-update is enabled (Docker Compose
+with socket mount). Use **Check for updates** to force a fresh release lookup. The top
+bar **UPDATE** badge appears when a newer version is available.
+
+!!! note "Image version"
+    One-click update requires **v0.5.2+** (Docker CLI in the image). Older images need a
+    manual `docker pull` and recreate once — see [Installation](installation.md).
+
+### Toast notifications
+
+Save, login, override, and update actions show brief toast messages at the bottom of
+the screen (loading spinner, then success or error). Errors stay visible a few seconds
+longer than success messages.
+
 ---
 
 ## Troubleshooting

@@ -13,6 +13,7 @@ from ..models import (
     GridEvent,
     ShedResult,
     Telemetry,
+    as_utc,
     utcnow,
 )
 from .db import get_sessionmaker
@@ -56,7 +57,7 @@ async def get_telemetry_since(since: datetime) -> list[Telemetry]:
         ).scalars().all()
     return [
         Telemetry(
-            ts=r.ts,
+            ts=as_utc(r.ts),
             pv_power=r.pv_power,
             load_power=r.load_power,
             battery_soc=r.battery_soc,
@@ -81,7 +82,7 @@ async def get_recent_telemetry(limit: int = 500) -> list[Telemetry]:
     rows = list(reversed(rows))
     return [
         Telemetry(
-            ts=r.ts,
+            ts=as_utc(r.ts),
             pv_power=r.pv_power,
             load_power=r.load_power,
             battery_soc=r.battery_soc,
@@ -112,7 +113,7 @@ async def get_grid_events_since(since: datetime) -> list[GridEvent]:
                 .order_by(GridEventRow.ts.asc())
             )
         ).scalars().all()
-    return [GridEvent(ts=r.ts, grid_present=r.grid_present) for r in rows]
+    return [GridEvent(ts=as_utc(r.ts), grid_present=r.grid_present) for r in rows]
 
 
 async def get_last_grid_event() -> GridEvent | None:
@@ -125,7 +126,7 @@ async def get_last_grid_event() -> GridEvent | None:
         ).scalar_one_or_none()
     if row is None:
         return None
-    return GridEvent(ts=row.ts, grid_present=row.grid_present)
+    return GridEvent(ts=as_utc(row.ts), grid_present=row.grid_present)
 
 
 async def save_decision(d: Decision) -> None:

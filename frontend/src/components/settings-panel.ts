@@ -6,6 +6,7 @@ import { entityLabel, fieldLabel, gridChargeFactorLabel, INVERTER_READ_ENTITY_KE
 import { entityHelp, fieldHelp, priorityEffectHelp, priorityRankBlurb, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
 import { sharedStyles } from "../styles.js";
+import { dismissToast, runWithToast, showToast, updateToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
 import type { AppConfigView, EntityInfo, SessionInfo, SystemStatus, UpdateInfo } from "../types.js";
@@ -97,8 +98,6 @@ export class SettingsPanel extends LitElement {
       .field input, .field select { width: 100%; box-sizing: border-box; }
       textarea { width: 100%; box-sizing: border-box; min-height: 160px; font-family: ui-monospace, monospace; font-size: 0.8rem; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
       .buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-      .msg { color: var(--muted); font-size: 0.78rem; margin-top: 8px; min-height: 1em; }
-      .msg.err { color: var(--bad); }
       button.link { background: none; border: none; color: var(--accent, #6ad); padding: 0; cursor: pointer; text-decoration: underline; font: inherit; }
       .release-notes {
         margin-top: 10px;
@@ -145,8 +144,6 @@ export class SettingsPanel extends LitElement {
 
   @state() private draft: AppConfigView | null = null;
   @state() private raw = "";
-  @state() private msg = "";
-  @state() private err = false;
   @state() private busy = false;
   @state() private entities: EntityInfo[] = [];
   @state() private entitiesConnected = false;
@@ -155,8 +152,7 @@ export class SettingsPanel extends LitElement {
   @state() private mlAvailable = false;
   @state() private mlLoadEnabled = false;
   @state() private updateBusy = false;
-  @state() private updateMsg = "";
-  @state() private updateErr = false;
+  @state() private updateChecking = false;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -263,46 +259,63 @@ export class SettingsPanel extends LitElement {
     });
     const tierErr = this.validateTiers();
     if (tierErr) {
-      this.msg = tierErr;
-      this.err = true;
+      showToast({ message: tierErr, variant: "error" });
       return;
     }
-    await this.run(async () => {
-      const patch: Record<string, unknown> = {};
-      const draftRec = this.draft as unknown as Record<string, unknown>;
-      for (const sec of SAVE_SECTIONS) {
-        if (draftRec[sec] !== undefined) {
-          patch[sec] = draftRec[sec];
+    await this.run(
+      async () => {
+        const patch: Record<string, unknown> = {};
+        const draftRec = this.draft as unknown as Record<string, unknown>;
+        for (const sec of SAVE_SECTIONS) {
+          if (draftRec[sec] !== undefined) {
+            patch[sec] = draftRec[sec];
+          }
         }
-      }
-      const res = await api.putConfig(patch);
-      if (!res.ok) throw new Error(res.error || "validation failed");
-    }, "Configuration saved and applied.");
+        const res = await api.putConfig(patch);
+        if (!res.ok) throw new Error(res.error || "validation failed");
+      },
+      "Saving configuration…",
+      "Configuration saved and applied.",
+    );
   }
 
   private async applyRaw(): Promise<void> {
-    await this.run(async () => {
-      const parsed = JSON.parse(this.raw);
-      const res = await api.putConfig(parsed);
-      if (!res.ok) throw new Error(res.error || "validation failed");
-    }, "Raw configuration applied.");
+    await this.run(
+      async () => {
+        const parsed = JSON.parse(this.raw);
+        const res = await api.putConfig(parsed);
+        if (!res.ok) throw new Error(res.error || "validation failed");
+      },
+      "Applying configuration…",
+      "Raw configuration applied.",
+    );
   }
 
   private async reset(): Promise<void> {
     if (!confirm("Discard all UI overrides and revert to base defaults?")) return;
-    await this.run(async () => { await api.resetConfig(); }, "Reverted to base config.");
+    await this.run(
+      async () => {
+        await api.resetConfig();
+      },
+      "Reverting configuration…",
+      "Reverted to base config.",
+    );
   }
 
   private async exportConfig(): Promise<void> {
-    await this.run(async () => {
-      const cfg = await api.config();
-      const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: "application/json" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "solar-config.json";
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }, "Configuration exported.");
+    await this.run(
+      async () => {
+        const cfg = await api.config();
+        const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "solar-config.json";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      },
+      "Exporting configuration…",
+      "Configuration exported.",
+    );
   }
 
   private importConfig(e: Event): void {
@@ -310,24 +323,32 @@ export class SettingsPanel extends LitElement {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () =>
-      void this.run(async () => {
-        const data = JSON.parse(String(reader.result));
-        const res = await api.putConfig(data);
-        if (!res.ok) throw new Error(res.error || "import failed");
-      }, "Configuration imported and applied.");
+      void this.run(
+        async () => {
+          const data = JSON.parse(String(reader.result));
+          const res = await api.putConfig(data);
+          if (!res.ok) throw new Error(res.error || "import failed");
+        },
+        "Importing configuration…",
+        "Configuration imported and applied.",
+      );
     reader.readAsText(file);
   }
 
   private async exportModel(): Promise<void> {
-    await this.run(async () => {
-      const model = await api.exportModel();
-      const blob = new Blob([JSON.stringify(model, null, 2)], { type: "application/json" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "solar-model.json";
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }, "Model exported.");
+    await this.run(
+      async () => {
+        const model = await api.exportModel();
+        const blob = new Blob([JSON.stringify(model, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "solar-model.json";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      },
+      "Exporting model…",
+      "Model exported.",
+    );
   }
 
   private importModel(e: Event): void {
@@ -335,38 +356,44 @@ export class SettingsPanel extends LitElement {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () =>
-      void this.run(async () => {
-        const data = JSON.parse(String(reader.result));
-        const res = await api.importModel(data);
-        if (!res.ok) throw new Error("import failed");
-      }, "Model imported; ML retrain paused until you click Retrain from telemetry.");
+      void this.run(
+        async () => {
+          const data = JSON.parse(String(reader.result));
+          const res = await api.importModel(data);
+          if (!res.ok) throw new Error("import failed");
+        },
+        "Importing model…",
+        "Model imported; ML retrain paused until you click Retrain from telemetry.",
+      );
     reader.readAsText(file);
   }
 
   private async retrainModel(): Promise<void> {
-    await this.run(async () => {
-      const res = await api.retrainModel();
-      if (!res.ok) throw new Error("retrain failed");
-      if (!res.trained) {
-        throw new Error("insufficient telemetry history or ML not enabled");
-      }
-    }, "ML model retrained from telemetry.");
+    await this.run(
+      async () => {
+        const res = await api.retrainModel();
+        if (!res.ok) throw new Error("retrain failed");
+        if (!res.trained) {
+          throw new Error("insufficient telemetry history or ML not enabled");
+        }
+      },
+      "Retraining model…",
+      "ML model retrained from telemetry.",
+    );
   }
 
-  private async run(fn: () => Promise<void>, ok: string): Promise<void> {
-    this.busy = true; this.msg = "Working..."; this.err = false;
-    try {
-      await fn();
-      this.msg = ok; this.err = false;
-      // Refresh draft from server after a successful change.
+  private async run(
+    fn: () => Promise<void>,
+    loading: string,
+    success: string,
+  ): Promise<void> {
+    this.busy = true;
+    const ok = await runWithToast(fn, { loading, success });
+    if (ok) {
       await this.loadConfig();
-      // HA may have (re)connected after a credential change; refresh suggestions.
       void this.loadEntities();
-    } catch (e) {
-      this.msg = `Error: ${(e as Error).message}`; this.err = true;
-    } finally {
-      this.busy = false;
     }
+    this.busy = false;
   }
 
   private lbl(section: string, key: string) {
@@ -652,21 +679,55 @@ export class SettingsPanel extends LitElement {
   }
 
   private async refreshUpdateInfo(): Promise<void> {
+    const toastId = "update-check";
+    this.updateChecking = true;
+    showToast({
+      id: toastId,
+      message: "Checking for updates…",
+      variant: "loading",
+      persistent: true,
+    });
     try {
-      const info = await api.updateInfo();
+      const info = await api.updateInfo({ refresh: true });
       this.updateInfo = info;
       this.dispatchEvent(
         new CustomEvent("solar-update-info", { detail: info, bubbles: true, composed: true }),
       );
+      dismissToast(toastId);
+      if (!info.latest_version) {
+        showToast({ message: "Could not check for updates right now.", variant: "error" });
+      } else if (info.update_available) {
+        showToast({
+          message: `v${info.latest_version} is available — you're on v${info.current_version}.`,
+          variant: "info",
+        });
+      } else {
+        showToast({
+          message: `You're on the latest release (v${info.latest_version}).`,
+          variant: "success",
+        });
+      }
     } catch (e) {
-      this.updateErr = true;
-      this.updateMsg = e instanceof Error ? e.message : String(e);
+      dismissToast(toastId);
+      showToast({
+        message: e instanceof Error ? e.message : String(e),
+        variant: "error",
+      });
+    } finally {
+      this.updateChecking = false;
     }
   }
 
-  private async waitForHealth(timeoutMs = 120_000): Promise<boolean> {
+  private async waitForHealth(timeoutMs = 120_000, toastId?: string): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
+    const start = Date.now();
     while (Date.now() < deadline) {
+      if (toastId) {
+        const elapsed = Math.floor((Date.now() - start) / 1000);
+        updateToast(toastId, {
+          message: `Waiting for service to restart… (${elapsed}s)`,
+        });
+      }
       await new Promise((r) => setTimeout(r, 3000));
       try {
         const h = await api.health();
@@ -687,26 +748,42 @@ export class SettingsPanel extends LitElement {
     ) {
       return;
     }
+    const toastId = "update-apply";
     this.updateBusy = true;
-    this.updateErr = false;
-    this.updateMsg = "Updating… pulling image and restarting the container.";
+    let reloaded = false;
+    showToast({
+      id: toastId,
+      message: "Starting update…",
+      variant: "loading",
+      persistent: true,
+    });
     try {
       await api.applyUpdate();
-      const ok = await this.waitForHealth();
+      updateToast(toastId, { message: "Pulling image and restarting container…" });
+      const ok = await this.waitForHealth(120_000, toastId);
       if (ok) {
-        this.updateMsg = "Update complete. Reloading…";
+        updateToast(toastId, { message: "Update complete. Reloading…", variant: "success" });
+        reloaded = true;
         window.location.reload();
       } else {
-        this.updateErr = true;
-        this.updateMsg =
-          "Update started but the service did not respond in time. Check container logs on the host.";
+        dismissToast(toastId);
+        showToast({
+          message:
+            "Update started but the service did not respond in time. Check container logs on the host.",
+          variant: "error",
+          persistent: true,
+        });
       }
     } catch (e) {
-      this.updateErr = true;
-      this.updateMsg = e instanceof Error ? e.message : String(e);
+      dismissToast(toastId);
+      showToast({
+        message: e instanceof Error ? e.message : String(e),
+        variant: "error",
+        persistent: true,
+      });
     } finally {
       this.updateBusy = false;
-      void this.refreshUpdateInfo();
+      if (!reloaded) void this.refreshUpdateInfo();
     }
   }
 
@@ -755,7 +832,7 @@ export class SettingsPanel extends LitElement {
                   ${this.updateBusy || info.update_in_progress ? "Updating…" : "Update now"}
                 </button>
                 <button type="button" ?disabled=${this.updateBusy} @click=${() => void this.refreshUpdateInfo()}>
-                  Check again
+                  ${this.updateChecking ? "Checking…" : "Check again"}
                 </button>
               </div>
             `
@@ -764,12 +841,15 @@ export class SettingsPanel extends LitElement {
                 ? html`<pre class="upgrade-cmd">${info.apply_instructions}</pre>`
                 : null}
               <div class="buttons">
-                <button type="button" @click=${() => void this.refreshUpdateInfo()}>Check for updates</button>
+                <button
+                  type="button"
+                  ?disabled=${this.updateChecking}
+                  @click=${() => void this.refreshUpdateInfo()}
+                >
+                  ${this.updateChecking ? "Checking…" : "Check for updates"}
+                </button>
               </div>
             `}
-        ${this.updateMsg
-          ? html`<p class="msg ${this.updateErr ? "err" : ""}">${this.updateMsg}</p>`
-          : null}
       </details>
     `;
   }
@@ -1405,7 +1485,6 @@ export class SettingsPanel extends LitElement {
           </div>
         </details>
 
-        <div class="msg ${this.err ? "err" : ""}">${this.msg}</div>
       </div>
     `;
   }

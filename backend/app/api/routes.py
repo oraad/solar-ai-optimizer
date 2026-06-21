@@ -9,7 +9,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ValidationError
 
 from ..llm.assistant import Assistant
-from ..models import Override, utcnow
+from ..models import GridStats, Override, utcnow
 from ..orchestrator import Orchestrator
 from ..storage import repo
 from .session import SessionUser, assert_override_allowed, get_session, require_admin, require_authenticated
@@ -117,9 +117,13 @@ async def grid_stats(request: Request) -> dict:
     orch = _orch(request)
     telemetry = orch.collector.latest
     live = telemetry.grid_present if telemetry else None
-    stats = orch.latest_grid_stats or await orch.reactive.compute_stats(
-        live_present=live
-    )
+    try:
+        stats = orch.latest_grid_stats or await orch.reactive.compute_stats(
+            live_present=live
+        )
+    except Exception:
+        log.warning("grid-stats endpoint failed", exc_info=True)
+        stats = GridStats(currently_present=live)
     return stats.model_dump(mode="json")
 
 

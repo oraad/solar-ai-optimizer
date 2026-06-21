@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 import subprocess
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from .. import __version__
 from ..config import Settings, get_settings
@@ -25,10 +27,16 @@ GITHUB_RELEASES_LATEST = (
 )
 DOCKER_SOCKET = Path("/var/run/docker.sock")
 UPDATE_LOCK_FILE = ".update_in_progress"
+MISSING_DOCKER_CLI_DETAIL = (
+    "Docker CLI is not available in this container. Pull "
+    "ghcr.io/oraad/solar-ai-optimizer:latest (v0.5.2+) and recreate the "
+    "container once manually; see docs/installation.md."
+)
 RELEASE_CACHE_TTL_SECONDS = 15 * 60
 
 _release_cache: dict[str, Any] | None = None
 _release_cache_at: float = 0.0
+_release_checked_at: datetime | None = None
 
 DeploymentKind = Literal["addon", "docker", "compose", "unknown"]
 
@@ -52,6 +60,10 @@ def _docker_socket_available() -> bool:
         return False
 
 
+def _docker_cli_available() -> bool:
+    return shutil.which("docker") is not None
+
+
 def _detect_deployment(settings: Settings) -> DeploymentKind:
     if settings.is_addon:
         return "addon"
@@ -66,17 +78,20 @@ def _can_apply(settings: Settings) -> bool:
     return (
         settings.self_update_enabled
         and _docker_socket_available()
+        and _docker_cli_available()
         and not settings.is_addon
     )
 
 
-def _apply_instructions(deployment: DeploymentKind) -> str | None:
+def _apply_instructions(settings: Settings, deployment: DeploymentKind) -> str | None:
     if deployment == "addon":
         return (
             "Update via the Home Assistant Supervisor: Settings → Add-ons → "
             "Solar AI Optimizer → Update."
         )
     if deployment == "docker":
+        if not _docker_cli_available():
+            return MISSING_DOCKER_CLI_DETAIL
         return None
     if deployment == "compose":
         return (
@@ -98,12 +113,17 @@ def _apply_instructions(deployment: DeploymentKind) -> str | None:
     )
 
 
-async def _fetch_latest_release() -> dict[str, Any] | None:
-    global _release_cache, _release_cache_at
+async def _fetch_latest_release(*, force: bool = False) -> tuple[dict[str, Any] | None, bool]:
+    """Return (release_data, from_cache)."""
+    global _release_cache, _release_cache_at, _release_checked_at
 
     now = time.monotonic()
-    if _release_cache is not None and now - _release_cache_at < RELEASE_CACHE_TTL_SECONDS:
-        return _release_cache
+    if (
+        not force
+        and _release_cache is not None
+        and now - _release_cache_at < RELEASE_CACHE_TTL_SECONDS
+    ):
+        return _release_cache, True
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -115,11 +135,12 @@ async def _fetch_latest_release() -> dict[str, Any] | None:
             data = response.json()
     except httpx.HTTPError as exc:
         log.warning("Failed to fetch GitHub release: %s", exc)
-        return _release_cache
+        return _release_cache, _release_cache is not None
 
     _release_cache = data
     _release_cache_at = now
-    return data
+    _release_checked_at = datetime.now(UTC)
+    return data, False
 
 
 def _lock_path(settings: Settings) -> Path:
@@ -201,13 +222,17 @@ def _spawn_updater(settings: Settings) -> None:
     )
 
 
-async def build_update_info(settings: Settings | None = None) -> dict[str, Any]:
+async def build_update_info(
+    settings: Settings | None = None,
+    *,
+    force_release_refresh: bool = False,
+) -> dict[str, Any]:
     settings = settings or get_settings()
     current = __version__
     deployment = _detect_deployment(settings)
     can_apply = _can_apply(settings)
 
-    release = await _fetch_latest_release()
+    release, release_from_cache = await _fetch_latest_release(force=force_release_refresh)
     latest_version: str | None = None
     release_notes: str | None = None
     release_url: str | None = None
@@ -223,6 +248,12 @@ async def build_update_info(settings: Settings | None = None) -> dict[str, Any]:
         release_url = release.get("html_url") or None
         published_at = release.get("published_at") or None
 
+    release_checked_at = (
+        _release_checked_at.isoformat().replace("+00:00", "Z")
+        if _release_checked_at is not None
+        else None
+    )
+
     return {
         "current_version": current,
         "latest_version": latest_version,
@@ -232,16 +263,19 @@ async def build_update_info(settings: Settings | None = None) -> dict[str, Any]:
         "published_at": published_at,
         "can_apply": can_apply,
         "deployment": deployment,
-        "apply_instructions": _apply_instructions(deployment),
+        "apply_instructions": _apply_instructions(settings, deployment),
         "update_in_progress": _update_in_progress(settings),
+        "release_checked_at": release_checked_at,
+        "release_from_cache": release_from_cache,
     }
 
 
 @router.get("/update")
 async def get_update_info(
     _admin: SessionUser = Depends(require_admin),
+    refresh: bool = Query(False),
 ) -> dict[str, Any]:
-    return await build_update_info()
+    return await build_update_info(force_release_refresh=refresh)
 
 
 @router.post("/update", status_code=202)
@@ -250,6 +284,13 @@ async def apply_update(
     settings: Settings = Depends(get_settings),
 ) -> Response:
     if not _can_apply(settings):
+        if (
+            settings.self_update_enabled
+            and not settings.is_addon
+            and _docker_socket_available()
+            and not _docker_cli_available()
+        ):
+            raise HTTPException(status_code=503, detail=MISSING_DOCKER_CLI_DETAIL)
         raise HTTPException(
             status_code=403,
             detail="Self-update is not enabled for this deployment.",
@@ -257,7 +298,7 @@ async def apply_update(
     if _update_in_progress(settings):
         raise HTTPException(status_code=409, detail="Update already in progress.")
 
-    info = await build_update_info(settings)
+    info = await build_update_info(settings, force_release_refresh=True)
     if not info.get("update_available"):
         raise HTTPException(status_code=400, detail="Already on the latest release.")
 

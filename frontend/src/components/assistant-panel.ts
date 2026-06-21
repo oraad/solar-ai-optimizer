@@ -5,6 +5,7 @@ import { api } from "../api.js";
 import { assistantHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
 import { sharedStyles } from "../styles.js";
+import { dismissToast, showToast } from "../toast.js";
 import "./info-tip.js";
 
 interface Msg {
@@ -79,11 +80,23 @@ export class AssistantPanel extends LitElement {
     this.msgs = [...this.msgs, { role: "you", text: q }];
     this.input = "";
     this.busy = true;
+    const toastId = "assistant-ask";
+    showToast({
+      id: toastId,
+      message: "Asking assistant…",
+      variant: "loading",
+      persistent: true,
+    });
     try {
       const res = await api.ask(q, this.apply);
+      dismissToast(toastId);
       let text = res.answer;
-      if (res.applied) text += "  [override applied]";
-      else if (res.intent && !this.apply) text += "  [intent detected; tick 'apply' to execute]";
+      if (res.applied) {
+        text += "  [override applied]";
+        showToast({ message: "Override applied.", variant: "success" });
+      } else if (res.intent && !this.apply) {
+        text += "  [intent detected; tick 'apply' to execute]";
+      }
       this.msgs = [
         ...this.msgs,
         {
@@ -94,7 +107,13 @@ export class AssistantPanel extends LitElement {
         },
       ];
     } catch (e) {
-      this.msgs = [...this.msgs, { role: "assistant", text: `Error: ${(e as Error).message}` }];
+      dismissToast(toastId);
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast({
+        message: msg.startsWith("Error:") ? msg : `Error: ${msg}`,
+        variant: "error",
+      });
+      this.msgs = [...this.msgs, { role: "assistant", text: `Error: ${msg}` }];
     } finally {
       this.busy = false;
     }

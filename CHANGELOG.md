@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-06-21
+
+### Added
+
+- Dashboard **toast notifications** for save/login/override/update feedback (loading, success, and error states)
+- Software update API: `?refresh=true` to bypass the release cache; `release_checked_at` and `release_from_cache` in the response
+- Periodic background update check for admins (every 15 minutes)
+
+### Changed
+
+- Settings, Overrides, Login, and Assistant use toasts instead of inline status text
+- Self-update requires both Docker socket and Docker CLI in the container; clearer 503 message when CLI is missing
+
+### Fixed
+
+- **`GET /api/grid-stats` 500** when grid events exist in SQLite — normalize naive DB timestamps to UTC on read (`as_utc`)
+- Grid-stats endpoint returns default stats on compute failure instead of HTTP 500
+- Circular import in `app.engine` package (grid stats tests and imports via `app.grid`)
+
 ## [0.5.3] - 2026-06-21
 
 ### Added

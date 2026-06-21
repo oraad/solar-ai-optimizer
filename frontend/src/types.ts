@@ -142,6 +142,8 @@ export interface UpdateInfo {
   deployment: DeploymentKind;
   apply_instructions: string | null;
   update_in_progress?: boolean;
+  release_checked_at?: string | null;
+  release_from_cache?: boolean;
 }
 
 export interface DecisionHistoryRow {

@@ -12,6 +12,13 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def as_utc(dt: datetime) -> datetime:
+    """Normalize DB-loaded timestamps (SQLite returns naive UTC) for comparisons."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 class Telemetry(BaseModel):
     """A single snapshot of inverter/home state."""
 

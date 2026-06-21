@@ -23,6 +23,7 @@ import "./history-view.js";
 import "./assistant-panel.js";
 import "./settings-panel.js";
 import "./login-page.js";
+import "./toast-host.js";
 
 type Tab = "overview" | "forecast" | "history" | "assistant" | "settings";
 
@@ -37,6 +38,8 @@ const ALL_TABS: { id: Tab; label: string; icon: string }[] = [
 const VIEWER_TABS = ALL_TABS.filter(
   (t) => t.id !== "settings" && t.id !== "assistant",
 );
+
+const UPDATE_FORCE_INTERVAL_MS = 15 * 60 * 1000;
 
 @customElement("solar-app")
 export class SolarApp extends LitElement {
@@ -192,6 +195,7 @@ export class SolarApp extends LitElement {
   private pollTimer?: number;
   private clockTimer?: number;
   private gridStatsFetching = false;
+  private lastForcedUpdateCheck = 0;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -281,13 +285,14 @@ export class SolarApp extends LitElement {
       this.pollTimer = window.setInterval(() => void this.refreshSlow(), 60_000);
     }
     if (this.isAdmin) {
-      void this.refreshUpdateInfo();
+      this.lastForcedUpdateCheck = Date.now();
+      void this.refreshUpdateInfo(true);
     }
   }
 
-  private async refreshUpdateInfo(): Promise<void> {
+  private async refreshUpdateInfo(refresh = false): Promise<void> {
     try {
-      this.updateInfo = await api.updateInfo();
+      this.updateInfo = await api.updateInfo({ refresh });
     } catch {
       /* non-fatal */
     }
@@ -401,6 +406,11 @@ export class SolarApp extends LitElement {
       } catch (e) {
         this.noteApiError(e);
       }
+      const now = Date.now();
+      if (now - this.lastForcedUpdateCheck >= UPDATE_FORCE_INTERVAL_MS) {
+        this.lastForcedUpdateCheck = now;
+        await this.refreshUpdateInfo(true);
+      }
     }
   }
 
@@ -488,13 +498,14 @@ export class SolarApp extends LitElement {
 
   render() {
     if (!this.authReady) {
-      return html`<div class="auth-loading">Loading…</div>`;
+      return html`<solar-toast-host></solar-toast-host><div class="auth-loading">Loading…</div>`;
     }
     if (this.needsLogin) {
-      return html`<solar-login-page></solar-login-page>`;
+      return html`<solar-toast-host></solar-toast-host><solar-login-page></solar-login-page>`;
     }
 
     return html`
+      <solar-toast-host></solar-toast-host>
       <div class="topbar">
         <div class="topbar-inner">
           <div class="brand">

@@ -183,7 +183,10 @@ export const api = {
       "/api/model/retrain",
       {},
     ),
-  updateInfo: () => getJSON<UpdateInfo>("/api/system/update"),
+  updateInfo: (opts?: { refresh?: boolean }) => {
+    const qs = opts?.refresh ? "?refresh=true" : "";
+    return getJSON<UpdateInfo>(`/api/system/update${qs}`);
+  },
   applyUpdate: async (): Promise<void> => {
     const res = await fetch(`${getBase()}/api/system/update`, fetchInit({ method: "POST" }));
     if (res.status === 202) return;

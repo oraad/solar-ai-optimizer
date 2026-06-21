@@ -60,6 +60,11 @@ only use on trusted homelab hosts:
 docker compose -f docker-compose.yml -f docker-compose.self-update.yml up -d
 ```
 
+!!! note "Image version"
+    One-click update requires **v0.5.2 or newer** (the image includes the Docker CLI).
+    If you enabled self-update on an older GHCR image, run `docker pull` and recreate
+    the container once manually before using **Update now** in the dashboard.
+
 ---
 
 ## Docker (standalone image)

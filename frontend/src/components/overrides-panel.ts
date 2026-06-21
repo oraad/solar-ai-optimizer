@@ -5,6 +5,7 @@ import { api } from "../api.js";
 import { overrideHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
 import { sharedStyles } from "../styles.js";
+import { runWithToast } from "../toast.js";
 import "./info-tip.js";
 import type { AppConfigView, SystemStatus } from "../types.js";
 
@@ -50,7 +51,6 @@ export class OverridesPanel extends LitElement {
         flex: 1 1 140px;
       }
       .action-with-tip button { flex: 1; }
-      .msg { color: var(--muted); font-size: 0.78rem; margin-top: 10px; min-height: 1em; }
       .banner {
         padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 12px;
         font-size: 0.82rem; border: 1px solid var(--border);
@@ -67,69 +67,81 @@ export class OverridesPanel extends LitElement {
   @property({ type: String }) role: "admin" | "viewer" = "admin";
 
   @state() private busy = false;
-  @state() private msg = "";
   @state() private reserveInput: number | null = null;
 
   private dispatchRefresh(): void {
     window.dispatchEvent(new Event("solar-plan-refresh"));
   }
 
-  private async run(fn: () => Promise<unknown>, ok: string): Promise<void> {
+  private async run(
+    fn: () => Promise<unknown>,
+    loading: string,
+    success: string,
+  ): Promise<void> {
     this.busy = true;
-    this.msg = "Working...";
-    try {
-      await fn();
-      this.msg = ok;
-      this.dispatchRefresh();
-    } catch (e) {
-      this.msg = `Error: ${(e as Error).message}`;
-    } finally {
-      this.busy = false;
-    }
+    const ok = await runWithToast(
+      async () => {
+        await fn();
+      },
+      { loading, success },
+    );
+    if (ok) this.dispatchRefresh();
+    this.busy = false;
   }
 
   private toggleShadow = () =>
     this.run(
       () => api.override({ shadow_mode: !(this.status?.shadow_mode ?? true) }),
+      "Updating mode…",
       "Shadow mode toggled.",
     );
 
   private togglePause = () =>
-    this.run(() => api.override({ pause_engine: true }), "Engine paused.");
+    this.run(() => api.override({ pause_engine: true }), "Updating engine…", "Engine paused.");
 
   private resume = () =>
-    this.run(() => api.override({ pause_engine: false }), "Engine resumed.");
+    this.run(() => api.override({ pause_engine: false }), "Updating engine…", "Engine resumed.");
 
   private forceCharge = () =>
-    this.run(() => api.override({ force_grid_charge: true }), "Forcing grid charge.");
+    this.run(
+      () => api.override({ force_grid_charge: true }),
+      "Updating grid charge…",
+      "Forcing grid charge.",
+    );
 
   private stopForceCharge = () =>
-    this.run(() => api.override({ force_grid_charge: false }), "Released grid charge override.");
+    this.run(
+      () => api.override({ force_grid_charge: false }),
+      "Updating grid charge…",
+      "Released grid charge override.",
+    );
 
   private applyReserve = () => {
     if (this.reserveInput == null) return;
     return this.run(
       () => api.override({ reserve_soc: this.reserveInput }),
+      "Pinning reserve…",
       `Reserve pinned at ${this.reserveInput}%.`,
     );
   };
 
   private clearAll = () =>
-    this.run(() => api.clearOverride(), "Overrides cleared (auto mode).");
+    this.run(() => api.clearOverride(), "Clearing overrides…", "Overrides cleared (auto mode).");
 
   private killSwitch = () => {
     if (!confirm("Engage KILL SWITCH? This enables grid charge at max current, pauses the engine, and restores shed tiers.")) return;
     return this.run(
       () => api.override({ kill_switch: true, confirm: true }),
+      "Engaging kill switch…",
       "Kill switch engaged; grid charge at max current.",
     );
   };
 
   private forceCycle = () =>
-    this.run(() => api.forceCycle(), "Control cycle executed.");
+    this.run(() => api.forceCycle(), "Running control cycle…", "Control cycle executed.");
 
   private refreshForecast = () =>
-    this.run(() => api.refreshForecast(), "Forecast refreshed.");
+    this.run(() => api.refreshForecast(), "Refreshing forecast…", "Forecast refreshed.");
 
   render() {
     const shadow = this.status?.shadow_mode ?? true;
@@ -226,7 +238,6 @@ export class OverridesPanel extends LitElement {
               </div>
             `}
 
-        <div class="msg">${this.msg}</div>
       </div>
     `;
   }

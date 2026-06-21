@@ -47,7 +47,13 @@ Use the **Alpine script for updates** on Alpine installs (the in-LXC `update` co
 4. Leave **SHADOW MODE** on until you trust the decisions (default).
 5. Optionally set `API_TOKEN` in `/opt/solar-ai-optimizer/solar.env` on the LXC and the same value in **Settings → API security**.
 
-Re-running the update helper on an install that already has local admin credentials does **not** rotate the password. To change it manually, generate a new bcrypt hash (see [ingress-auth.md](../docs/ingress-auth.md)) and edit `solar.env`.
+Re-running the update helper on an install that already has local admin credentials does **not** rotate the password. To reset the password:
+
+```bash
+bash /opt/solar-ai-optimizer/reset-local-password.sh
+```
+
+Or run `solar_reset_local_password` after sourcing `proxmox/lib/solar-common.sh`. See [Ingress and authorization](../docs/ingress-auth.md#reset-local-admin-password).
 
 ## Update
 

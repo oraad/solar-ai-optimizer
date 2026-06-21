@@ -146,7 +146,7 @@ class HAEntityAdapter(InverterAdapter):
 
     async def read_capability(
         self, capability: Capability
-    ) -> float | bool | str | None:
+    ) -> float | bool | None:
         entity_id = self._write_entity(capability)
         if not entity_id:
             return None
@@ -156,8 +156,6 @@ class HAEntityAdapter(InverterAdapter):
         raw = st.get("state")
         if capability is Capability.GRID_CHARGE_ENABLE:
             return _to_bool(raw)
-        if capability is Capability.WORK_MODE:
-            return raw
         return _to_float(raw)
 
     # ---------------------------------------------------------------- write --
@@ -172,11 +170,3 @@ class HAEntityAdapter(InverterAdapter):
         if not entity_id:
             raise RuntimeError("max_grid_charge_current not mapped")
         await self._ha.set_number(entity_id, amps)
-
-    async def set_work_mode(self, mode: str) -> None:
-        entity_id = self._write.work_mode
-        if not entity_id:
-            raise RuntimeError("work_mode not mapped")
-        # Map logical mode key -> HA option label if provided.
-        option = self._cfg.work_modes.get(mode, mode)
-        await self._ha.select_option(entity_id, option)

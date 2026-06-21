@@ -10,17 +10,13 @@ const FIELD_HELP: Record<string, Record<string, string>> = {
 
       "Usable battery energy capacity. Used for autonomy, reserve, and ETA calculations.",
 
-    max_charge_a:
-
-      "Planning limit for charge current in amps (not a Home Assistant entity). The engine only writes the max grid charge current entity.",
-
     max_grid_charge_a:
 
-      "Planning limit for grid charge current in amps. Clamps writes to the max grid charge current entity.",
+      "Ceiling for grid charge current in amps. The ramp engine writes up to this value via the max grid charge current entity.",
 
     nominal_voltage:
 
-      "Nominal pack voltage used to convert amp limits to watts in the optimizer.",
+      "Nominal pack voltage used to convert max grid charge current (amps) to watts in the MPC optimizer.",
 
     min_soc_floor:
 
@@ -88,11 +84,11 @@ const FIELD_HELP: Record<string, Record<string, string>> = {
 
     min_write_interval_seconds:
 
-      "Minimum time between inverter writes to avoid spamming Home Assistant.",
+      "Minimum time between inverter writes to avoid spamming Home Assistant. When this exceeds the control loop interval, ramp steps may take multiple cycles to apply.",
 
     enforce_hard_bounds:
 
-      "When enabled, reject writes that would violate configured min/max SOC and currents.",
+      "When enabled, reject grid charge current writes outside 0–max_grid_charge_a instead of silently clamping.",
 
     ha_stale_after_seconds:
 
@@ -142,9 +138,65 @@ const FIELD_HELP: Record<string, Record<string, string>> = {
 
   },
 
+  grid_charge: {
+
+    ramp_enabled:
+
+      "When enabled, grid charge current ramps up/down using the factor cap chain below. When off, uses legacy max-or-off charging.",
+
+    min_grid_charge_a:
+
+      "Minimum amps when grid charge is enabled. If the cap chain yields a value below this (but above off threshold), it is bumped up to avoid flickering at very low currents.",
+
+    ramp_step_a:
+
+      "Maximum change in grid charge amps per control cycle.",
+
+    off_threshold_a:
+
+      "If the cap chain result is below this value, grid charge is disabled.",
+
+    next_solar_horizon_hours:
+
+      "Hours ahead to look for imminent solar when evaluating the next solar window factor.",
+
+    soc_gap:
+
+      "Maps SOC deficit vs reserve target to an urgency ceiling — larger gap allows higher current.",
+
+    remaining_solar_today:
+
+      "Lowers grid charge when forecast solar today can cover the energy needed to reach reserve.",
+
+    next_solar_power:
+
+      "Lowers grid charge when significant solar is expected in the next few hours.",
+
+    load_power:
+
+      "Adjusts ceiling based on net load minus PV — less import need allows lower current.",
+
+    battery_power:
+
+      "Reduces grid charge when the battery is already charging from solar (+ = charging).",
+
+    grid_window:
+
+      "Short historical grid windows raise urgency; long windows allow slower charging.",
+
+    blackout_risk:
+
+      "Higher blackout risk score allows a higher ceiling within the cap chain.",
+
+    solar_bridge:
+
+      "Larger gap between current SOC and solar-bridge target allows higher current.",
+
+  },
+
   engine: {
 
-    mode: "Rules: fast heuristics. MPC: optimization over the forecast horizon (needs PuLP).",
+    mode: "Rules: fast heuristics. MPC: optimization over the forecast horizon (needs PuLP). Charge and discharge power bounds both use max_grid_charge_a × nominal_voltage.",
 
     mpc_horizon_hours: "How many hours ahead the MPC engine plans when mode is MPC.",
 
@@ -246,8 +298,6 @@ const ENTITY_HELP: Record<string, string> = {
 
     "Entity to limit current drawn from the grid for charging — the only charge-current write the optimizer uses.",
 
-  work_mode: "Select or switch for inverter work mode (vendor-specific values).",
-
 };
 
 
@@ -305,6 +355,8 @@ const STATUS_HELP: Record<string, string> = {
   battery: "State of charge and charge/discharge power (+ = charging).",
 
   grid: "Whether utility grid is present and import/export power.",
+
+  grid_charge: "Planned max grid charge current from the latest decision cycle.",
 
   reserve: "Target SOC the optimizer is defending right now.",
 
@@ -393,6 +445,10 @@ export function sectionHelp(section: string): string | undefined {
       "Heartbeat for HA watchdog automation and grid-charge-at-max on shutdown.",
 
     load_shedding: "Optional tiers of switches to shed when SOC is low.",
+
+    grid_charge:
+
+      "Cap-chain factors that limit grid charge current each cycle (engine uses the lowest ceiling).",
 
     engine: "Rules vs model-predictive control for charge/discharge decisions.",
 

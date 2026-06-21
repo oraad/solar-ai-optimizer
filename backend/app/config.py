@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import functools
 from pathlib import Path
+from enum import Enum
 from typing import Literal
 
 import yaml
@@ -130,19 +131,16 @@ class InverterReadMap(BaseModel):
 class InverterWriteMap(BaseModel):
     grid_charge_enable: str | None = None
     max_grid_charge_current: str | None = None
-    work_mode: str | None = None
 
 
 class InverterConfig(BaseModel):
     read: InverterReadMap = Field(default_factory=InverterReadMap)
     write: InverterWriteMap = Field(default_factory=InverterWriteMap)
     invert_battery_power: bool = False
-    work_modes: dict[str, str] = Field(default_factory=dict)
 
 
 class BatteryConfig(BaseModel):
     capacity_kwh: float = 10.0
-    max_charge_a: float = 100.0
     max_grid_charge_a: float = 60.0
     nominal_voltage: float = 51.2
     min_soc_floor: float = 20.0
@@ -275,6 +273,57 @@ class LoadSheddingConfig(BaseModel):
     tiers: list[LoadTier] = Field(default_factory=list)
 
 
+class GridChargeFactor(str, Enum):
+    soc_gap = "soc_gap"
+    remaining_solar_today = "remaining_solar_today"
+    next_solar_power = "next_solar_power"
+    load_power = "load_power"
+    battery_power = "battery_power"
+    grid_window = "grid_window"
+    blackout_risk = "blackout_risk"
+    solar_bridge = "solar_bridge"
+
+
+_DEFAULT_FACTOR_ORDER = [
+    GridChargeFactor.soc_gap,
+    GridChargeFactor.grid_window,
+    GridChargeFactor.battery_power,
+    GridChargeFactor.remaining_solar_today,
+    GridChargeFactor.next_solar_power,
+    GridChargeFactor.load_power,
+    GridChargeFactor.solar_bridge,
+    GridChargeFactor.blackout_risk,
+]
+
+
+class GridChargeConfig(BaseModel):
+    ramp_enabled: bool = True
+    factor_order: list[GridChargeFactor] = Field(
+        default_factory=lambda: list(_DEFAULT_FACTOR_ORDER)
+    )
+    min_grid_charge_a: float = 5.0
+    ramp_step_a: float = 10.0
+    off_threshold_a: float = 1.0
+    next_solar_horizon_hours: int = 6
+
+    @field_validator("factor_order", mode="before")
+    @classmethod
+    def _normalize_factor_order(cls, v: object) -> list[GridChargeFactor]:
+        if not v:
+            return list(_DEFAULT_FACTOR_ORDER)
+        seen: set[GridChargeFactor] = set()
+        out: list[GridChargeFactor] = []
+        for item in v:
+            try:
+                factor = GridChargeFactor(str(item))
+            except ValueError:
+                continue
+            if factor not in seen:
+                seen.add(factor)
+                out.append(factor)
+        return out or list(_DEFAULT_FACTOR_ORDER)
+
+
 class EngineConfig(BaseModel):
     mode: str = "rules"
     mpc_horizon_hours: int = 48
@@ -314,6 +363,7 @@ class AppConfig(BaseModel):
     fail_safe: FailSafeConfig = Field(default_factory=FailSafeConfig)
     engine: EngineConfig = Field(default_factory=EngineConfig)
     load_shedding: LoadSheddingConfig = Field(default_factory=LoadSheddingConfig)
+    grid_charge: GridChargeConfig = Field(default_factory=GridChargeConfig)
 
 
 def load_app_config(path: str | Path) -> AppConfig:

@@ -40,6 +40,8 @@ fi
 
 solar_show_admin_credentials
 
+solar_install_reset_script
+
 motd_ssh
 customize
 solar_write_update_command

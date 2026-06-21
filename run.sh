@@ -46,6 +46,16 @@ PY
 )"
 fi
 
+# Local admin credentials written by scripts/reset-local-password.sh override
+# container env for auth keys (survives container recreate on the data volume).
+LOCAL_AUTH_ENV="${DATA_DIR}/local_auth.env"
+if [ -f "$LOCAL_AUTH_ENV" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$LOCAL_AUTH_ENV"
+  set +a
+fi
+
 # WebSocket keepalive: align with the 30s app heartbeat in api/ws.py; tolerate LAN latency.
 WS_PING_INTERVAL="${WS_PING_INTERVAL:-30}"
 WS_PING_TIMEOUT="${WS_PING_TIMEOUT:-60}"

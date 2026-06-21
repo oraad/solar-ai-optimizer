@@ -14,7 +14,7 @@ export interface Telemetry {
 
 export interface ControlAction {
   capability: string;
-  value: number | boolean | string;
+  value: number | boolean;
   reason: string;
   priority: number;
 }
@@ -35,6 +35,13 @@ export interface ShedAction {
   reason: string;
 }
 
+export interface GridChargePlan {
+  enabled: boolean;
+  target_amps: number;
+  max_amps: number;
+  rationale: string;
+}
+
 export interface Decision {
   ts: string;
   reserve: ReserveTarget;
@@ -44,6 +51,7 @@ export interface Decision {
   blackout_risk_score: number;
   summary: string;
   shadow_mode: boolean;
+  grid_charge?: GridChargePlan | null;
 }
 
 export interface GridStats {
@@ -57,7 +65,7 @@ export interface GridStats {
 
 export interface ExecutionResult {
   capability: string;
-  requested: number | boolean | string;
+  requested: number | boolean;
   applied: boolean;
   verified: boolean;
   skipped_reason: string | null;
@@ -214,4 +222,5 @@ export interface AppConfigView {
   engine: Record<string, unknown>;
   inverter?: Record<string, unknown>;
   load_shedding?: Record<string, unknown>;
+  grid_charge?: Record<string, unknown>;
 }

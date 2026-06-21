@@ -7,6 +7,7 @@ import type {
   AppConfigView,
   ExecutionResult,
   ForecastBundle,
+  GridStats,
   SessionInfo,
   ShedResult,
   SystemStatus,
@@ -174,6 +175,7 @@ export class SolarApp extends LitElement {
   @state() private authReady = false;
   @state() private needsLogin = false;
   @state() private status: SystemStatus | null = null;
+  @state() private gridStats: GridStats | null = null;
   @state() private forecast: ForecastBundle | null = null;
   @state() private config: AppConfigView | null = null;
   @state() private execResults: ExecutionResult[] = [];
@@ -187,6 +189,7 @@ export class SolarApp extends LitElement {
   private unsub?: () => void;
   private pollTimer?: number;
   private clockTimer?: number;
+  private gridStatsFetching = false;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -229,6 +232,7 @@ export class SolarApp extends LitElement {
     this.authReady = false;
     this.needsLogin = true;
     this.status = null;
+    this.gridStats = null;
     if (this.pollTimer) {
       window.clearInterval(this.pollTimer);
       this.pollTimer = undefined;
@@ -259,13 +263,41 @@ export class SolarApp extends LitElement {
     live.connect();
     if (!this.unsub) {
       this.unsub = live.onStatus((s) => {
-        this.status = s;
-        this.lastUpdate = Date.now();
+        this.applyStatus(s);
       });
     }
     if (!this.pollTimer) {
       void this.bootstrap();
       this.pollTimer = window.setInterval(() => void this.refreshSlow(), 60_000);
+    }
+  }
+
+  private applyStatus(s: SystemStatus): void {
+    this.status = s;
+    this.lastUpdate = Date.now();
+    if (s.grid_stats) {
+      this.gridStats = s.grid_stats;
+    } else {
+      this.gridStats = null;
+      if (s.telemetry) {
+        void this.refreshGridStats();
+      }
+    }
+  }
+
+  private get effectiveGridStats(): GridStats | null {
+    return this.status?.grid_stats ?? this.gridStats ?? null;
+  }
+
+  private async refreshGridStats(): Promise<void> {
+    if (this.gridStatsFetching) return;
+    this.gridStatsFetching = true;
+    try {
+      this.gridStats = await api.gridStats();
+    } catch {
+      /* non-fatal; WS or next poll may recover */
+    } finally {
+      this.gridStatsFetching = false;
     }
   }
 
@@ -319,8 +351,7 @@ export class SolarApp extends LitElement {
 
   private async bootstrap(): Promise<void> {
     try {
-      this.status = await api.status();
-      this.lastUpdate = Date.now();
+      this.applyStatus(await api.status());
       this.apiError = "";
     } catch (e) {
       this.noteApiError(e);
@@ -335,6 +366,7 @@ export class SolarApp extends LitElement {
       this.noteApiError(e);
     }
     await this.refreshPlan();
+    await this.refreshGridStats();
     if (this.isAdmin) {
       try {
         this.config = await api.config();
@@ -387,7 +419,7 @@ export class SolarApp extends LitElement {
             ></solar-forecast-chart>
             <solar-grid-stats
               class="span-4"
-              .stats=${this.status?.grid_stats ?? null}
+              .stats=${this.effectiveGridStats}
               .livePresent=${this.status?.telemetry?.grid_present ?? null}
             ></solar-grid-stats>
           </div>`;
@@ -407,7 +439,7 @@ export class SolarApp extends LitElement {
             ></solar-status-cards>
             <solar-grid-stats
               class="span-4"
-              .stats=${this.status?.grid_stats ?? null}
+              .stats=${this.effectiveGridStats}
               .livePresent=${this.status?.telemetry?.grid_present ?? null}
             ></solar-grid-stats>
             <solar-decision-panel

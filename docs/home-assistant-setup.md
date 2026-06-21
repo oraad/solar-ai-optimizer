@@ -211,12 +211,6 @@ Use **Developer tools → States** to find entity IDs. The tables below are **st
 |------------|----------------------|---------|---------|
 | `grid_charge_enable` | `switch.*_grid_charge` | integration-specific | `switch.*_grid_charge` |
 | `max_grid_charge_current` | `number.*_grid_charge_current` | `number.*_max_charge_current` | `number.*_max_grid_charge` |
-| `work_mode` | `select.*_energy_management_model` | `select.*_ess_mode` | varies |
-
-### Work mode labels
-
-Map logical modes in Settings → Inverter → Work mode labels to the exact option strings
-your integration exposes (e.g. `Grid First`, `Battery First`, `Selling First`).
 
 ### Load shedding
 

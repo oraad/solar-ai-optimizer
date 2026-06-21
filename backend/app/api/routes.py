@@ -163,6 +163,7 @@ def _config_view(cfg) -> dict:
         "engine": cfg.engine.model_dump(),
         "inverter": cfg.inverter.model_dump(),
         "load_shedding": cfg.load_shedding.model_dump(),
+        "grid_charge": cfg.grid_charge.model_dump(),
     }
 
 

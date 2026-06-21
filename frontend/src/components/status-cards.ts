@@ -26,6 +26,7 @@ const STATUS_ICONS = {
   load: "\u2302",
   battery: "\u{1F50B}",
   grid: "\u26A1",
+  gridCharge: "\u{1F50C}",
   reserve: "\u{1F6E1}",
   outdoor: "\u{1F321}",
   risk: "\u26A0",
@@ -116,6 +117,24 @@ export class StatusCards extends LitElement {
 
     const stale = this.status?.telemetry_stale ?? false;
     const age = this.status?.telemetry_age_seconds;
+    const gc = d?.grid_charge ?? null;
+    const gridAbsent = t?.grid_present === false;
+    const gcAmps = gc?.target_amps;
+    const gcEnabled = gc?.enabled === true && (gcAmps ?? 0) > 0;
+    const gcMetric = gridAbsent
+      ? "--"
+      : gcEnabled
+        ? `${gcAmps!.toFixed(0)} A`
+        : gc
+          ? "OFF"
+          : "--";
+    const gcSub = gridAbsent
+      ? "Grid absent"
+      : gc
+        ? gc.enabled
+          ? `on · max ${gc.max_amps.toFixed(0)} A`
+          : "off"
+        : "";
 
     return html`
       <div class="card">
@@ -158,6 +177,13 @@ export class StatusCards extends LitElement {
               </span>
             </div>
             <div class="label" style="margin-top:6px">${fmtW(t?.grid_power)}</div>
+          </div>
+          <div class="tile">
+            ${this.tileHead(STATUS_ICONS.gridCharge, "Grid charge", "grid_charge")}
+            <div class="metric" style="color:${gcEnabled ? "var(--good)" : "var(--muted)"}">
+              ${gcMetric}
+            </div>
+            ${gcSub ? html`<div class="label" style="margin-top:6px">${gcSub}</div>` : null}
           </div>
           <div class="tile">
             ${this.tileHead(STATUS_ICONS.reserve, "Reserve target", "reserve")}

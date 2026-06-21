@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from ..config import BatteryConfig, EngineConfig, LoadSheddingConfig, ReserveConfig
+from ..config import BatteryConfig, EngineConfig, GridChargeConfig, LoadSheddingConfig, ReserveConfig
 from ..grid.reactive import ReactiveGrid
 from ..models import (
     BlackoutRisk,
@@ -18,6 +18,7 @@ from ..models import (
     ControlAction,
     Decision,
     ForecastBundle,
+    GridChargePlan,
     GridStats,
     Override,
     ReserveTarget,
@@ -37,13 +38,19 @@ class RuleEngine:
         engine_cfg: EngineConfig,
         reactive: ReactiveGrid,
         shedding: LoadSheddingConfig | None = None,
+        grid_charge: GridChargeConfig | None = None,
     ) -> None:
         self._battery = battery
         self._reserve = reserve
         self._engine_cfg = engine_cfg
         self._reactive = reactive
+        self._grid_charge = grid_charge or GridChargeConfig()
         self._shedding = LoadSheddingController(shedding or LoadSheddingConfig())
         self._total_kwp = 1.0
+        self._last_grid_charge_amps: float | None = None
+
+    def set_last_grid_charge_amps(self, amps: float | None) -> None:
+        self._last_grid_charge_amps = amps
 
     def set_total_kwp(self, total_kwp: float) -> None:
         self._total_kwp = max(0.1, total_kwp)
@@ -178,6 +185,7 @@ class RuleEngine:
         override: Override | None,
         shadow_mode: bool,
         telemetry_stale: bool = False,
+        last_grid_charge_amps: float | None = None,
     ) -> Decision:
         reserve = self.compute_reserve(telemetry, forecast)
         target_soc = reserve.target_soc
@@ -191,9 +199,26 @@ class RuleEngine:
 
         actions: list[ControlAction] = []
         advisories: list[str] = []
+        grid_charge_plan: GridChargePlan | None = None
+        max_a = self._battery.max_grid_charge_a
 
-        # Opportunistic grid top-up (reactive; no prediction).
+        # Blackout risk (needed before grid charge ramp factors).
+        risk, score = self._blackout_risk(telemetry, reserve, forecast)
+
+        last_amps = (
+            last_grid_charge_amps
+            if last_grid_charge_amps is not None
+            else self._last_grid_charge_amps
+        )
+
+        # Opportunistic grid top-up (reactive; ramp or legacy).
         if override and override.force_grid_charge:
+            grid_charge_plan = GridChargePlan(
+                enabled=True,
+                target_amps=max_a,
+                max_amps=max_a,
+                rationale="Operator override: force grid charge at max safe current.",
+            )
             actions.append(
                 ControlAction(
                     capability=Capability.GRID_CHARGE_ENABLE,
@@ -205,12 +230,18 @@ class RuleEngine:
             actions.append(
                 ControlAction(
                     capability=Capability.MAX_GRID_CHARGE_CURRENT,
-                    value=self._battery.max_grid_charge_a,
-                    reason="Operator override: grid charge at max safe current.",
+                    value=max_a,
+                    reason=grid_charge_plan.rationale,
                     priority=110,
                 )
             )
         elif override and override.force_grid_charge is False:
+            grid_charge_plan = GridChargePlan(
+                enabled=False,
+                target_amps=0.0,
+                max_amps=max_a,
+                rationale="Operator override: disable grid charge.",
+            )
             actions.append(
                 ControlAction(
                     capability=Capability.GRID_CHARGE_ENABLE,
@@ -227,8 +258,25 @@ class RuleEngine:
                     priority=110,
                 )
             )
-        elif not telemetry_stale:
-            actions.extend(self._reactive.opportunistic_actions(telemetry, target_soc))
+        elif telemetry_stale:
+            grid_charge_plan, stale_actions = self._conservative_grid_charge_off(
+                max_a,
+                "Telemetry stale; disable grid charge (conservative).",
+            )
+            actions.extend(stale_actions)
+        else:
+            result = self._reactive.opportunistic_actions(
+                telemetry,
+                target_soc,
+                forecast=forecast,
+                grid_stats=grid_stats,
+                reserve=reserve,
+                blackout_risk=risk,
+                blackout_risk_score=score,
+                last_amps=last_amps,
+            )
+            actions.extend(result.actions)
+            grid_charge_plan = result.plan
 
         # Surplus diversion advisory (no deferrable-load capability is written;
         # surfaced for the operator / future automations).
@@ -240,9 +288,6 @@ class RuleEngine:
                 f"Surplus available ({(pv - load) / 1000:.1f} kW) with battery full: "
                 f"divert to deferrable loads (geyser/EV/pumps) instead of curtailing."
             )
-
-        # Blackout risk.
-        risk, score = self._blackout_risk(telemetry, reserve, forecast)
 
         summary = self._summary(telemetry, reserve, target_soc, risk)
         if advisories:
@@ -264,7 +309,34 @@ class RuleEngine:
             blackout_risk_score=round(score, 3),
             summary=summary,
             shadow_mode=shadow_mode,
+            grid_charge=grid_charge_plan,
         )
+
+    @staticmethod
+    def _conservative_grid_charge_off(
+        max_a: float, rationale: str
+    ) -> tuple[GridChargePlan, list[ControlAction]]:
+        plan = GridChargePlan(
+            enabled=False,
+            target_amps=0.0,
+            max_amps=max_a,
+            rationale=rationale,
+        )
+        actions = [
+            ControlAction(
+                capability=Capability.GRID_CHARGE_ENABLE,
+                value=False,
+                reason=rationale,
+                priority=120,
+            ),
+            ControlAction(
+                capability=Capability.MAX_GRID_CHARGE_CURRENT,
+                value=0.0,
+                reason="Grid charge current set to 0 (conservative).",
+                priority=110,
+            ),
+        ]
+        return plan, actions
 
     def _blackout_risk(
         self,

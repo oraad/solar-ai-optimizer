@@ -137,7 +137,7 @@ class Executor:
             capability=cap, requested=value, applied=True, verified=verified,
         )
 
-    async def _verify(self, cap: Capability, value: float | bool | str) -> bool:
+    async def _verify(self, cap: Capability, value: float | bool) -> bool:
         await asyncio.sleep(self._verify_delay)
         try:
             readback = await self._adapter.read_capability(cap)
@@ -232,13 +232,13 @@ class Executor:
         """Fail-safe: enable grid charge at max configured current.
 
         Bypasses rate limiting and the HA stale watchdog when ``bypass_watchdog``
-        is True (emergency > wear). Never changes work mode.
+        is True (emergency > wear).
         """
         log.warning("Applying fail-safe: grid charge ON at max current.")
         amps, _ = self._guard.clamp(
             Capability.MAX_GRID_CHARGE_CURRENT, self._battery.max_grid_charge_a
         )
-        pairs: list[tuple[Capability, float | bool | str]] = [
+        pairs: list[tuple[Capability, float | bool]] = [
             (Capability.GRID_CHARGE_ENABLE, True),
             (Capability.MAX_GRID_CHARGE_CURRENT, amps),
         ]
@@ -251,7 +251,7 @@ class Executor:
 
     async def _apply_emergency_writes(
         self,
-        pairs: list[tuple[Capability, float | bool | str]],
+        pairs: list[tuple[Capability, float | bool]],
         *,
         bypass_watchdog: bool,
     ) -> list[ExecutionResult]:

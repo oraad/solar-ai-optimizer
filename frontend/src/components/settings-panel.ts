@@ -2,7 +2,7 @@ import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { api, getApiToken, setApiToken } from "../api.js";
-import { entityLabel, fieldLabel, INVERTER_READ_ENTITY_KEYS, pvLabel, sectionTitle } from "../field-labels.js";
+import { entityLabel, fieldLabel, gridChargeFactorLabel, INVERTER_READ_ENTITY_KEYS, pvLabel, sectionTitle } from "../field-labels.js";
 import { entityHelp, fieldHelp, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
 import { sharedStyles } from "../styles.js";
@@ -22,7 +22,20 @@ const FORM_SECTIONS = [
 ] as const;
 
 // Sections persisted on save (includes custom-rendered sections).
-const SAVE_SECTIONS = [...FORM_SECTIONS, "engine", "inverter", "ha", "fail_safe"] as const;
+const SAVE_SECTIONS = [...FORM_SECTIONS, "engine", "inverter", "ha", "fail_safe", "grid_charge"] as const;
+
+const DEFAULT_GRID_CHARGE_FACTORS = [
+  "soc_gap",
+  "grid_window",
+  "battery_power",
+  "remaining_solar_today",
+  "next_solar_power",
+  "load_power",
+  "solar_bridge",
+  "blackout_risk",
+] as const;
+
+const ALL_GRID_CHARGE_FACTORS = [...DEFAULT_GRID_CHARGE_FACTORS] as const;
 
 // Read-only helper fields returned by the API that must not be edited.
 const HIDDEN_FIELDS = new Set(["has_token"]);
@@ -32,7 +45,6 @@ const READ_DOMAIN: Record<string, string> = { grid_present: "binary_sensor" };
 const WRITE_DOMAIN: Record<string, string> = {
   grid_charge_enable: "switch",
   max_grid_charge_current: "number",
-  work_mode: "select",
 };
 const WRITE_ENTITY_KEYS = Object.keys(WRITE_DOMAIN);
 
@@ -197,7 +209,10 @@ export class SettingsPanel extends LitElement {
 
   private async save(): Promise<void> {
     if (!this.draft) return;
-    this.patchDraft((d) => this.normalizeTiersForSave(d));
+    this.patchDraft((d) => {
+      this.normalizeTiersForSave(d);
+      this.normalizeGridChargeForSave(d);
+    });
     const tierErr = this.validateTiers();
     if (tierErr) {
       this.msg = tierErr;
@@ -853,6 +868,157 @@ export class SettingsPanel extends LitElement {
     });
   }
 
+  private gridChargeFactors(): string[] {
+    const d = this.draft as unknown as Record<string, any>;
+    const raw = d.grid_charge?.factor_order;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return [...DEFAULT_GRID_CHARGE_FACTORS];
+    }
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const item of raw) {
+      const key = String(item);
+      if (!ALL_GRID_CHARGE_FACTORS.includes(key as (typeof ALL_GRID_CHARGE_FACTORS)[number])) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(key);
+    }
+    return out.length ? out : [...DEFAULT_GRID_CHARGE_FACTORS];
+  }
+
+  private setGridChargeField(key: string, value: unknown): void {
+    this.patchDraft((d) => {
+      d.grid_charge = { ...(d.grid_charge ?? {}), [key]: value };
+    });
+  }
+
+  private moveGridChargeFactor(i: number, dir: -1 | 1): void {
+    this.patchDraft((d) => {
+      const raw = (d.grid_charge as Record<string, unknown> | undefined)?.factor_order;
+      const list =
+        Array.isArray(raw) && raw.length
+          ? [...raw.map(String)]
+          : [...DEFAULT_GRID_CHARGE_FACTORS];
+      const j = i + dir;
+      if (j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+      d.grid_charge = { ...(d.grid_charge ?? {}), factor_order: list };
+    });
+  }
+
+  private normalizeGridChargeForSave(draft: Record<string, unknown>): void {
+    const gc = draft.grid_charge as Record<string, unknown> | undefined;
+    if (!gc) return;
+    const seen = new Set<string>();
+    const order: string[] = [];
+    const raw = Array.isArray(gc.factor_order) ? gc.factor_order : [];
+    for (const item of raw) {
+      const key = String(item);
+      if (!ALL_GRID_CHARGE_FACTORS.includes(key as (typeof ALL_GRID_CHARGE_FACTORS)[number])) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      order.push(key);
+    }
+    gc.factor_order = order.length ? order : [...DEFAULT_GRID_CHARGE_FACTORS];
+  }
+
+  private renderGridChargeSection() {
+    const d = this.draft as unknown as Record<string, any>;
+    const gc = d.grid_charge ?? {};
+    const factors = this.gridChargeFactors();
+    return html`
+      <details>
+        <summary>
+          <span class="summary-label">
+            ${sectionTitle("grid_charge")}
+            <solar-info-tip .text=${sectionHelp("grid_charge")!}></solar-info-tip>
+          </span>
+        </summary>
+        <p class="label">
+          All listed factors apply each cycle; the engine takes the lowest ceiling.
+          Reordering only changes how the rationale is logged. Ramp step limits how
+          fast amps change each cycle.
+        </p>
+        <div class="fields">
+          <div class="field">
+            <label>${this.lbl("grid_charge", "ramp_enabled")}</label>
+            <input
+              type="checkbox"
+              .checked=${Boolean(gc.ramp_enabled ?? true)}
+              @change=${(e: Event) =>
+                this.setGridChargeField("ramp_enabled", (e.target as HTMLInputElement).checked)}
+            />
+          </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "min_grid_charge_a")}</label>
+            <input
+              type="number"
+              step="any"
+              .value=${String(gc.min_grid_charge_a ?? 5)}
+              @input=${(e: Event) =>
+                this.setGridChargeField(
+                  "min_grid_charge_a",
+                  Number((e.target as HTMLInputElement).value),
+                )}
+            />
+          </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "ramp_step_a")}</label>
+            <input
+              type="number"
+              step="any"
+              .value=${String(gc.ramp_step_a ?? 10)}
+              @input=${(e: Event) =>
+                this.setGridChargeField("ramp_step_a", Number((e.target as HTMLInputElement).value))}
+            />
+          </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "off_threshold_a")}</label>
+            <input
+              type="number"
+              step="any"
+              .value=${String(gc.off_threshold_a ?? 1)}
+              @input=${(e: Event) =>
+                this.setGridChargeField(
+                  "off_threshold_a",
+                  Number((e.target as HTMLInputElement).value),
+                )}
+            />
+          </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "next_solar_horizon_hours")}</label>
+            <input
+              type="number"
+              step="1"
+              .value=${String(gc.next_solar_horizon_hours ?? 6)}
+              @input=${(e: Event) =>
+                this.setGridChargeField(
+                  "next_solar_horizon_hours",
+                  Number((e.target as HTMLInputElement).value),
+                )}
+            />
+          </div>
+        </div>
+        <p class="label" style="margin-top:12px">Factor order (log display only)</p>
+        ${factors.map(
+          (key, i) => html`
+            <div class="row" style="margin-bottom:6px">
+              <span style="flex:1">${labelWithTip(gridChargeFactorLabel(key), fieldHelp("grid_charge", key))}</span>
+              <button type="button" ?disabled=${i === 0} @click=${() => this.moveGridChargeFactor(i, -1)}>↑</button>
+              <button
+                type="button"
+                ?disabled=${i === factors.length - 1}
+                @click=${() => this.moveGridChargeFactor(i, 1)}
+              >
+                ↓
+              </button>
+            </div>
+          `,
+        )}
+      </details>
+    `;
+  }
+
   private renderTiers() {
     const d = this.draft as unknown as Record<string, any>;
     const tiers = (d.load_shedding?.tiers ?? []) as Record<string, any>[];
@@ -947,6 +1113,7 @@ export class SettingsPanel extends LitElement {
         ${this.renderEngineSection()}
         ${this.renderTemperature()}
         ${this.renderInverterMap()}
+        ${this.renderGridChargeSection()}
         ${this.renderTiers()}
         <div class="buttons">
           <button class="primary" @click=${() => void this.save()}>Save changes</button>

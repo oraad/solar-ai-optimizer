@@ -29,20 +29,20 @@ class Telemetry(BaseModel):
 class Capability(str, Enum):
     """Logical write capabilities the engine may target.
 
-    Legacy strings (e.g. min_soc, max_charge_current) may still appear in
-    stored execution history; the history API returns them as plain strings.
+    Active values: grid_charge_enable, max_grid_charge_current.
+    Execution history stores capability as plain strings and may include
+    removed values (e.g. work_mode, legacy min_soc).
     """
 
     GRID_CHARGE_ENABLE = "grid_charge_enable"
     MAX_GRID_CHARGE_CURRENT = "max_grid_charge_current"
-    WORK_MODE = "work_mode"
 
 
 class ControlAction(BaseModel):
     """A single desired write, with the reasoning behind it."""
 
     capability: Capability
-    value: float | bool | str
+    value: float | bool
     reason: str
     priority: int = 0  # higher = more important
 
@@ -124,6 +124,15 @@ class ReserveTarget(BaseModel):
     rationale: str
 
 
+class GridChargePlan(BaseModel):
+    """Planned grid charge for one decision cycle."""
+
+    enabled: bool
+    target_amps: float
+    max_amps: float
+    rationale: str = ""
+
+
 class BlackoutRisk(str, Enum):
     LOW = "low"
     MODERATE = "moderate"
@@ -142,13 +151,14 @@ class Decision(BaseModel):
     blackout_risk_score: float = 0.0  # 0..1
     summary: str = ""
     shadow_mode: bool = True
+    grid_charge: GridChargePlan | None = None
 
 
 class ExecutionResult(BaseModel):
     """Outcome of attempting to apply a single action."""
 
     capability: Capability
-    requested: float | bool | str
+    requested: float | bool
     applied: bool
     verified: bool
     skipped_reason: str | None = None

@@ -89,11 +89,6 @@ def demo_config_overrides() -> dict:
             "write": {
                 "grid_charge_enable": "switch.demo_grid_charge",
                 "max_grid_charge_current": "number.demo_max_grid_charge_current",
-                "work_mode": "select.demo_work_mode",
-            },
-            "work_modes": {
-                "grid_first": "Grid First",
-                "battery_first": "Battery First",
             },
         },
         "load_shedding": {

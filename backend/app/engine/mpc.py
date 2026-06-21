@@ -18,7 +18,7 @@ from datetime import timedelta, timezone
 # Hard dependency for this optional engine. ImportError -> fallback to rules.
 import pulp  # noqa: F401
 
-from ..config import BatteryConfig, EngineConfig, LoadSheddingConfig, ReserveConfig
+from ..config import BatteryConfig, EngineConfig, GridChargeConfig, LoadSheddingConfig, ReserveConfig
 from ..grid.reactive import ReactiveGrid
 from ..models import (
     BlackoutRisk,
@@ -41,12 +41,14 @@ class MPCEngine:
         reserve: ReserveConfig,
         engine_cfg: EngineConfig,
         shedding: LoadSheddingConfig | None = None,
+        grid_charge: GridChargeConfig | None = None,
         total_kwp: float = 1.0,
     ) -> None:
         self._battery = battery
         self._reserve = reserve
         self._engine_cfg = engine_cfg
         self._shedding = shedding or LoadSheddingConfig()
+        self._grid_charge = grid_charge or GridChargeConfig()
         self._total_kwp = total_kwp
         self._rule: RuleEngine | None = None
 
@@ -58,6 +60,7 @@ class MPCEngine:
                 self._engine_cfg,
                 reactive,
                 self._shedding,
+                self._grid_charge,
             )
         self._rule.set_total_kwp(self._total_kwp)
         return self._rule
@@ -71,6 +74,7 @@ class MPCEngine:
         shadow_mode: bool,
         reactive: ReactiveGrid,
         telemetry_stale: bool = False,
+        last_grid_charge_amps: float | None = None,
     ) -> Decision:
         # Build the action set with the rule engine, but pin the reserve target
         # to the MPC-optimised value (unless the operator pinned their own).
@@ -89,6 +93,7 @@ class MPCEngine:
             eff_override,
             shadow_mode,
             telemetry_stale=telemetry_stale,
+            last_grid_charge_amps=last_grid_charge_amps,
         )
 
         # Enrich risk + summary with MPC survivability result.
@@ -125,8 +130,8 @@ class MPCEngine:
         floor_wh = cap_wh * self._battery.min_soc_floor / 100.0
         eff = self._battery.round_trip_efficiency
         dt = 1.0  # forecast is hourly
-        max_charge_w = self._battery.max_charge_a * self._battery.nominal_voltage
-        max_discharge_w = max_charge_w  # symmetric assumption
+        max_power_w = self._battery.max_grid_charge_a * self._battery.nominal_voltage
+        max_charge_w = max_discharge_w = max_power_w
 
         # Align hourly solar to load timeline over the horizon.
         horizon = min(self._engine_cfg.mpc_horizon_hours, len(forecast.load))

@@ -15,7 +15,7 @@ from app.models import Capability, Telemetry, utcnow
 
 class _StubAdapter(InverterAdapter):
     def __init__(self) -> None:
-        self.applied: list[tuple[Capability, float | bool | str]] = []
+        self.applied: list[tuple[Capability, float | bool]] = []
 
     async def read_telemetry(self) -> Telemetry:
         return Telemetry(ts=utcnow())
@@ -24,7 +24,6 @@ class _StubAdapter(InverterAdapter):
         return capability in (
             Capability.GRID_CHARGE_ENABLE,
             Capability.MAX_GRID_CHARGE_CURRENT,
-            Capability.WORK_MODE,
         )
 
     async def read_capability(self, capability: Capability):
@@ -35,9 +34,6 @@ class _StubAdapter(InverterAdapter):
 
     async def set_max_grid_charge_current(self, amps: float) -> None:
         self.applied.append((Capability.MAX_GRID_CHARGE_CURRENT, amps))
-
-    async def set_work_mode(self, mode: str) -> None:
-        self.applied.append((Capability.WORK_MODE, mode))
 
 
 @pytest.fixture
@@ -62,7 +58,6 @@ async def test_apply_grid_charge_at_max_enables_grid_and_sets_current(executor):
     caps = [c for c, _ in adapter.applied]
     assert Capability.GRID_CHARGE_ENABLE in caps
     assert Capability.MAX_GRID_CHARGE_CURRENT in caps
-    assert Capability.WORK_MODE not in caps
     current = dict(adapter.applied)
     assert current[Capability.GRID_CHARGE_ENABLE] is True
     assert current[Capability.MAX_GRID_CHARGE_CURRENT] == 72.0

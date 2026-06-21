@@ -27,12 +27,14 @@ from .ha.users import HAAdminResolver
 from .ingest.collector import Collector
 from .models import (
     BatterySummary,
+    Capability,
     Decision,
     ExecutionResult,
     GridStats,
     Override,
     ShedResult,
     SystemStatus,
+    Telemetry,
     utcnow,
 )
 from .demo import synthetic_telemetry
@@ -79,6 +81,7 @@ class Orchestrator:
         self.latest_results: list[ExecutionResult] = []
         self.latest_shed_results: list[ShedResult] = []
         self.latest_grid_stats: GridStats | None = None
+        self._last_grid_charge_amps: float | None = None
 
         self._subscribers: set[asyncio.Queue] = set()
         self._stream_task: asyncio.Task | None = None
@@ -127,11 +130,18 @@ class Orchestrator:
     def _build_engine_components(self) -> None:
         """(Re)create stateless engine/control components from current cfg."""
         cfg = self.cfg
-        self.reactive = ReactiveGrid(cfg.battery, cfg.reserve)
+        self.reactive = ReactiveGrid(
+            cfg.battery, cfg.reserve, cfg.grid_charge, cfg.forecast.timezone
+        )
         from .forecast.helpers import total_kwp
 
         self.engine = RuleEngine(
-            cfg.battery, cfg.reserve, cfg.engine, self.reactive, cfg.load_shedding
+            cfg.battery,
+            cfg.reserve,
+            cfg.engine,
+            self.reactive,
+            cfg.load_shedding,
+            cfg.grid_charge,
         )
         self.engine.set_total_kwp(total_kwp(cfg.forecast.arrays))
         self.executor = Executor(self.adapter, self.ha, cfg.battery, cfg.control)
@@ -171,6 +181,10 @@ class Orchestrator:
         else:
             with contextlib.suppress(Exception):
                 await self.collector.sample()
+            telemetry = self.collector.latest
+            await self._refresh_grid_stats(
+                telemetry.grid_present if telemetry else None
+            )
             self._stream_task = asyncio.create_task(self.collector.run_stream_safe())
         await self._pulse_heartbeat()
         log.info("Orchestrator ready (shadow_mode=%s).", self.shadow_mode)
@@ -215,6 +229,7 @@ class Orchestrator:
                 self.cfg.reserve,
                 self.cfg.engine,
                 self.cfg.load_shedding,
+                self.cfg.grid_charge,
                 total_kwp=total_kwp(self.cfg.forecast.arrays),
             )
         except Exception as e:  # noqa: BLE001
@@ -309,12 +324,7 @@ class Orchestrator:
         from .observability.metrics import metrics
 
         metrics.control_cycles += 1
-        try:
-            self.latest_grid_stats = await self.reactive.compute_stats(
-                live_present=telemetry.grid_present
-            )
-        except Exception as e:  # noqa: BLE001
-            log.debug("grid stats failed: %s", e)
+        await self._refresh_grid_stats(telemetry.grid_present)
 
         forecast = self.forecast.current
 
@@ -327,6 +337,7 @@ class Orchestrator:
                 self.latest_results = await self.executor.apply_decision(
                     decision, self.shadow_mode
                 )
+                self._update_last_grid_charge_amps(self.latest_results)
             except Exception as e:  # noqa: BLE001
                 log.error("Executor failed: %s", e)
         else:
@@ -356,6 +367,7 @@ class Orchestrator:
                     self.shadow_mode,
                     self.reactive,
                     telemetry_stale=telemetry_stale,
+                    last_grid_charge_amps=self._last_grid_charge_amps,
                 )
             except Exception as e:  # noqa: BLE001
                 from .observability.metrics import metrics
@@ -369,7 +381,32 @@ class Orchestrator:
             self.override,
             self.shadow_mode,
             telemetry_stale=telemetry_stale,
+            last_grid_charge_amps=self._last_grid_charge_amps,
         )
+
+    def _update_last_grid_charge_amps(self, results: list[ExecutionResult]) -> None:
+        for r in results:
+            if r.capability is not Capability.MAX_GRID_CHARGE_CURRENT:
+                continue
+            if r.applied and isinstance(r.requested, (int, float)):
+                self._set_last_grid_charge_amps(float(r.requested))
+                return
+            if r.skipped_reason == "already set" and isinstance(r.requested, (int, float)):
+                self._set_last_grid_charge_amps(float(r.requested))
+                return
+
+        if self.latest_decision and self.latest_decision.grid_charge is not None:
+            plan = self.latest_decision.grid_charge
+            if self.shadow_mode:
+                amps = 0.0 if not plan.enabled else float(plan.target_amps)
+                self._set_last_grid_charge_amps(amps)
+                return
+            if not plan.enabled:
+                self._set_last_grid_charge_amps(0.0)
+
+    def _set_last_grid_charge_amps(self, amps: float) -> None:
+        self._last_grid_charge_amps = amps
+        self.engine.set_last_grid_charge_amps(amps)
 
     def _telemetry_stale(self, telemetry) -> bool:  # noqa: ANN001
         if telemetry is None:
@@ -387,6 +424,10 @@ class Orchestrator:
         try:
             await self.forecast.refresh()
             self.forecast.save_model(self._model_path)  # persist learned state
+            telemetry = self.collector.latest
+            await self._refresh_grid_stats(
+                telemetry.grid_present if telemetry else None
+            )
             await self._broadcast()
         except Exception as e:  # noqa: BLE001
             from .observability.metrics import metrics
@@ -405,7 +446,17 @@ class Orchestrator:
     async def _on_grid_change(self, present: bool) -> None:
         """Grid just appeared/disappeared: re-evaluate immediately to exploit it."""
         log.info("Grid change -> immediate re-evaluation (present=%s).", present)
+        await self._refresh_grid_stats(present)
         await self.control_cycle()
+
+    async def _refresh_grid_stats(self, live_present: bool | None = None) -> None:
+        try:
+            self.latest_grid_stats = await self.reactive.compute_stats(
+                live_present=live_present
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("grid stats failed: %s", e, exc_info=True)
+            self.latest_grid_stats = None
 
     # ------------------------------------------------------------- overrides --
     async def apply_override(self, ov: Override) -> dict:

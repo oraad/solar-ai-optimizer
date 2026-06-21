@@ -20,7 +20,7 @@ class InverterAdapter(abc.ABC):
         """Return a fresh snapshot of all available read capabilities."""
 
     @abc.abstractmethod
-    async def read_capability(self, capability: Capability) -> float | bool | str | None:
+    async def read_capability(self, capability: Capability) -> float | bool | None:
         """Read back the current value of a single write capability (for verify)."""
 
     @abc.abstractmethod
@@ -36,17 +36,11 @@ class InverterAdapter(abc.ABC):
     async def set_max_grid_charge_current(self, amps: float) -> None:
         ...
 
-    @abc.abstractmethod
-    async def set_work_mode(self, mode: str) -> None:
-        ...
-
-    async def apply(self, capability: Capability, value: float | bool | str) -> None:
+    async def apply(self, capability: Capability, value: float | bool) -> None:
         """Dispatch a write by logical capability."""
         if capability is Capability.GRID_CHARGE_ENABLE:
             await self.set_grid_charge(bool(value))
         elif capability is Capability.MAX_GRID_CHARGE_CURRENT:
             await self.set_max_grid_charge_current(float(value))
-        elif capability is Capability.WORK_MODE:
-            await self.set_work_mode(str(value))
         else:  # pragma: no cover - defensive
             raise ValueError(f"Unknown capability: {capability}")

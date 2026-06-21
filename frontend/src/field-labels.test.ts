@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 
 
-import { entityLabel, fieldLabel, sectionTitle } from "./field-labels.js";
+import { capabilityLabel, entityLabel, fieldLabel, gridChargeFactorLabel, sectionTitle } from "./field-labels.js";
 
 
 
@@ -18,7 +18,7 @@ describe("fieldLabel", () => {
 
     expect(fieldLabel("load_shedding", "shed_below_soc")).toBe("Shed below SOC (%)");
 
-    expect(fieldLabel("battery", "max_charge_a")).toBe("Max charge current (A)");
+    expect(fieldLabel("grid_charge", "battery_power")).toBe("Battery charge rate");
 
     expect(fieldLabel("battery", "round_trip_efficiency")).toBe("Round-trip efficiency");
 
@@ -82,8 +82,6 @@ describe("entityLabel", () => {
 
     expect(entityLabel("grid_charge_enable")).toBe("Grid charge enable");
 
-    expect(entityLabel("work_mode")).toBe("Work mode");
-
     expect(entityLabel("grid_present")).not.toMatch(/\([%WA°C]+\)/);
 
   });
@@ -105,6 +103,30 @@ describe("temperature entity label", () => {
   it("includes degrees Celsius for outdoor sensor", () => {
 
     expect(fieldLabel("temperature", "ha_entity")).toBe("Outdoor temperature sensor (°C)");
+
+  });
+
+});
+
+
+
+describe("capabilityLabel", () => {
+
+  it("returns human labels for write capabilities", () => {
+
+    expect(capabilityLabel("max_grid_charge_current")).toBe("Max grid charge current (A)");
+
+  });
+
+});
+
+
+
+describe("gridChargeFactorLabel", () => {
+
+  it("returns factor labels", () => {
+
+    expect(gridChargeFactorLabel("soc_gap")).toBe("SOC gap to reserve");
 
   });
 

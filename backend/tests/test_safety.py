@@ -48,3 +48,23 @@ def test_rate_limit_allows_after_interval():
         Capability.MAX_GRID_CHARGE_CURRENT, 80.0, current=50.0, now=now + timedelta(seconds=120)
     )
     assert skip is None
+
+
+def test_hard_bounds_rejects_over_max():
+    g = _guard()
+    reason = g.violates_hard_bounds(Capability.MAX_GRID_CHARGE_CURRENT, 200.0)
+    assert reason is not None
+    assert "max_grid_charge_a" in reason
+
+
+def test_hard_bounds_rejects_negative():
+    g = _guard()
+    reason = g.violates_hard_bounds(Capability.MAX_GRID_CHARGE_CURRENT, -5.0)
+    assert reason is not None
+
+
+def test_hard_bounds_disabled_allows_clamp_path():
+    battery = BatteryConfig(min_soc_floor=20.0, max_soc_ceiling=100.0, max_grid_charge_a=90.0)
+    control = ControlConfig(min_write_interval_seconds=60, enforce_hard_bounds=False)
+    g = SafetyGuard(battery, control)
+    assert g.violates_hard_bounds(Capability.MAX_GRID_CHARGE_CURRENT, 200.0) is None

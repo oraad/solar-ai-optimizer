@@ -24,6 +24,12 @@ export class GridStatsCard extends LitElement {
       .stat { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); }
       .stat:last-of-type { border-bottom: none; }
       .stat .v { font-weight: 600; }
+      .stats-loading {
+        color: var(--muted);
+        font-size: 0.82rem;
+        padding: 8px 0 4px;
+        font-style: italic;
+      }
       .note { color: var(--muted); font-size: 0.78rem; margin-top: 10px; }
     `,
   ];
@@ -70,6 +76,9 @@ export class GridStatsCard extends LitElement {
             ${present === null ? "unknown" : present ? "present" : "absent"}
           </span>
         </div>
+        ${hasStats
+          ? null
+          : html`<div class="stats-loading">Stats unavailable</div>`}
         <div class="bars">
           ${this.bar("Uptime (24h)", hasStats ? s.uptime_pct_24h : null)}
           ${this.bar("Uptime (7d)", hasStats ? s.uptime_pct_7d : null)}

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-21
+
+### Added
+
+- Grid charge ramp engine: configurable factor chain (SOC gap, grid window, battery/load/solar signals, blackout risk) with per-cycle smoothing and Settings UI
+- Grid stats card and ramp state on the dashboard; grid charge plan details in the decision panel
+- Shell script `./scripts/reset-local-password.sh` to reset local admin credentials into `$DATA_DIR/local_auth.env` (Proxmox: `/opt/solar-ai-optimizer/reset-local-password.sh` or `solar_reset_local_password`)
+- Runtime config schema v2 migration (`max_charge_a` → `max_grid_charge_a`, strip deprecated inverter keys)
+
+### Changed
+
+- **Breaking:** Removed inverter `work_mode` write capability and `battery.max_charge_a` setting. MPC charge/discharge bounds now derive from `max_grid_charge_a` and `nominal_voltage`.
+
+### Fixed
+
+- Grid charge disabled conservatively when telemetry is stale (matching load-shedding behavior)
+- `enforce_hard_bounds` rejects out-of-range grid charge current writes
+- Ramp state tracks idempotent skips and shadow-mode planned amps
+- Remaining-solar factor uses site timezone for end-of-day window
+- Grid stats cleared on compute failure (backend and frontend)
+
 ## [0.4.3] - 2026-06-20
 
 ### Fixed
@@ -113,6 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.5.0]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.0
 [0.4.3]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.3
 [0.4.2]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.2
 [0.4.1]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.4.1

@@ -1,1 +1,1 @@
-"""CLI utilities (seed demo data, etc.)."""
+"""CLI utilities (seed demo data, reset local password, etc.)."""

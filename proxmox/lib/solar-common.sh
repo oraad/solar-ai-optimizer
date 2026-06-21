@@ -123,6 +123,23 @@ solar_show_admin_credentials() {
   echo -e "${INFO}${YW}Password:${CL} ${SOLAR_ADMIN_PASSWORD}"
 }
 
+solar_install_reset_script() {
+  local dest="${SOLAR_INSTALL_DIR}/reset-local-password.sh"
+  local repo_raw="${SOLAR_REPO_RAW:-https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main}"
+  mkdir -p "$SOLAR_INSTALL_DIR"
+  curl -fsSL "${repo_raw}/scripts/reset-local-password.sh" -o "$dest"
+  sed -i 's/\r$//' "$dest" 2>/dev/null || true
+  chmod +x "$dest"
+}
+
+solar_reset_local_password() {
+  local script="${SOLAR_INSTALL_DIR}/reset-local-password.sh"
+  if [[ ! -x "$script" ]]; then
+    solar_install_reset_script
+  fi
+  SOLAR_CONTAINER="${SOLAR_CONTAINER:-solar-optimizer}" bash "$script" "$@"
+}
+
 solar_ct_script_name() {
   if [[ -f /etc/alpine-release ]]; then
     echo "solar-ai-optimizer-alpine.sh"

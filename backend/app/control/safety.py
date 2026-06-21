@@ -23,8 +23,8 @@ class SafetyGuard:
         self._last_write: dict[Capability, tuple[datetime, object]] = {}
 
     def clamp(
-        self, capability: Capability, value: float | bool | str
-    ) -> tuple[float | bool | str, str | None]:
+        self, capability: Capability, value: float | bool
+    ) -> tuple[float | bool, str | None]:
         """Clamp a value to its hardware-safe bounds. Returns (value, note)."""
         if capability is Capability.MAX_GRID_CHARGE_CURRENT:
             v = max(0.0, min(self._battery.max_grid_charge_a, float(value)))
@@ -32,22 +32,29 @@ class SafetyGuard:
             return v, note
         if capability is Capability.GRID_CHARGE_ENABLE:
             return bool(value), None
-        # WORK_MODE or others: pass through.
         return value, None
 
     def violates_hard_bounds(
-        self, capability: Capability, value: float | bool | str
+        self, capability: Capability, value: float | bool
     ) -> str | None:
         """Return a reason string if the write must be REJECTED outright."""
         if not self._control.enforce_hard_bounds:
             return None
+        if capability is Capability.MAX_GRID_CHARGE_CURRENT:
+            amps = float(value)
+            if amps < 0:
+                return "negative grid charge current"
+            if amps > self._battery.max_grid_charge_a:
+                return (
+                    f"exceeds max_grid_charge_a ({self._battery.max_grid_charge_a} A)"
+                )
         return None
 
     def should_skip(
         self,
         capability: Capability,
-        value: float | bool | str,
-        current: float | bool | str | None,
+        value: float | bool,
+        current: float | bool | None,
         now: datetime | None = None,
     ) -> str | None:
         """Idempotency + EEPROM rate limiting. Returns skip reason or None."""
@@ -74,21 +81,16 @@ class SafetyGuard:
         return None
 
     def record_write(
-        self, capability: Capability, value: float | bool | str, now: datetime | None = None
+        self, capability: Capability, value: float | bool, now: datetime | None = None
     ) -> None:
         self._last_write[capability] = (now or utcnow(), value)
 
     @staticmethod
     def _equal(
         capability: Capability,
-        a: float | bool | str,
-        b: float | bool | str,
+        a: float | bool,
+        b: float | bool,
     ) -> bool:
-        if capability in (Capability.GRID_CHARGE_ENABLE,):
+        if capability is Capability.GRID_CHARGE_ENABLE:
             return bool(a) == bool(b)
-        if capability is Capability.WORK_MODE:
-            return str(a) == str(b)
-        try:
-            return abs(float(a) - float(b)) < 0.5
-        except (TypeError, ValueError):
-            return str(a) == str(b)
+        return abs(float(a) - float(b)) < 0.5

@@ -16,6 +16,8 @@ const SECTION_TITLES: Record<string, string> = {
 
   load_shedding: "Load shedding",
 
+  grid_charge: "Grid charge",
+
   engine: "Engine",
 
   ha: "Home Assistant",
@@ -31,8 +33,6 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
   battery: {
 
     capacity_kwh: "Capacity (kWh)",
-
-    max_charge_a: "Max charge current (A)",
 
     max_grid_charge_a: "Max grid charge current (A)",
 
@@ -116,6 +116,36 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
 
   },
 
+  grid_charge: {
+
+    ramp_enabled: "Ramp grid charge current",
+
+    min_grid_charge_a: "Min grid charge current (A)",
+
+    ramp_step_a: "Ramp step (A per cycle)",
+
+    off_threshold_a: "Off threshold (A)",
+
+    next_solar_horizon_hours: "Next solar horizon (hours)",
+
+    soc_gap: "SOC gap to reserve",
+
+    remaining_solar_today: "Remaining solar today",
+
+    next_solar_power: "Next solar window",
+
+    load_power: "Load vs PV",
+
+    battery_power: "Battery charge rate",
+
+    grid_window: "Grid availability window",
+
+    blackout_risk: "Blackout risk",
+
+    solar_bridge: "Solar-bridge deficit",
+
+  },
+
   engine: {
 
     mode: "Engine mode",
@@ -192,8 +222,6 @@ const ENTITY_LABELS: Record<string, string> = {
 
   max_grid_charge_current: "Max grid charge current (A)",
 
-  work_mode: "Work mode",
-
 };
 
 
@@ -229,6 +257,32 @@ export function fieldLabel(section: string, key: string): string {
 export function entityLabel(key: string): string {
 
   return ENTITY_LABELS[key] ?? titleCaseSnake(key);
+
+}
+
+
+
+const CAPABILITY_LABELS: Record<string, string> = {
+
+  grid_charge_enable: "Grid charge enable",
+
+  max_grid_charge_current: "Max grid charge current (A)",
+
+};
+
+
+
+export function capabilityLabel(key: string): string {
+
+  return CAPABILITY_LABELS[key] ?? entityLabel(key);
+
+}
+
+
+
+export function gridChargeFactorLabel(key: string): string {
+
+  return FIELD_LABELS.grid_charge?.[key] ?? titleCaseSnake(key);
 
 }
 

@@ -6,6 +6,7 @@ describe("fieldHelp", () => {
   it("returns help for known settings", () => {
     expect(fieldHelp("reserve", "critical_load_w")).toContain("reserve");
     expect(fieldHelp("load_shedding", "shed_below_soc")).toContain("SOC");
+    expect(fieldHelp("grid_charge", "battery_power")).toContain("charging");
   });
 
   it("returns undefined for unknown keys", () => {
@@ -28,5 +29,6 @@ describe("overrideHelp", () => {
 describe("sectionHelp", () => {
   it("returns section summaries", () => {
     expect(sectionHelp("forecast")).toContain("solar");
+    expect(sectionHelp("grid_charge")).toContain("lowest ceiling");
   });
 });

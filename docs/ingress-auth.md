@@ -29,6 +29,28 @@ python -c "import bcrypt; print(bcrypt.hashpw(b'your-password', bcrypt.gensalt()
 
 The browser shows a login page until `POST /api/auth/login` succeeds. Sign out from **Settings → API security**. The login form supports browser password save and autofill (Chrome, Edge, Firefox).
 
+### Reset local admin password
+
+Credentials can be reset without editing env files manually. The reset script writes to `$DATA_DIR/local_auth.env` on the data volume; `run.sh` loads that file on startup, overriding container env for auth keys.
+
+**Docker Compose** (from repo root):
+
+```bash
+./scripts/reset-local-password.sh
+```
+
+**Proxmox LXC** (inside the container host):
+
+```bash
+bash /opt/solar-ai-optimizer/reset-local-password.sh
+# or, after sourcing solar-common.sh:
+solar_reset_local_password
+```
+
+Options: `--password PASS`, `--username USER`, `--keep-sessions`, `--no-restart`.
+
+The script prints the new username and password once and restarts the container by default.
+
 ### B. Standalone + hass_ingress (Docker)
 
 HA users access the app through the HA sidebar; they do not use the local login page. Keep local login for direct `:8000` access if the port is published.

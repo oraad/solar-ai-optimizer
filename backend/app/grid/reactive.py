@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from ..config import BatteryConfig, ReserveConfig
+from ..config import BatteryConfig, GridChargeConfig, ReserveConfig
+from ..grid.ramp import RampContext, compute_ramp_plan, legacy_plan
 from ..models import (
+    BlackoutRisk,
     Capability,
     ControlAction,
+    ForecastBundle,
+    GridChargePlan,
     GridEvent,
     GridStats,
+    ReserveTarget,
     Telemetry,
     utcnow,
 )
@@ -19,43 +25,162 @@ from ..storage import repo
 log = logging.getLogger("grid.reactive")
 
 
+@dataclass(frozen=True)
+class GridChargeResult:
+    actions: list[ControlAction]
+    plan: GridChargePlan
+
+
 class ReactiveGrid:
-    def __init__(self, battery: BatteryConfig, reserve: ReserveConfig) -> None:
+    def __init__(
+        self,
+        battery: BatteryConfig,
+        reserve: ReserveConfig,
+        grid_charge: GridChargeConfig | None = None,
+        site_timezone: str = "auto",
+    ) -> None:
         self._battery = battery
         self._reserve = reserve
+        self._grid_charge = grid_charge or GridChargeConfig()
+        self._site_timezone = site_timezone
+
+    def update_config(
+        self,
+        battery: BatteryConfig,
+        reserve: ReserveConfig,
+        grid_charge: GridChargeConfig | None = None,
+        site_timezone: str | None = None,
+    ) -> None:
+        self._battery = battery
+        self._reserve = reserve
+        if grid_charge is not None:
+            self._grid_charge = grid_charge
+        if site_timezone is not None:
+            self._site_timezone = site_timezone
 
     # --------------------------------------------------- opportunistic top-up --
     def opportunistic_actions(
-        self, telemetry: Telemetry, target_soc: float
-    ) -> list[ControlAction]:
-        """If the grid is physically present and we are below the reserve target,
-        grab it: enable grid charge at max safe current. Windows are short and
-        unpredictable, so when grid exists we charge hard. No prediction involved.
-        """
+        self,
+        telemetry: Telemetry,
+        target_soc: float,
+        *,
+        forecast: ForecastBundle | None = None,
+        grid_stats: GridStats | None = None,
+        reserve: ReserveTarget | None = None,
+        blackout_risk: BlackoutRisk = BlackoutRisk.LOW,
+        blackout_risk_score: float = 0.0,
+        last_amps: float | None = None,
+    ) -> GridChargeResult:
+        """Grid charge on/off + target amps (ramp or legacy max-or-off)."""
+        max_a = self._battery.max_grid_charge_a
+
+        if not self._grid_charge.ramp_enabled:
+            return self._legacy_actions(telemetry, target_soc, max_a)
+
+        ctx = RampContext(
+            telemetry=telemetry,
+            forecast=forecast,
+            grid_stats=grid_stats,
+            reserve=reserve
+            or ReserveTarget(
+                target_soc=target_soc,
+                solar_bridge_soc=target_soc,
+                autonomy_floor_soc=self._battery.min_soc_floor,
+                rationale="",
+            ),
+            target_soc=target_soc,
+            blackout_risk=blackout_risk,
+            blackout_risk_score=blackout_risk_score,
+            battery=self._battery,
+            grid_charge=self._grid_charge,
+            last_amps=last_amps,
+            site_timezone=self._site_timezone,
+        )
+        plan = compute_ramp_plan(ctx)
+        return self._plan_to_result(plan, telemetry, target_soc)
+
+    def _legacy_actions(
+        self, telemetry: Telemetry, target_soc: float, max_a: float
+    ) -> GridChargeResult:
         actions: list[ControlAction] = []
         if not telemetry.grid_present:
-            # Grid absent: ensure grid charge is off (don't rely on a grid that
-            # isn't there; also avoids surprise draw if it flickers on).
+            plan = legacy_plan(
+                enabled=False,
+                target_amps=0.0,
+                max_amps=max_a,
+                rationale="Grid absent; disable grid charge.",
+            )
             actions.append(
                 ControlAction(
                     capability=Capability.GRID_CHARGE_ENABLE,
                     value=False,
-                    reason="Grid absent; disable grid charge.",
+                    reason=plan.rationale,
                     priority=50,
                 )
             )
-            return actions
+            return GridChargeResult(actions=actions, plan=plan)
 
         soc = telemetry.battery_soc if telemetry.battery_soc is not None else 0.0
         if soc < target_soc:
-            amps = self._battery.max_grid_charge_a
+            plan = legacy_plan(
+                enabled=True,
+                target_amps=max_a,
+                max_amps=max_a,
+                rationale=(
+                    f"Grid present and SOC {soc:.0f}% < reserve target "
+                    f"{target_soc:.0f}%: opportunistic top-up at max."
+                ),
+            )
+            actions.append(
+                ControlAction(
+                    capability=Capability.GRID_CHARGE_ENABLE,
+                    value=True,
+                    reason=plan.rationale,
+                    priority=100,
+                )
+            )
+            actions.append(
+                ControlAction(
+                    capability=Capability.MAX_GRID_CHARGE_CURRENT,
+                    value=max_a,
+                    reason=f"Charge hard while grid available ({max_a:.0f} A).",
+                    priority=90,
+                )
+            )
+        else:
+            plan = legacy_plan(
+                enabled=False,
+                target_amps=0.0,
+                max_amps=max_a,
+                rationale=(
+                    f"Reserve target {target_soc:.0f}% met "
+                    f"(SOC {soc:.0f}%); stop grid charge."
+                ),
+            )
+            actions.append(
+                ControlAction(
+                    capability=Capability.GRID_CHARGE_ENABLE,
+                    value=False,
+                    reason=plan.rationale,
+                    priority=80,
+                )
+            )
+        return GridChargeResult(actions=actions, plan=plan)
+
+    def _plan_to_result(
+        self, plan: GridChargePlan, telemetry: Telemetry, target_soc: float
+    ) -> GridChargeResult:
+        actions: list[ControlAction] = []
+        soc = telemetry.battery_soc if telemetry.battery_soc is not None else 0.0
+
+        if plan.enabled:
             actions.append(
                 ControlAction(
                     capability=Capability.GRID_CHARGE_ENABLE,
                     value=True,
                     reason=(
-                        f"Grid present and SOC {soc:.0f}% < reserve target "
-                        f"{target_soc:.0f}%: opportunistic top-up."
+                        f"Grid present, SOC {soc:.0f}% < target {target_soc:.0f}%: "
+                        f"ramp to {plan.target_amps:.0f} A."
                     ),
                     priority=100,
                 )
@@ -63,8 +188,8 @@ class ReactiveGrid:
             actions.append(
                 ControlAction(
                     capability=Capability.MAX_GRID_CHARGE_CURRENT,
-                    value=amps,
-                    reason=f"Charge hard while grid available ({amps:.0f} A).",
+                    value=plan.target_amps,
+                    reason=plan.rationale,
                     priority=90,
                 )
             )
@@ -73,14 +198,20 @@ class ReactiveGrid:
                 ControlAction(
                     capability=Capability.GRID_CHARGE_ENABLE,
                     value=False,
-                    reason=(
-                        f"Reserve target {target_soc:.0f}% met "
-                        f"(SOC {soc:.0f}%); stop grid charge."
-                    ),
+                    reason=plan.rationale,
                     priority=80,
                 )
             )
-        return actions
+            if plan.target_amps > 0:
+                actions.append(
+                    ControlAction(
+                        capability=Capability.MAX_GRID_CHARGE_CURRENT,
+                        value=0.0,
+                        reason=plan.rationale,
+                        priority=70,
+                    )
+                )
+        return GridChargeResult(actions=actions, plan=plan)
 
     # ---------------------------------------------------------------- stats --
     async def compute_stats(

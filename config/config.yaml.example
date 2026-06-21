@@ -8,7 +8,6 @@ ha:
 
 battery:
   capacity_kwh: 10.0
-  max_charge_a: 100.0
   max_grid_charge_a: 60.0
   nominal_voltage: 51.2
   min_soc_floor: 20.0
@@ -60,9 +59,24 @@ engine:
 inverter:
   read: {}
   write: {}
-  work_modes: {}
 
 load_shedding:
   enabled: false
   restore_all_when_grid_present: true
   tiers: []
+
+grid_charge:
+  ramp_enabled: true
+  factor_order:  # all factors apply; order affects rationale log only
+    - soc_gap
+    - grid_window
+    - battery_power
+    - remaining_solar_today
+    - next_solar_power
+    - load_power
+    - solar_bridge
+    - blackout_risk
+  min_grid_charge_a: 5.0
+  ramp_step_a: 10.0
+  off_threshold_a: 1.0
+  next_solar_horizon_hours: 6

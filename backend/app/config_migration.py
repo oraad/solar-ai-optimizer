@@ -10,7 +10,7 @@ import yaml
 
 log = logging.getLogger("config_migration")
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 SCHEMA_VERSION_KEY = "schema_version"
 OVERRIDES_KEY = "overrides"
 
@@ -28,8 +28,46 @@ def migrate_v0_to_v1(overrides: dict[str, Any]) -> dict[str, Any]:
     return dict(overrides)
 
 
+def migrate_v1_to_v2(overrides: dict[str, Any]) -> dict[str, Any]:
+    """Drop removed keys; migrate max_charge_a -> max_grid_charge_a."""
+    out = dict(overrides)
+
+    battery = out.get("battery")
+    if isinstance(battery, dict):
+        battery = dict(battery)
+        legacy_max = battery.pop("max_charge_a", None)
+        if legacy_max is not None:
+            current = battery.get("max_grid_charge_a")
+            if current is None:
+                battery["max_grid_charge_a"] = legacy_max
+            else:
+                battery["max_grid_charge_a"] = max(float(current), float(legacy_max))
+            log.info(
+                "Migrated battery.max_charge_a -> max_grid_charge_a (%s A)",
+                battery["max_grid_charge_a"],
+            )
+        out["battery"] = battery
+
+    inverter = out.get("inverter")
+    if isinstance(inverter, dict):
+        inverter = dict(inverter)
+        write = inverter.get("write")
+        if isinstance(write, dict) and "work_mode" in write:
+            write = dict(write)
+            del write["work_mode"]
+            inverter["write"] = write
+            log.info("Removed deprecated inverter.write.work_mode from overrides")
+        if "work_modes" in inverter:
+            del inverter["work_modes"]
+            log.info("Removed deprecated inverter.work_modes from overrides")
+        out["inverter"] = inverter
+
+    return out
+
+
 MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = [
     (0, 1, migrate_v0_to_v1),
+    (1, 2, migrate_v1_to_v2),
 ]
 
 

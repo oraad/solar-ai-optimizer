@@ -119,6 +119,7 @@ Configuration details: [Configuration guide](https://oraad.github.io/solar-ai-op
 - **Shadow mode** is the default until you trust it.
 - Every write is screened: bounds → watchdog → rate limit → read-back verification.
 - **Kill switch** enables grid charge at max current, restores shed tiers, and pauses the engine. Use **Clear overrides** to resume.
+- **Grid charge ramp:** Settings → Grid charge configures a cap chain that ramps max grid charge current up/down each cycle (emergencies still force max).
 - **Fail-safe:** heartbeat to Home Assistant plus grid-charge-at-max on shutdown — see [Home Assistant fail-safe](https://oraad.github.io/solar-ai-optimizer/home-assistant-failsafe/).
 - **Watchdog:** if Home Assistant is unreachable, writes stop; the inverter keeps
   its last safe configuration.
@@ -140,6 +141,8 @@ Docker healthcheck hits `/api/health`. Prometheus scrape target: `GET /metrics`.
 docker rm -f solar-dashboard 2>/dev/null || true   # legacy container name
 docker compose up -d --build
 ```
+
+If upgrading from a release before the grid-charge ramp changes: remove `inverter.write.work_mode` and `inverter.work_modes` from your config (set work mode manually in Home Assistant), and use `battery.max_grid_charge_a` instead of the removed `max_charge_a`. Runtime overrides are migrated automatically on next save.
 
 ## Changelog
 

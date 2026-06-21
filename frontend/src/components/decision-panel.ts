@@ -1,8 +1,9 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
+import { capabilityLabel } from "../field-labels.js";
 import { sharedStyles } from "../styles.js";
-import type { Decision, ExecutionResult, ShedResult } from "../types.js";
+import type { Decision, ExecutionResult, GridChargePlan, ShedResult } from "../types.js";
 
 @customElement("solar-decision-panel")
 export class DecisionPanel extends LitElement {
@@ -13,11 +14,11 @@ export class DecisionPanel extends LitElement {
       .rationale { color: var(--muted); font-size: 0.82rem; line-height: 1.5; margin: 4px 0 16px; }
       .stats {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         gap: 10px;
         margin-bottom: 14px;
       }
-      @media (max-width: 520px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } }
       .stat {
         background: var(--panel-2); border: 1px solid var(--border);
         border-radius: var(--radius-sm); padding: 10px 12px;
@@ -54,9 +55,25 @@ export class DecisionPanel extends LitElement {
     return "risk-low";
   }
 
+  private gridChargeLabel(gc: GridChargePlan | null | undefined): string {
+    if (!gc) return "--";
+    if (gc.enabled && gc.target_amps > 0) return `${gc.target_amps.toFixed(0)} A`;
+    return "OFF";
+  }
+
+  private appliedGridChargeAmps(): number | null {
+    for (const r of this.results) {
+      if (r.capability !== "max_grid_charge_current" || !r.applied) continue;
+      if (typeof r.requested === "number") return r.requested;
+    }
+    return null;
+  }
+
   render() {
     const d = this.decision;
     if (!d) return html`<div class="card"><h3>Decision &amp; rationale</h3><p class="label">Waiting for first decision...</p></div>`;
+    const gc = d.grid_charge ?? null;
+    const applied = this.appliedGridChargeAmps();
     return html`
       <div class="card">
         <h3>Decision &amp; rationale</h3>
@@ -65,9 +82,22 @@ export class DecisionPanel extends LitElement {
           <div class="stat"><div class="label">Target SOC</div><div class="v">${d.reserve.target_soc.toFixed(0)}%</div></div>
           <div class="stat"><div class="label">Solar-bridge</div><div class="v">${d.reserve.solar_bridge_soc.toFixed(0)}%</div></div>
           <div class="stat"><div class="label">Autonomy floor</div><div class="v">${d.reserve.autonomy_floor_soc.toFixed(0)}%</div></div>
+          <div class="stat ${gc?.enabled ? "risk-low" : ""}">
+            <div class="label">Grid charge</div>
+            <div class="v">${this.gridChargeLabel(gc)}</div>
+            ${applied != null && gc?.enabled
+              ? html`<div class="label" style="margin-top:4px">Applied: ${applied.toFixed(0)} A</div>`
+              : null}
+          </div>
           <div class="stat ${this.riskClass(d.blackout_risk_score)}"><div class="label">Risk score</div><div class="v">${(d.blackout_risk_score * 100).toFixed(0)}%</div></div>
         </div>
         <div class="rationale">${d.reserve.rationale}</div>
+        ${gc?.rationale
+          ? html`
+              <div class="subhead">Grid charge rationale</div>
+              <div class="rationale">${gc.rationale}</div>
+            `
+          : null}
         <div class="subhead">Actions</div>
         <div class="chips">
           ${d.actions.length === 0
@@ -75,7 +105,7 @@ export class DecisionPanel extends LitElement {
             : d.actions.map(
                 (a) => html`
                   <span class="chip" title=${a.reason}>
-                    <span class="cap">${a.capability}</span>
+                    <span class="cap">${capabilityLabel(a.capability)}</span>
                     <span class="val">${String(a.value)}</span>
                     <span class="why">${a.reason}</span>
                   </span>

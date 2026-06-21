@@ -54,3 +54,23 @@ def test_migrate_overrides_identity():
     overrides, version = migrate_overrides({"reserve": {"critical_load_w": 500}})
     assert version == CURRENT_SCHEMA_VERSION
     assert overrides["reserve"]["critical_load_w"] == 500
+
+
+def test_migrate_v1_to_v2_max_charge_a():
+    overrides, version = migrate_overrides(
+        {
+            "schema_version": 1,
+            "overrides": {
+                "battery": {"max_charge_a": 100.0, "max_grid_charge_a": 60.0},
+                "inverter": {
+                    "write": {"work_mode": "select.deye_work_mode"},
+                    "work_modes": {"grid_first": "Grid First"},
+                },
+            },
+        }
+    )
+    assert version == 2
+    assert overrides["battery"]["max_grid_charge_a"] == 100.0
+    assert "max_charge_a" not in overrides["battery"]
+    assert "work_mode" not in overrides["inverter"]["write"]
+    assert "work_modes" not in overrides["inverter"]

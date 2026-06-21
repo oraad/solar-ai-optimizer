@@ -167,3 +167,13 @@ cd frontend && npm run docs:screenshots
 ```
 
 See [Dashboard user guide → Regenerating screenshots](frontend-manual.md#regenerating-screenshots).
+
+### Reset local admin password
+
+When local login is enabled, reset credentials from the repo root:
+
+```bash
+./scripts/reset-local-password.sh
+```
+
+See [Ingress and authorization → Reset local admin password](ingress-auth.md#reset-local-admin-password).

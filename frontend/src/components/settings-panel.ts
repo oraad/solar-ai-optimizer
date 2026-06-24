@@ -743,7 +743,7 @@ export class SettingsPanel extends LitElement {
       <details>
         <summary>Display preferences</summary>
         <p class="label">
-          How dates and times appear in history tables, charts, and release lists on this browser.
+          How dates and times appear in history tables and charts on this browser.
         </p>
         <div class="fields">
           <div class="field">
@@ -812,7 +812,7 @@ export class SettingsPanel extends LitElement {
 
   private formatPublishedAt(iso: string | null): string {
     if (!iso) return "";
-    return formatDateTime(iso);
+    return formatDateTime(iso, "iso");
   }
 
   private async refreshUpdateInfo(): Promise<void> {

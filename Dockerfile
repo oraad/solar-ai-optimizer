@@ -2,7 +2,7 @@
 # the FastAPI backend from one Python 3.14 container.
 
 # ---- Stage 1: build the frontend ----
-FROM node:24-alpine AS frontend
+FROM node:24-trixie AS frontend
 WORKDIR /ui
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
@@ -10,7 +10,9 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- Stage 2: backend + bundled dashboard ----
-FROM python:3.14-slim AS app
+FROM python:3.14-slim-trixie AS app
+
+RUN python -c "import sys; v=sys.version_info; assert v >= (3, 14), f'Python 3.14+ required, got {v.major}.{v.minor}'"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

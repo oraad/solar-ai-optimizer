@@ -83,17 +83,24 @@ docker compose run --rm frontend-test
 
 ## Local development
 
-Backend:
+**Recommended:** use Docker for backend tests and parity with production (Python 3.14):
+
+```bash
+docker compose run --rm test
+docker compose run --rm frontend-test
+```
+
+Backend (optional host venv — requires **Python 3.14+**; run `bash scripts/check-python.sh` first):
 
 ```bash
 cd backend
-python -m venv .venv && . .venv/Scripts/activate   # Windows
-pip install -r requirements-dev.txt
+python -m venv .venv && source .venv/bin/activate   # Git Bash / WSL / Linux
+pip install -r ../backend/requirements.txt -r requirements-dev.txt
 uvicorn app.main:app --reload
 pytest
 ```
 
-Frontend:
+Frontend (Node **24+**):
 
 ```bash
 cd frontend

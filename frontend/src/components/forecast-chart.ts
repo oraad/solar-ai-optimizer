@@ -55,10 +55,15 @@ export class ForecastChart extends LitElement {
     this.forceChartRecreate = true;
     this.queueRenderChart();
   };
+  private onDateFormat = () => {
+    this.forceChartRecreate = true;
+    this.queueRenderChart();
+  };
 
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("solar-theme-change", this.onTheme);
+    window.addEventListener("solar-date-format-change", this.onDateFormat);
   }
 
   updated(changed: PropertyValues<this>): void {
@@ -70,6 +75,7 @@ export class ForecastChart extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     window.removeEventListener("solar-theme-change", this.onTheme);
+    window.removeEventListener("solar-date-format-change", this.onDateFormat);
     this.chartHandle?.destroy();
     this.chartHandle = undefined;
     this.chartHasTemp = null;

@@ -19,12 +19,17 @@ from app.api.system_update import (
     UPDATE_FAILED_FILE,
     UPDATE_LOCK_FILE,
     UPDATE_LOCK_MAX_AGE_SECONDS,
+    UPDATE_PROGRESS_FILE,
     _clear_stale_lock,
+    _clear_update_progress,
     _is_newer,
+    _is_proxmox_deployment,
+    _load_update_progress,
     _parse_backup_filename,
     _parse_version,
     _resolve_image,
     _resolve_restore_image,
+    _write_update_progress,
     router as system_update_router,
 )
 from app.models import SystemStatus, utcnow
@@ -584,3 +589,99 @@ def test_get_lists_backups_new_filename_format(
     assert len(data["backups"]) == 1
     assert data["backups"][0]["name"] == "pre-from-0.5.6-to-0.5.7-100.tar.gz"
     assert data["backups"][0]["before_version"] == "0.5.6"
+
+
+def test_is_proxmox_deployment(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("SELF_UPDATE_ENV_FILE", "/opt/solar-ai-optimizer/solar.env")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    settings = get_settings()
+    assert _is_proxmox_deployment(settings) is True
+
+
+def test_load_update_progress_requires_lock(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    settings = get_settings()
+    _write_update_progress(
+        settings,
+        {
+            "operation": "update",
+            "stage": "pulling",
+            "message": "Pulling image",
+            "from_version": "0.5.7",
+            "to_version": "0.5.8",
+        },
+    )
+    assert _load_update_progress(settings) is None
+
+
+@patch("app.api.system_update._fetch_releases", new_callable=AsyncMock)
+@patch("app.api.system_update._fetch_latest_release", new_callable=AsyncMock)
+def test_get_returns_update_progress_when_locked(
+    mock_fetch, mock_list, update_client, tmp_path
+):
+    _mock_release_fetches(mock_fetch, mock_list)
+    (tmp_path / UPDATE_LOCK_FILE).write_text("123", encoding="utf-8")
+    (tmp_path / UPDATE_PROGRESS_FILE).write_text(
+        json.dumps(
+            {
+                "operation": "update",
+                "stage": "pulling",
+                "message": "Pulling ghcr.io/oraad/solar-ai-optimizer:0.5.8",
+                "from_version": "0.5.7",
+                "to_version": "0.5.8",
+            }
+        ),
+        encoding="utf-8",
+    )
+    res = update_client.get(
+        "/api/system/update",
+        headers={"X-Remote-User-Id": "admin-1"},
+    )
+    data = res.json()
+    assert data["update_progress"]["stage"] == "pulling"
+    assert data["update_in_progress"] is True
+
+
+@patch("app.api.system_update._fetch_releases", new_callable=AsyncMock)
+@patch("app.api.system_update._fetch_latest_release", new_callable=AsyncMock)
+@patch("app.api.system_update._docker_cli_available", return_value=True)
+@patch("app.api.system_update._docker_socket_available", return_value=True)
+def test_get_proxmox_deployment_kind(
+    mock_socket, mock_cli, mock_fetch, mock_list, update_client, monkeypatch
+):
+    monkeypatch.setenv("SELF_UPDATE_ENABLED", "true")
+    monkeypatch.setenv("SELF_UPDATE_ENV_FILE", "/opt/solar-ai-optimizer/solar.env")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    _mock_release_fetches(mock_fetch, mock_list)
+
+    res = update_client.get(
+        "/api/system/update",
+        headers={"X-Remote-User-Id": "admin-1"},
+    )
+    assert res.json()["deployment"] == "proxmox"
+
+
+def test_clear_stale_lock_clears_progress(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    settings = get_settings()
+    lock = tmp_path / UPDATE_LOCK_FILE
+    lock.write_text("")
+    old = time.time() - UPDATE_LOCK_MAX_AGE_SECONDS - 60
+    os.utime(lock, (old, old))
+    progress = tmp_path / UPDATE_PROGRESS_FILE
+    progress.write_text('{"stage":"pulling"}', encoding="utf-8")
+    _clear_stale_lock(settings)
+    assert not lock.exists()
+    assert not progress.exists()
+    _clear_update_progress(settings)

@@ -545,7 +545,14 @@ export class SolarApp extends LitElement {
         className: this.status.engine_active === "mpc" ? "good" : "warn",
       });
     }
-    if (this.isAdmin && this.updateInfo?.update_available) {
+    if (this.isAdmin && this.updateInfo?.update_in_progress) {
+      alerts.push({
+        label: "UPDATING…",
+        className: "warn",
+        title: "Software update in progress — open Settings",
+        onClick: () => this.setTab("settings"),
+      });
+    } else if (this.isAdmin && this.updateInfo?.update_available) {
       alerts.push({
         label: "UPDATE",
         className: "warn",

@@ -56,6 +56,17 @@ function update_script() {
   source <(curl -fsSL "${_SOLAR_REPO_RAW}/proxmox/lib/solar-common.sh")
 
   if ! solar_is_installed; then
+    if solar_recover_missing_container; then
+      msg_info "Waiting for health check"
+      if solar_wait_healthy 127.0.0.1 "$SOLAR_PORT" "$SOLAR_HEALTH_PATH" 120; then
+        msg_ok "Service is healthy"
+      else
+        msg_warn "Health check timed out — check: docker logs ${SOLAR_CONTAINER}"
+      fi
+      solar_show_admin_credentials
+      msg_ok "Recovered successfully!"
+      exit
+    fi
     msg_error "No ${APP} Installation Found!"
     exit
   fi

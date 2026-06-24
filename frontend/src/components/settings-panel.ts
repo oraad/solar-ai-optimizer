@@ -5,11 +5,12 @@ import { api, getApiToken, setApiToken } from "../api.js";
 import { entityLabel, fieldLabel, gridChargeFactorLabel, INVERTER_READ_ENTITY_KEYS, optimizationPriorityLabel, pvLabel, sectionTitle } from "../field-labels.js";
 import { entityHelp, fieldHelp, priorityEffectHelp, priorityRankBlurb, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
+import { formatDateTime, getDateFormat, setDateFormat, type DateDisplayFormat } from "../date-format.js";
 import { sharedStyles } from "../styles.js";
 import { dismissToast, runWithToast, showToast, updateToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
-import type { AppConfigView, EntityInfo, ReleaseSummary, SessionInfo, SystemStatus, UpdateInfo } from "../types.js";
+import type { AppConfigView, EntityInfo, ReleaseSummary, SessionInfo, SystemStatus, UpdateInfo, UpdateProgress, UpdateStage } from "../types.js";
 import { renderMarkdown } from "../markdown.js";
 
 type Section = Record<string, unknown>;
@@ -47,6 +48,48 @@ const DEFAULT_PRIORITY_ORDER = [
 const SCHEMA_DOWNGRADE_NOTE =
   "If you saved config on a newer release, downgrading may ignore newer settings keys " +
   "(e.g. grid_charge.max_grid_charge_a on releases before schema v3).";
+
+const UPDATE_STAGE_LABELS: Record<UpdateStage, string> = {
+  starting: "Preparing update…",
+  backing_up: "Backing up data…",
+  pulling: "Pulling container image…",
+  stopping: "Stopping current container…",
+  restoring_data: "Restoring backup data…",
+  recreating: "Starting updated container…",
+  finishing: "Finalizing…",
+  failed: "Update failed",
+};
+
+const UPDATE_FLOW_STAGES: UpdateStage[] = [
+  "starting",
+  "backing_up",
+  "pulling",
+  "stopping",
+  "recreating",
+  "finishing",
+];
+
+const RESTORE_FLOW_STAGES: UpdateStage[] = [
+  "starting",
+  "stopping",
+  "restoring_data",
+  "recreating",
+  "finishing",
+];
+
+function stageLabel(stage: UpdateStage, progress?: UpdateProgress | null): string {
+  if (progress?.message && progress.stage === stage) return progress.message;
+  return UPDATE_STAGE_LABELS[stage] ?? stage;
+}
+
+function flowStages(operation: UpdateProgress["operation"]): UpdateStage[] {
+  return operation === "restore" ? RESTORE_FLOW_STAGES : UPDATE_FLOW_STAGES;
+}
+
+function stageIndex(stages: UpdateStage[], stage: UpdateStage): number {
+  const idx = stages.indexOf(stage);
+  return idx >= 0 ? idx : 0;
+}
 
 type OptimizationPriorityKey = (typeof DEFAULT_PRIORITY_ORDER)[number];
 
@@ -180,6 +223,57 @@ export class SettingsPanel extends LitElement {
         color: var(--accent);
         vertical-align: middle;
       }
+      .update-progress {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+        background: color-mix(in srgb, var(--accent) 8%, var(--panel-2));
+      }
+      .update-progress h4 {
+        margin: 0 0 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+      }
+      .update-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 0.78rem;
+        line-height: 1.4;
+        padding: 3px 0;
+        color: var(--muted);
+      }
+      .update-step.done { color: var(--text); }
+      .update-step.active { color: var(--text); font-weight: 600; }
+      .update-step-icon {
+        width: 14px;
+        flex-shrink: 0;
+        text-align: center;
+        margin-top: 1px;
+      }
+      .update-step-detail {
+        display: block;
+        font-size: 0.72rem;
+        font-weight: 400;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .update-spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: update-spin 0.8s linear infinite;
+      }
+      @keyframes update-spin {
+        to { transform: rotate(360deg); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .update-spinner { animation: none; border-top-color: var(--accent); }
+      }
     `,
   ];
 
@@ -201,14 +295,85 @@ export class SettingsPanel extends LitElement {
   @state() private updateChecking = false;
   @state() private expandedRelease: string | null = null;
   @state() private installRecoveryOffer = false;
+  @state() private updateProgress: UpdateProgress | null = null;
+  @state() private updateHealthWait = false;
+  @state() private updateWatchActive = false;
+  @state() private dateFormat: DateDisplayFormat = "locale";
+
+  private updateWatchToken = 0;
+  private onDateFormatChange = () => {
+    this.dateFormat = getDateFormat();
+    this.requestUpdate();
+  };
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.dateFormat = getDateFormat();
+    window.addEventListener("solar-date-format-change", this.onDateFormatChange);
     this.apiToken = getApiToken();
     if (this.config) this.setDraft(this.config);
     void this.loadConfig();
     void this.loadEntities();
     void this.loadCapabilities();
+    this.maybeResumeUpdateWatch();
+  }
+
+  disconnectedCallback(): void {
+    window.removeEventListener("solar-date-format-change", this.onDateFormatChange);
+    super.disconnectedCallback();
+  }
+
+  protected updated(changed: Map<PropertyKey, unknown>): void {
+    if (changed.has("updateInfo")) {
+      this.maybeResumeUpdateWatch();
+    }
+  }
+
+  private maybeResumeUpdateWatch(): void {
+    if (this.updateWatchActive || this.updateBusy) return;
+    if (!this.updateInfo?.update_in_progress) return;
+    void this.resumeUpdateWatch();
+  }
+
+  private async resumeUpdateWatch(): Promise<void> {
+    this.updateWatchActive = true;
+    this.updateBusy = true;
+    const toastId = "update-resume";
+    showToast({
+      id: toastId,
+      message: "Update in progress…",
+      variant: "loading",
+      persistent: true,
+    });
+    try {
+      const result = await this.watchUpdateCompletion({ toastId });
+      if (result.ok) {
+        updateToast(toastId, { message: "Update complete. Reloading…", variant: "success" });
+        window.location.reload();
+        return;
+      }
+      dismissToast(toastId);
+      if (result.failed) {
+        showToast({
+          message: result.failed.message,
+          variant: "error",
+          persistent: true,
+        });
+      } else {
+        this.installRecoveryOffer = true;
+        showToast({
+          message:
+            "Update in progress but the service did not respond in time. Use Restore below if needed.",
+          variant: "error",
+          persistent: true,
+        });
+      }
+      void this.refreshUpdateInfo();
+    } finally {
+      this.updateWatchActive = false;
+      this.updateBusy = false;
+      this.updateHealthWait = false;
+    }
   }
 
   private async loadCapabilities(): Promise<void> {
@@ -621,6 +786,34 @@ export class SettingsPanel extends LitElement {
     `;
   }
 
+  private renderDisplayPreferencesSection() {
+    return html`
+      <details>
+        <summary>Display preferences</summary>
+        <p class="label">
+          How dates and times appear in history tables, charts, and release lists on this browser.
+        </p>
+        <div class="fields">
+          <div class="field">
+            <label>Date format</label>
+            <select
+              .value=${this.dateFormat}
+              @change=${(e: Event) => {
+                const v = (e.target as HTMLSelectElement).value as DateDisplayFormat;
+                this.dateFormat = v;
+                setDateFormat(v);
+              }}
+            >
+              <option value="locale">Locale (browser default)</option>
+              <option value="ddmmyy">DD/MM/YY</option>
+              <option value="iso">YYYY-MM-DD (ISO)</option>
+            </select>
+          </div>
+        </div>
+      </details>
+    `;
+  }
+
   private renderSecuritySection() {
     return html`
       <details>
@@ -667,11 +860,7 @@ export class SettingsPanel extends LitElement {
 
   private formatPublishedAt(iso: string | null): string {
     if (!iso) return "";
-    try {
-      return new Date(iso).toLocaleString();
-    } catch {
-      return iso;
-    }
+    return formatDateTime(iso);
   }
 
   private async refreshUpdateInfo(): Promise<void> {
@@ -715,25 +904,94 @@ export class SettingsPanel extends LitElement {
     }
   }
 
-  private async waitForHealth(timeoutMs = 120_000, toastId?: string): Promise<boolean> {
-    const deadline = Date.now() + timeoutMs;
-    const start = Date.now();
-    while (Date.now() < deadline) {
-      if (toastId) {
-        const elapsed = Math.floor((Date.now() - start) / 1000);
-        updateToast(toastId, {
-          message: `Waiting for service to restart… (${elapsed}s)`,
-        });
+  private updateTimeoutMs(): number {
+    return this.updateInfo?.deployment === "proxmox" ? 240_000 : 180_000;
+  }
+
+  private syncUpdateInfoFromPoll(info: UpdateInfo): void {
+    this.updateInfo = info;
+    if (info.update_progress) {
+      this.updateProgress = info.update_progress;
+    }
+    this.dispatchEvent(
+      new CustomEvent("solar-update-info", { detail: info, bubbles: true, composed: true }),
+    );
+  }
+
+  private progressToastMessage(progress?: UpdateProgress | null, healthWait?: boolean): string {
+    if (healthWait) return "Waiting for service to restart…";
+    if (!progress) return "Update in progress…";
+    let msg = stageLabel(progress.stage, progress);
+    if (progress.stage === "pulling" && progress.pull_detail) {
+      msg = `${msg} — ${progress.pull_detail}`;
+    }
+    return msg;
+  }
+
+  private async watchUpdateCompletion(opts: {
+    toastId: string;
+    targetVersion?: string;
+  }): Promise<{ ok: boolean; failed?: { message: string; backup?: string | null } }> {
+    const token = ++this.updateWatchToken;
+    const deadline = Date.now() + this.updateTimeoutMs();
+    let sawInProgress = false;
+    let pollErrors = 0;
+
+    while (Date.now() < deadline && token === this.updateWatchToken) {
+      try {
+        const info = await api.updateInfo();
+        if (token !== this.updateWatchToken) return { ok: false };
+        this.syncUpdateInfoFromPoll(info);
+        if (info.update_failed) {
+          return { ok: false, failed: info.update_failed };
+        }
+        if (info.update_in_progress) {
+          sawInProgress = true;
+          pollErrors = 0;
+          this.updateHealthWait = false;
+          updateToast(opts.toastId, {
+            message: this.progressToastMessage(info.update_progress),
+          });
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+        if (sawInProgress || pollErrors > 0) break;
+        await new Promise((r) => setTimeout(r, 2000));
+      } catch {
+        pollErrors += 1;
+        if (sawInProgress || pollErrors >= 3) break;
+        await new Promise((r) => setTimeout(r, 2000));
       }
+    }
+
+    this.updateHealthWait = true;
+    const healthStart = Date.now();
+    while (Date.now() < deadline && token === this.updateWatchToken) {
+      const elapsed = Math.floor((Date.now() - healthStart) / 1000);
+      updateToast(opts.toastId, {
+        message: `Waiting for service to restart… (${elapsed}s)`,
+      });
       await new Promise((r) => setTimeout(r, 3000));
       try {
         const h = await api.health();
-        if (h.status === "ok") return true;
+        if (h.status !== "ok") continue;
+        if (opts.targetVersion) {
+          try {
+            const info = await api.updateInfo();
+            if (token !== this.updateWatchToken) return { ok: false };
+            if (info.current_version && info.current_version !== opts.targetVersion) {
+              continue;
+            }
+          } catch {
+            /* service may still be starting API routes */
+          }
+        }
+        return { ok: true };
       } catch {
         /* service restarting */
       }
     }
-    return false;
+    return { ok: false };
   }
 
   private versionBelowMin(version: string, minVersion?: string): boolean {
@@ -780,6 +1038,8 @@ export class SettingsPanel extends LitElement {
     const toastId = "update-apply";
     this.updateBusy = true;
     this.installRecoveryOffer = false;
+    this.updateProgress = null;
+    this.updateHealthWait = false;
     let reloaded = false;
     showToast({
       id: toastId,
@@ -789,9 +1049,16 @@ export class SettingsPanel extends LitElement {
     });
     try {
       await api.applyUpdate(target);
-      updateToast(toastId, { message: "Pulling image and restarting container…" });
-      const ok = await this.waitForHealth(120_000, toastId);
-      if (ok) {
+      const result = await this.watchUpdateCompletion({ toastId, targetVersion: target });
+      if (result.failed) {
+        dismissToast(toastId);
+        showToast({
+          message: result.failed.message,
+          variant: "error",
+          persistent: true,
+        });
+        this.installRecoveryOffer = true;
+      } else if (result.ok) {
         updateToast(toastId, { message: "Update complete. Reloading…", variant: "success" });
         reloaded = true;
         window.location.reload();
@@ -814,6 +1081,7 @@ export class SettingsPanel extends LitElement {
       });
     } finally {
       this.updateBusy = false;
+      this.updateHealthWait = false;
       if (!reloaded) void this.refreshUpdateInfo();
     }
   }
@@ -833,6 +1101,8 @@ export class SettingsPanel extends LitElement {
     const toastId = "update-restore";
     this.updateBusy = true;
     this.installRecoveryOffer = false;
+    this.updateProgress = null;
+    this.updateHealthWait = false;
     let reloaded = false;
     showToast({
       id: toastId,
@@ -842,9 +1112,15 @@ export class SettingsPanel extends LitElement {
     });
     try {
       await api.restoreUpdateBackup(name);
-      updateToast(toastId, { message: "Restoring data and restarting container…" });
-      const ok = await this.waitForHealth(120_000, toastId);
-      if (ok) {
+      const result = await this.watchUpdateCompletion({ toastId });
+      if (result.failed) {
+        dismissToast(toastId);
+        showToast({
+          message: result.failed.message,
+          variant: "error",
+          persistent: true,
+        });
+      } else if (result.ok) {
         updateToast(toastId, { message: "Restore complete. Reloading…", variant: "success" });
         reloaded = true;
         window.location.reload();
@@ -865,6 +1141,7 @@ export class SettingsPanel extends LitElement {
       });
     } finally {
       this.updateBusy = false;
+      this.updateHealthWait = false;
       if (!reloaded) void this.refreshUpdateInfo();
     }
   }
@@ -876,6 +1153,50 @@ export class SettingsPanel extends LitElement {
       if (name) return name;
     }
     return this.updateInfo?.backups?.[0]?.name;
+  }
+
+  private renderUpdateProgress() {
+    const progress = this.updateProgress ?? this.updateInfo?.update_progress ?? null;
+    const inProgress = Boolean(this.updateInfo?.update_in_progress) || this.updateBusy;
+    if (!inProgress && !progress) return null;
+
+    const operation = progress?.operation ?? "update";
+    const stages = flowStages(operation);
+    const activeStage = this.updateHealthWait
+      ? null
+      : (progress?.stage ?? (this.updateInfo?.update_in_progress ? "starting" : null));
+    const activeIdx = activeStage ? stageIndex(stages, activeStage) : stages.length;
+
+    return html`
+      <div class="update-progress">
+        <h4>${this.updateHealthWait ? "Restarting service…" : "Update in progress"}</h4>
+        ${stages.map((stage, idx) => {
+          const done = idx < activeIdx;
+          const active = !this.updateHealthWait && activeStage === stage;
+          return html`
+            <div class="update-step ${done ? "done" : ""} ${active ? "active" : ""}">
+              <span class="update-step-icon">
+                ${done ? "✓" : active ? html`<span class="update-spinner"></span>` : "·"}
+              </span>
+              <span>
+                ${stageLabel(stage, active ? progress : null)}
+                ${active && progress?.stage === "pulling" && progress.pull_detail
+                  ? html`<span class="update-step-detail">${progress.pull_detail}</span>`
+                  : null}
+              </span>
+            </div>
+          `;
+        })}
+        ${this.updateHealthWait
+          ? html`
+              <div class="update-step active">
+                <span class="update-step-icon"><span class="update-spinner"></span></span>
+                <span>Waiting for service to restart…</span>
+              </div>
+            `
+          : null}
+      </div>
+    `;
   }
 
   private renderRecoveryBanner() {
@@ -995,6 +1316,10 @@ export class SettingsPanel extends LitElement {
         ${info?.deployment === "addon"
           ? html`<p class="label">Install specific versions via Home Assistant Supervisor.</p>`
           : null}
+        ${info?.deployment === "proxmox"
+          ? html`<p class="label">On Proxmox you can also run <code>update</code> inside the LXC for host-side upgrades.</p>`
+          : null}
+        ${this.renderUpdateProgress()}
         ${this.renderRecoveryBanner()}
         ${releases.length
           ? html`
@@ -1521,6 +1846,7 @@ export class SettingsPanel extends LitElement {
         ${this.renderHaSection()}
         ${this.renderFailSafeSection()}
         ${this.renderSecuritySection()}
+        ${this.renderDisplayPreferencesSection()}
         ${this.renderUpdatesSection()}
         ${FORM_SECTIONS.map((s) => this.renderSection(s))}
         ${this.renderSolcastNote()}

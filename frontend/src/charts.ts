@@ -1,6 +1,8 @@
 import { css } from "lit";
 import uPlot from "uplot";
 
+import { formatChartAxis, formatChartCursor, getDateFormat } from "./date-format.js";
+
 export interface SeriesDef {
   label: string;
   stroke: string;
@@ -217,6 +219,10 @@ function cursorLegendHooks(el: HTMLElement | null | undefined): uPlot.Hooks.Arra
           return;
         }
         const parts: string[] = [];
+        const xVal = u.data[0]?.[idx] as number | null | undefined;
+        if (xVal != null && !Number.isNaN(xVal)) {
+          parts.push(formatChartCursor(xVal, getDateFormat()));
+        }
         for (let i = 1; i < u.series.length; i++) {
           const label = String(u.series[i]?.label ?? "");
           const v = u.data[i]?.[idx] as number | null | undefined;
@@ -227,6 +233,22 @@ function cursorLegendHooks(el: HTMLElement | null | undefined): uPlot.Hooks.Arra
       },
     ],
   };
+}
+
+function applyDateAxisValues(axes: uPlot.Axis[]): uPlot.Axis[] {
+  if (!axes.length) return axes;
+  return axes.map((ax, i) => {
+    if (i !== 0) return ax;
+    return {
+      ...ax,
+      values: (_u, ticks) => {
+        const span =
+          ticks.length >= 2 ? Math.max(...ticks) - Math.min(...ticks) : 86400 * 2;
+        const fmt = getDateFormat();
+        return ticks.map((t) => formatChartAxis(t, fmt, span));
+      },
+    };
+  });
 }
 
 // Create a uPlot time-series chart sized to its container. Axis/grid colors are
@@ -320,7 +342,7 @@ export function makeChart(
       setCursor: [...(optsHooks?.setCursor ?? []), ...(cursorHooks.setCursor ?? [])],
     },
     scales: optsScales ?? { x: { time: true } },
-    axes: optsAxes ?? [axis, axis],
+    axes: applyDateAxisValues(optsAxes ?? [axis, axis]),
     series: builtSeries,
   });
 

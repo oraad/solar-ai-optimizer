@@ -187,6 +187,7 @@ Major sections:
 | **Home Assistant connection** | URL, token, SSL verification |
 | **Fail-safe** | Heartbeat entity, shutdown grid-charge-at-max |
 | **API security** | Browser-stored API token when `API_TOKEN` is set on the server |
+| **Display preferences** | **Date format** for this browser: locale default, DD/MM/YY, or YYYY-MM-DD (ISO). Applies to history tables, chart axes/cursor, and release dates. |
 | **Battery / Reserve / Forecast / Control** | Physical and algorithm parameters |
 | **PV arrays** | Tilt, azimuth, and kWp per array |
 | **Engine** | Rules vs MPC mode; **optimization priority** order (resilience, savings, self-sufficiency) |
@@ -290,7 +291,7 @@ Then capture screenshots (Docker — works without local Node/npm):
 docker run --rm --add-host=host.docker.internal:host-gateway \
   -v "$(pwd)/frontend:/ui" -v "$(pwd)/docs:/docs" \
   -e SCREENSHOT_BASE_URL=http://host.docker.internal:8000 \
-  -w /ui node:24-bookworm \
+  -w /ui node:24-trixie \
   bash -lc "npm ci && npx playwright install --with-deps chromium && npm run docs:screenshots"
 ```
 

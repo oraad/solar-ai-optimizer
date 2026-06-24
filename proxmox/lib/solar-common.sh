@@ -285,3 +285,22 @@ solar_save_version() {
 solar_is_installed() {
   [[ -d "$SOLAR_INSTALL_DIR" ]] && docker ps -a --format '{{.Names}}' | grep -qx "$SOLAR_CONTAINER"
 }
+
+solar_is_recoverable() {
+  [[ -d "$SOLAR_INSTALL_DIR" && -f "$SOLAR_ENV_FILE" ]]
+}
+
+solar_recover_missing_container() {
+  if solar_is_installed; then
+    return 0
+  fi
+  if ! solar_is_recoverable; then
+    return 1
+  fi
+  msg_warn "Container missing but install dir found — recreating from ${SOLAR_ENV_FILE}"
+  solar_ensure_env_auth
+  $STD docker pull "$(solar_image_ref)"
+  solar_recreate_container
+  solar_save_version
+  return 0
+}

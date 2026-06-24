@@ -145,7 +145,7 @@ export interface SessionInfo {
   version: string;
 }
 
-export type DeploymentKind = "addon" | "docker" | "compose" | "unknown";
+export type DeploymentKind = "addon" | "docker" | "compose" | "proxmox" | "unknown";
 
 export type ReleaseRelation = "current" | "newer" | "older";
 
@@ -173,6 +173,27 @@ export interface UpdateFailedInfo {
   backup?: string | null;
 }
 
+export type UpdateStage =
+  | "starting"
+  | "backing_up"
+  | "pulling"
+  | "stopping"
+  | "restoring_data"
+  | "recreating"
+  | "finishing"
+  | "failed";
+
+export interface UpdateProgress {
+  operation: "update" | "restore";
+  stage: UpdateStage;
+  message: string;
+  pull_detail?: string | null;
+  from_version?: string | null;
+  to_version?: string | null;
+  started_at?: string;
+  updated_at?: string;
+}
+
 export interface UpdateInfo {
   current_version: string;
   latest_version: string | null;
@@ -184,6 +205,7 @@ export interface UpdateInfo {
   deployment: DeploymentKind;
   apply_instructions: string | null;
   update_in_progress?: boolean;
+  update_progress?: UpdateProgress | null;
   release_checked_at?: string | null;
   release_from_cache?: boolean;
   releases?: ReleaseSummary[];

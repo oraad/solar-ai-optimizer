@@ -1,35 +1,35 @@
-# Pinned to latest stable as of scaffold (2026-06). Re-lock with `pip list --outdated`.
+# Python 3.14+ required. Re-lock: docker compose build test && docker compose run --rm --entrypoint pip test freeze
 # Kept lean (plain fastapi/uvicorn) for fast, reliable builds on Python 3.14.
 
 # Web framework / ASGI server
-fastapi==0.137.2
-uvicorn>=0.35.0
+fastapi==0.138.0
+uvicorn>=0.49.0
 
 # Data validation / settings
-pydantic>=2.11.0
-pydantic-settings>=2.7.0
+pydantic>=2.13.4
+pydantic-settings>=2.14.2
 
 # HTTP + WebSocket client for Home Assistant
-httpx>=0.28.0
+httpx>=0.28.1,<1.0
 websockets>=14.0
 
 # Scheduling
-APScheduler>=3.11.0
+APScheduler>=3.11.2
 
 # Storage (async SQLite)
-SQLAlchemy[asyncio]>=2.0.36
-aiosqlite>=0.20.0
+SQLAlchemy[asyncio]>=2.0.51,<2.1
+aiosqlite>=0.21.0
 
 # Config + time
 PyYAML>=6.0.2
 python-dateutil>=2.9.0
 
 # Local admin login (bcrypt password verification)
-bcrypt>=4.2.0
+bcrypt>=4.3.0
 
 # --- Optional extras (Phase 3/4). Uncomment to enable. ---
-# numpy>=2.1.0            # required by ML load forecasting
+# numpy>=2.5.0            # required by ML load forecasting
 # pandas>=2.2.0
-# scikit-learn>=1.6.0     # Phase 4: ML load forecasting
-# pulp>=2.9.0             # Phase 3: MPC optimizer
+# scikit-learn>=1.9.0     # Phase 4: ML load forecasting
+# pulp>=3.3.2             # Phase 3: MPC optimizer
 # ortools>=9.11.0

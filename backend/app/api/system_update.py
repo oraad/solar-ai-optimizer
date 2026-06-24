@@ -34,7 +34,9 @@ DOCKER_SOCKET = Path("/var/run/docker.sock")
 UPDATE_LOCK_FILE = ".update_in_progress"
 UPDATE_PENDING_FILE = ".update_pending.json"
 UPDATE_FAILED_FILE = ".update_failed.json"
+UPDATE_PROGRESS_FILE = ".update_progress.json"
 DEPLOY_STATE_FILE = ".deploy_state.json"
+PROXMOX_ENV_PREFIX = "/opt/solar-ai-optimizer"
 BACKUP_DIR = ".update-backups"
 BACKUP_RETENTION = 3
 UPDATE_LOCK_MAX_AGE_SECONDS = 30 * 60
@@ -60,7 +62,7 @@ _releases_list_cache: list[dict[str, Any]] | None = None
 _releases_list_cache_at: float = 0.0
 _release_checked_at: datetime | None = None
 
-DeploymentKind = Literal["addon", "docker", "compose", "unknown"]
+DeploymentKind = Literal["addon", "docker", "compose", "proxmox", "unknown"]
 ReleaseRelation = Literal["current", "newer", "older"]
 
 
@@ -122,10 +124,16 @@ def _docker_cli_available() -> bool:
     return shutil.which("docker") is not None
 
 
+def _is_proxmox_deployment(settings: Settings) -> bool:
+    return settings.self_update_env_file.strip().startswith(PROXMOX_ENV_PREFIX)
+
+
 def _detect_deployment(settings: Settings) -> DeploymentKind:
     if settings.is_addon:
         return "addon"
     if settings.self_update_enabled and _docker_socket_available():
+        if _is_proxmox_deployment(settings):
+            return "proxmox"
         return "docker"
     if Path("/app/run.sh").is_file() and not settings.self_update_enabled:
         return "compose"
@@ -155,7 +163,7 @@ def _apply_instructions(
             "Update via the Home Assistant Supervisor: Settings → Add-ons → "
             "Solar AI Optimizer → Update."
         )
-    if deployment == "docker":
+    if deployment in ("docker", "proxmox"):
         if not _docker_cli_available():
             return MISSING_DOCKER_CLI_DETAIL
         return None
@@ -305,6 +313,32 @@ def _list_backups(settings: Settings) -> list[dict[str, Any]]:
     return entries
 
 
+def _clear_update_progress(settings: Settings) -> None:
+    (_data_dir(settings) / UPDATE_PROGRESS_FILE).unlink(missing_ok=True)
+
+
+def _write_update_progress(settings: Settings, payload: dict[str, Any]) -> None:
+    data_dir = _data_dir(settings)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    body = dict(payload)
+    body.setdefault("started_at", now)
+    body["updated_at"] = now
+    (data_dir / UPDATE_PROGRESS_FILE).write_text(
+        json.dumps(body, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _load_update_progress(settings: Settings) -> dict[str, Any] | None:
+    if not _update_in_progress(settings):
+        return None
+    data = _read_json_file(_data_dir(settings) / UPDATE_PROGRESS_FILE)
+    if not data or not isinstance(data.get("stage"), str):
+        return None
+    return data
+
+
 def _clear_stale_lock(settings: Settings) -> None:
     lock = _lock_path(settings)
     if not lock.exists():
@@ -312,6 +346,7 @@ def _clear_stale_lock(settings: Settings) -> None:
     failed = _load_update_failed(settings)
     if failed is not None:
         lock.unlink(missing_ok=True)
+        _clear_update_progress(settings)
         return
     try:
         age = time.time() - lock.stat().st_mtime
@@ -324,6 +359,7 @@ def _clear_stale_lock(settings: Settings) -> None:
             UPDATE_LOCK_MAX_AGE_SECONDS,
         )
         lock.unlink(missing_ok=True)
+        _clear_update_progress(settings)
 
 
 async def _fetch_latest_release(*, force: bool = False) -> tuple[dict[str, Any] | None, bool]:
@@ -467,6 +503,66 @@ def _write_update_pending(
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _shell_progress_block(operation: str) -> str:
+    """Shell helpers to write UPDATE_PROGRESS_FILE on the data volume."""
+    return f"""
+PROGRESS_FILE='{UPDATE_PROGRESS_FILE}'
+OPERATION='{operation}'
+STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u)"
+
+write_progress() {{
+  local stage="$1" msg="$2" detail="${{3:-}}"
+  local updated detail_json
+  updated="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u)"
+  detail_json=""
+  if [ -n "$detail" ]; then
+    detail_json=$(printf ', "pull_detail": "%s"' "$(printf '%s' "$detail" | tr '\\n' ' ' | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')")
+  fi
+  docker run --rm -i -v "${{DATA_VOL}}:/data" alpine sh -c "cat > /data/$PROGRESS_FILE" <<WPEOF
+{{"operation":"$OPERATION","stage":"$stage","message":"$msg"$detail_json,"from_version":"$FROM_VERSION","to_version":"$TO_VERSION","started_at":"$STARTED_AT","updated_at":"$updated"}}
+WPEOF
+}}
+
+mark_progress_failed() {{
+  write_progress "failed" "$1" || true
+}}
+"""
+
+
+def _shell_run_container_block() -> str:
+    """Start solar-optimizer with a given image tag (rollback uses PREVIOUS_IMAGE)."""
+    return """
+run_container() {
+  local image="$1"
+  docker run -d --name "$CONTAINER" --restart unless-stopped \\
+    $ENV_ARGS \\
+    -e SELF_UPDATE_ENABLED=true \\
+    -e SELF_UPDATE_ENV_FILE="$ENV_FILE" \\
+    -e SELF_UPDATE_IMAGE="$image" \\
+    -v /var/run/docker.sock:/var/run/docker.sock \\
+    -v "${DATA_VOL}:${DATA_PATH}" \\
+    -p "${PORT}:8000" \\
+    "$image"
+}
+
+try_recreate_container() {
+  local target_image="$1"
+  write_progress "recreating" "Starting updated container"
+  if run_container "$target_image"; then
+    return 0
+  fi
+  if [ -n "$PREVIOUS_IMAGE" ]; then
+    write_progress "recreating" "Rolling back to previous container image"
+    docker rm -f "$CONTAINER" 2>/dev/null || true
+    if run_container "$PREVIOUS_IMAGE"; then
+      fail "new image failed to start; rolled back to previous image"
+    fi
+  fi
+  fail "container recreate failed"
+}
+"""
+
+
 def _build_updater_shell(
     settings: Settings,
     *,
@@ -494,17 +590,23 @@ DEPLOY_STATE='{deploy_state_esc}'
 LOCK_FILE='{UPDATE_LOCK_FILE}'
 PENDING_FILE='{UPDATE_PENDING_FILE}'
 FAILED_FILE='{UPDATE_FAILED_FILE}'
+{_shell_progress_block("update")}
+{_shell_run_container_block()}
 
 fail() {{
   MSG="$1"
+  mark_progress_failed "$MSG"
   docker run --rm -i -v "${{DATA_VOL}}:/data" alpine sh -c "cat > /data/$FAILED_FILE" <<FAILJSON
 {{"message":"$MSG","backup":"$BACKUP"}}
 FAILJSON
-  docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PENDING_FILE" 2>/dev/null || true
+  docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PENDING_FILE" "/data/$PROGRESS_FILE" 2>/dev/null || true
   exit 1
 }}
 
+write_progress "starting" "Preparing update"
+
 BACKUP="${{BACKUP_DIR}}/pre-from-${{FROM_VERSION}}-to-${{TO_VERSION}}-$(date +%s).tar.gz"
+write_progress "backing_up" "Backing up data"
 docker run --rm -v "${{DATA_VOL}}:/data" alpine sh -c \\
   "mkdir -p /data/${{BACKUP_DIR}} && tar czf /data/${{BACKUP}} -C /data --exclude=${{BACKUP_DIR}} ." \\
   || fail "backup failed"
@@ -513,7 +615,10 @@ docker run --rm -v "${{DATA_VOL}}:/data" alpine sh -c \\
   'cd /data/'"${{BACKUP_DIR}}"' && ls -1t pre-*.tar.gz 2>/dev/null | tail -n +{BACKUP_RETENTION + 1} | while read f; do rm -f "$f"; done' \\
   || true
 
-docker pull "$TARGET_IMAGE" || fail "docker pull failed"
+write_progress "pulling" "Pulling $TARGET_IMAGE"
+docker pull --progress=plain "$TARGET_IMAGE" 2>&1 | tee /tmp/solar-pull.log || fail "docker pull failed"
+PULL_LAST="$(grep -v '^$' /tmp/solar-pull.log 2>/dev/null | tail -1 || true)"
+write_progress "pulling" "Pulling $TARGET_IMAGE" "$PULL_LAST"
 
 PREVIOUS_IMAGE=""
 if docker inspect "$CONTAINER" >/dev/null 2>&1; then
@@ -530,22 +635,17 @@ elif docker inspect "$CONTAINER" >/dev/null 2>&1; then
   ENV_ARGS="--env-file $ENV_TMP"
 fi
 
+write_progress "stopping" "Stopping current container"
 docker stop "$CONTAINER" 2>/dev/null || true
 docker rm "$CONTAINER" 2>/dev/null || true
 
 docker volume inspect "$DATA_VOL" >/dev/null 2>&1 || docker volume create "$DATA_VOL" >/dev/null
 
-docker run -d --name "$CONTAINER" --restart unless-stopped \\
-  $ENV_ARGS \\
-  -e SELF_UPDATE_ENABLED=true \\
-  -e SELF_UPDATE_ENV_FILE="$ENV_FILE" \\
-  -e SELF_UPDATE_IMAGE="$TARGET_IMAGE" \\
-  -v /var/run/docker.sock:/var/run/docker.sock \\
-  -v "${{DATA_VOL}}:${{DATA_PATH}}" \\
-  -p "${{PORT}}:8000" \\
-  "$TARGET_IMAGE" || fail "container recreate failed"
+try_recreate_container "$TARGET_IMAGE"
 
 rm -f "$ENV_TMP" 2>/dev/null || true
+
+write_progress "finishing" "Finalizing"
 
 DEPLOY_JSON=$(cat <<EOF
 {{
@@ -561,7 +661,7 @@ EOF
 )
 docker run --rm -i -v "${{DATA_VOL}}:/data" alpine sh -c "cat > /data/$DEPLOY_STATE" <<< "$DEPLOY_JSON" || true
 
-docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PENDING_FILE" "/data/$FAILED_FILE" 2>/dev/null || true
+docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PENDING_FILE" "/data/$FAILED_FILE" "/data/$PROGRESS_FILE" 2>/dev/null || true
 """
 
 
@@ -582,6 +682,8 @@ def _build_restore_shell(
 BACKUP_NAME='{backup_esc}'
 TARGET_IMAGE='{restore_image_esc}'
 RESTORE_VERSION='{restore_version_esc}'
+FROM_VERSION='{restore_version_esc}'
+TO_VERSION='{restore_version_esc}'
 CONTAINER='{settings.self_update_container}'
 ENV_FILE='{env_file}'
 DATA_VOL='{settings.self_update_data_volume}'
@@ -592,18 +694,28 @@ DEPLOY_STATE='{deploy_state_esc}'
 LOCK_FILE='{UPDATE_LOCK_FILE}'
 PENDING_FILE='{pending_file_esc}'
 FAILED_FILE='{UPDATE_FAILED_FILE}'
+{_shell_progress_block("restore")}
+{_shell_run_container_block()}
 
 fail() {{
   MSG="$1"
+  mark_progress_failed "$MSG"
   docker run --rm -i -v "${{DATA_VOL}}:/data" alpine sh -c "cat > /data/$FAILED_FILE" <<FAILJSON
 {{"message":"$MSG","backup":"$BACKUP_NAME"}}
 FAILJSON
-  docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" 2>/dev/null || true
+  docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PROGRESS_FILE" 2>/dev/null || true
   exit 1
 }}
 
+write_progress "starting" "Preparing restore"
+
 docker run --rm -v "${{DATA_VOL}}:/data" alpine sh -c \\
   "test -f /data/${{BACKUP_DIR}}/$BACKUP_NAME" || fail "backup not found"
+
+PREVIOUS_IMAGE=""
+if docker inspect "$CONTAINER" >/dev/null 2>&1; then
+  PREVIOUS_IMAGE=$(docker inspect -f '{{{{.Config.Image}}}}' "$CONTAINER" 2>/dev/null || echo "")
+fi
 
 ENV_ARGS=""
 ENV_TMP=""
@@ -615,9 +727,11 @@ elif docker inspect "$CONTAINER" >/dev/null 2>&1; then
   ENV_ARGS="--env-file $ENV_TMP"
 fi
 
+write_progress "stopping" "Stopping current container"
 docker stop "$CONTAINER" 2>/dev/null || true
 docker rm "$CONTAINER" 2>/dev/null || true
 
+write_progress "restoring_data" "Restoring backup data"
 docker run --rm -v "${{DATA_VOL}}:/data" alpine sh -c \\
   "cd /data && find . -mindepth 1 -maxdepth 1 ! -name ${{BACKUP_DIR}} -exec rm -rf {{}} +" \\
   || fail "clear data failed"
@@ -626,17 +740,11 @@ docker run --rm -v "${{DATA_VOL}}:/data" alpine sh -c \\
   "tar xzf /data/${{BACKUP_DIR}}/$BACKUP_NAME -C /data" \\
   || fail "extract backup failed"
 
-docker run -d --name "$CONTAINER" --restart unless-stopped \\
-  $ENV_ARGS \\
-  -e SELF_UPDATE_ENABLED=true \\
-  -e SELF_UPDATE_ENV_FILE="$ENV_FILE" \\
-  -e SELF_UPDATE_IMAGE="$TARGET_IMAGE" \\
-  -v /var/run/docker.sock:/var/run/docker.sock \\
-  -v "${{DATA_VOL}}:${{DATA_PATH}}" \\
-  -p "${{PORT}}:8000" \\
-  "$TARGET_IMAGE" || fail "container recreate failed"
+try_recreate_container "$TARGET_IMAGE"
 
 rm -f "$ENV_TMP" 2>/dev/null || true
+
+write_progress "finishing" "Finalizing"
 
 DEPLOY_JSON=$(cat <<EOF
 {{
@@ -652,7 +760,7 @@ EOF
 )
 docker run --rm -i -v "${{DATA_VOL}}:/data" alpine sh -c "cat > /data/$DEPLOY_STATE" <<< "$DEPLOY_JSON" || true
 
-docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PENDING_FILE" "/data/$FAILED_FILE" 2>/dev/null || true
+docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PENDING_FILE" "/data/$FAILED_FILE" "/data/$PROGRESS_FILE" 2>/dev/null || true
 """
 
 
@@ -791,6 +899,7 @@ async def build_update_info(
         "deployment": deployment,
         "apply_instructions": _apply_instructions(settings, deployment),
         "update_in_progress": _update_in_progress(settings),
+        "update_progress": _load_update_progress(settings),
         "release_checked_at": release_checked_at,
         "release_from_cache": release_from_cache,
         "releases": release_summaries,
@@ -858,6 +967,16 @@ async def apply_update(
         target_image=target_image,
         is_downgrade=is_downgrade,
     )
+    _write_update_progress(
+        settings,
+        {
+            "operation": "update",
+            "stage": "starting",
+            "message": "Preparing update",
+            "from_version": current,
+            "to_version": target_version,
+        },
+    )
     try:
         _spawn_updater(
             settings,
@@ -868,6 +987,7 @@ async def apply_update(
     except OSError as exc:
         _lock_path(settings).unlink(missing_ok=True)
         (_data_dir(settings) / UPDATE_PENDING_FILE).unlink(missing_ok=True)
+        _clear_update_progress(settings)
         log.exception("Failed to spawn updater")
         raise HTTPException(status_code=500, detail=f"Failed to start update: {exc}") from exc
 
@@ -910,6 +1030,16 @@ async def restore_update_backup(
 
     _clear_update_failed(settings)
     _set_update_lock(settings)
+    _write_update_progress(
+        settings,
+        {
+            "operation": "restore",
+            "stage": "starting",
+            "message": "Preparing restore",
+            "from_version": _image_version(str(restore_image)),
+            "to_version": _image_version(str(restore_image)),
+        },
+    )
     try:
         _spawn_restore(
             settings,
@@ -918,6 +1048,7 @@ async def restore_update_backup(
         )
     except OSError as exc:
         _lock_path(settings).unlink(missing_ok=True)
+        _clear_update_progress(settings)
         log.exception("Failed to spawn restore")
         raise HTTPException(status_code=500, detail=f"Failed to start restore: {exc}") from exc
 

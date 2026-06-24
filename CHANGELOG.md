@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-06-24
+
+### Added
+
+- **Settings → Display preferences:** per-browser **Date format** (locale default, DD/MM/YY, or YYYY-MM-DD) for history tables, chart axes/cursor, and release dates
+- Flexible datetime parsing for forecast ingestion (ISO and day-first formats)
+- Self-update **container recreate** with automatic rollback to the previous image when the new image fails to start
+- Proxmox **`update` recovery:** auto-recreates `solar-optimizer` when the container is missing but `solar.env` exists (e.g. after a failed dashboard install)
+
+### Changed
+
+- Enforce **Python 3.14+** in Docker, CI, pytest gate, and agent Cursor rules
+- Upgrade frontend stack: Vite 7, Vitest 4, marked 18, jsdom 29, Playwright 1.x latest
+- Upgrade backend deps to latest stable floors (FastAPI 0.138, pydantic 2.13+, uvicorn 0.49+, SQLAlchemy 2.0.51, etc.)
+- Upgrade ML/MPC extras: numpy 2.5+, scikit-learn 1.9+, PuLP 3.3+
+- Docs: mkdocs-material 9.7; SECURITY.md supported versions updated to 0.5.x
+- Add `httpx2` dev dependency to silence Starlette TestClient deprecation warning
+- Unify Docker and dev-tooling images on Debian 13 (Trixie): pin `python:3.14-slim-trixie` and `node:24-trixie`; replace Ubuntu Playwright (`jammy`) and Bookworm references in docs/scripts
+- Software update UI waits for the update lock to clear, service health, and target version before reporting success; longer timeout on Proxmox hosts
+
+### Fixed
+
+- Dashboard update could report success while the service was still down or the container was not recreated
+
 ## [0.5.8] - 2026-06-24
 
 ### Added
@@ -265,6 +289,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.5.9]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.9
 [0.5.8]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.8
 [0.5.7]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.7
 [0.5.6]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.6

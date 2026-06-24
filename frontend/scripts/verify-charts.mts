@@ -4,10 +4,11 @@
  * Prerequisite: solar app running (docker compose up -d solar).
  * Usage: npm run test:charts-visual
  *
- * On Windows / Docker alpine frontend-test, use Playwright image:
+ * On Windows without local Node, use a Debian Trixie container:
  *   docker run --rm -v "%CD%\frontend:/ui" -v "%CD%\docs:/docs" -w /ui \
  *     -e SCREENSHOT_BASE_URL=http://host.docker.internal:8000 \
- *     mcr.microsoft.com/playwright:v1.52.0-jammy npm run test:charts-visual
+ *     node:24-trixie \
+ *     bash -lc "npm ci && npx playwright install --with-deps chromium && npm run test:charts-visual"
  */
 import { mkdirSync } from "node:fs";
 import path from "node:path";

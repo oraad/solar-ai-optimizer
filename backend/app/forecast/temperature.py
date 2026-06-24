@@ -15,9 +15,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from dateutil import parser as dtparser
 
 from ..config import ForecastConfig
+from ..dates import parse_datetime
 
 log = logging.getLogger("forecast.temperature")
 
@@ -83,7 +83,7 @@ class TemperatureService:
         return ts.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
     def _parse_ts(self, t_str: str, utc_offset_seconds: int) -> datetime:
-        dt = dtparser.parse(t_str)
+        dt = parse_datetime(t_str)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc) - timedelta(seconds=utc_offset_seconds)
         return self._hour_align(dt)

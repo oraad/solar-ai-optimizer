@@ -1,3 +1,4 @@
 # Dev/test dependencies (installed in the Docker test image only).
-pytest>=8.3.0
-pytest-asyncio>=0.25.0
+pytest>=8.4.0
+pytest-asyncio>=1.4.0
+httpx2>=2.0.0

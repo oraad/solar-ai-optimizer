@@ -44,6 +44,14 @@ docker compose run --rm test
 docker compose run --rm frontend-test
 ```
 
+**Local pytest (without Docker):** requires **Python 3.14+** (`bash scripts/check-python.sh`).
+From `backend/`, install `requirements.txt` + `requirements-dev.txt`, then run
+`python -m pytest tests/ -q`. This matches CI when using the repo's dev dependencies.
+On Windows, if you have `pytest-homeassistant-custom-component` installed globally for HA
+custom-component work, it can block asyncio sockets and cause `SocketBlockedError` or
+`ProactorEventLoop ... _ssock` errors. This project's `pytest.ini` disables that
+plugin automatically; you can also uninstall it or pass `-p no:homeassistant`.
+
 Optional environment overrides go in `docker-compose.yml` `environment:` or an `.env` file
 (see [Configuration](configuration.md)).
 
@@ -138,7 +146,7 @@ Full HA wiring (entities, packages, ingress auth): [Home Assistant setup](home-a
 
 **Prerequisites:** Proxmox VE host with root shell access.
 
-On the **Proxmox host** (Debian LXC — default):
+On the **Proxmox host** (Debian 13 Trixie LXC — default):
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer.sh)"

@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
+import { formatDateTime } from "../date-format.js";
 import { sharedStyles } from "../styles.js";
 import type { GridStats } from "../types.js";
 
@@ -37,6 +38,18 @@ export class GridStatsCard extends LitElement {
   @property({ attribute: false }) stats: GridStats | null = null;
   @property({ attribute: false }) livePresent: boolean | null = null;
 
+  private onDateFormat = () => this.requestUpdate();
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener("solar-date-format-change", this.onDateFormat);
+  }
+
+  disconnectedCallback(): void {
+    window.removeEventListener("solar-date-format-change", this.onDateFormat);
+    super.disconnectedCallback();
+  }
+
   private currentlyPresent(): boolean | null {
     if (this.livePresent !== null && this.livePresent !== undefined) {
       return this.livePresent;
@@ -47,8 +60,7 @@ export class GridStatsCard extends LitElement {
   private fmtLastSeen(): string {
     const ls = this.stats?.last_seen;
     if (!ls) return "never";
-    const d = new Date(ls);
-    return d.toLocaleString();
+    return formatDateTime(ls);
   }
 
   private bar(label: string, pct: number | null) {

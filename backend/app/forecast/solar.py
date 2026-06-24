@@ -12,9 +12,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from dateutil import parser as dtparser
 
 from ..config import ForecastConfig
+from ..dates import parse_datetime
 from ..models import SolarForecastPoint
 from .bias import BiasCorrector
 
@@ -132,7 +132,7 @@ class SolarForecaster:
         return ts.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
     def _parse_ts(self, t_str: str, utc_offset_seconds: int) -> datetime:
-        dt = dtparser.parse(t_str)
+        dt = parse_datetime(t_str)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc) - timedelta(seconds=utc_offset_seconds)
         return self._hour_align(dt)
@@ -154,7 +154,7 @@ class SolarForecaster:
         power_by_ts: dict[datetime, float] = {}
         for item in data.get("forecasts", []):
             ts = self._hour_align(
-                dtparser.parse(item["period_end"]).astimezone(timezone.utc)
+                parse_datetime(item["period_end"]).astimezone(timezone.utc)
             )
             kw = float(item.get("pv_estimate", 0.0))
             power_by_ts[ts] = kw * 1000.0

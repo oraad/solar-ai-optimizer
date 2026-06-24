@@ -7,7 +7,7 @@ This page summarizes the project security policy. The canonical version is also 
 
 | Version | Supported |
 | ------- | --------- |
-| 0.3.x   | Yes       |
+| 0.5.x   | Yes       |
 
 ## Reporting a vulnerability
 

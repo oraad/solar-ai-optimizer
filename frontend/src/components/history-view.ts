@@ -12,6 +12,7 @@ import {
   scheduleChartRender,
   type ChartHandle,
 } from "../charts.js";
+import { formatDateTime } from "../date-format.js";
 import { sharedStyles } from "../styles.js";
 import type {
   DecisionHistoryRow,
@@ -106,11 +107,17 @@ export class HistoryView extends LitElement {
     this.forceChartRecreate = true;
     this.queueRenderChart();
   };
+  private onDateFormat = () => {
+    this.forceChartRecreate = true;
+    this.queueRenderChart();
+    this.requestUpdate();
+  };
   private pollTimer?: number;
 
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("solar-theme-change", this.onTheme);
+    window.addEventListener("solar-date-format-change", this.onDateFormat);
     void this.loadAll();
     this.pollTimer = window.setInterval(() => void this.loadAll(), 60_000);
   }
@@ -118,6 +125,7 @@ export class HistoryView extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     window.removeEventListener("solar-theme-change", this.onTheme);
+    window.removeEventListener("solar-date-format-change", this.onDateFormat);
     if (this.pollTimer) window.clearInterval(this.pollTimer);
     this.chartHandle?.destroy();
     this.chartHandle = undefined;
@@ -300,7 +308,7 @@ export class HistoryView extends LitElement {
             ${this.decisions.map(
               (d) => html`
                 <tr title=${d.reserve_rationale || ""}>
-                  <td>${new Date(d.ts).toLocaleString()}</td>
+                  <td>${formatDateTime(d.ts)}</td>
                   <td>${d.target_soc.toFixed(0)}%</td>
                   <td>${d.blackout_risk}</td>
                   <td>${d.summary}</td>
@@ -328,7 +336,7 @@ export class HistoryView extends LitElement {
             ${this.executions.map(
               (e) => html`
                 <tr title=${e.skipped_reason || e.error || ""}>
-                  <td>${new Date(e.ts).toLocaleString()}</td>
+                  <td>${formatDateTime(e.ts)}</td>
                   <td>${e.capability}</td>
                   <td>${e.requested}</td>
                   <td>
@@ -369,7 +377,7 @@ export class HistoryView extends LitElement {
                 const title = [e.skipped_reason, e.error, comp].filter(Boolean).join(" · ");
                 return html`
                 <tr title=${title}>
-                  <td>${new Date(e.ts).toLocaleString()}</td>
+                  <td>${formatDateTime(e.ts)}</td>
                   <td>${e.tier}</td>
                   <td>${e.entity}</td>
                   <td>${e.desired_on ? "ON" : "OFF"}</td>
@@ -403,7 +411,7 @@ export class HistoryView extends LitElement {
             ${this.gridEvents.map(
               (e) => html`
                 <tr>
-                  <td>${new Date(e.ts).toLocaleString()}</td>
+                  <td>${formatDateTime(e.ts)}</td>
                   <td>${e.grid_present ? "ON" : "OFF"}</td>
                 </tr>
               `,

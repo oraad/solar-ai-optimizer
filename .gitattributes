@@ -1,3 +1,4 @@
 # Keep shell scripts LF so they work inside Linux containers.
 *.sh text eol=lf
 run.sh text eol=lf
+VERSION text eol=lf

@@ -15,13 +15,45 @@ CONFIG_YAML = ROOT / "config.yaml"
 PACKAGE_JSON = ROOT / "frontend" / "package.json"
 
 
-def read_canonical_version() -> str:
+def parse_version_text(raw: str) -> str:
+    """Return the semver string, tolerating trailing whitespace."""
+    return raw.replace("\r", "").strip()
+
+
+def read_version_bytes() -> bytes:
     if not VERSION_FILE.is_file():
         raise SystemExit(f"Missing {VERSION_FILE}")
-    version = VERSION_FILE.read_text(encoding="utf-8").strip()
+    return VERSION_FILE.read_bytes()
+
+
+def canonical_version_bytes(version: str) -> bytes:
+    return f"{version}\n".encode("utf-8")
+
+
+def read_canonical_version() -> str:
+    version = parse_version_text(read_version_bytes().decode("utf-8"))
     if not version:
         raise SystemExit(f"{VERSION_FILE} is empty")
     return version
+
+
+def verify_version_lf() -> bool:
+    raw = read_version_bytes()
+    if b"\r" in raw:
+        print(f"{VERSION_FILE} contains CR bytes; run sync-version.py to normalize", file=sys.stderr)
+        return False
+    expected = canonical_version_bytes(read_canonical_version())
+    if raw != expected:
+        print(
+            f"{VERSION_FILE} must be exactly '<version>\\n' (LF only); run sync-version.py to normalize",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
+def write_version_file(version: str) -> None:
+    VERSION_FILE.write_bytes(canonical_version_bytes(version))
 
 
 def read_config_yaml_version() -> str:
@@ -75,14 +107,13 @@ def main() -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Verify derived files match VERSION; do not write",
+        help="Verify VERSION (LF-only) and derived files; do not write",
     )
     args = parser.parse_args()
 
-    expected = read_canonical_version()
-
     if args.check:
-        ok = True
+        ok = verify_version_lf()
+        expected = read_canonical_version()
         ok &= check_version("config.yaml", CONFIG_YAML, read_config_yaml_version(), expected)
         ok &= check_version(
             "frontend/package.json", PACKAGE_JSON, read_package_json_version(), expected
@@ -92,7 +123,13 @@ def main() -> int:
         print(f"All version files match {expected}")
         return 0
 
-    changed = False
+    expected = read_canonical_version()
+    raw_before = read_version_bytes()
+    write_version_file(expected)
+    changed = raw_before != canonical_version_bytes(expected)
+    if changed:
+        print(f"Normalized {VERSION_FILE} to LF")
+
     if read_config_yaml_version() != expected:
         write_config_yaml_version(expected)
         print(f"Updated {CONFIG_YAML} -> {expected}")

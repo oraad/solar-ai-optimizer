@@ -44,6 +44,14 @@ SAMPLE_RELEASES = [
         "draft": False,
     },
     {
+        "tag_name": "v0.5.10",
+        "body": "Recent stable",
+        "html_url": "https://example.com/v0.5.10",
+        "published_at": "2026-06-20T12:00:00Z",
+        "prerelease": False,
+        "draft": False,
+    },
+    {
         "tag_name": "v0.5.5",
         "body": "Stable",
         "html_url": "https://example.com/v0.5.5",
@@ -218,15 +226,15 @@ def test_post_update_with_version_downgrade(
     res = update_client.post(
         "/api/system/update",
         headers={"X-Remote-User-Id": "admin-1"},
-        json={"version": "0.5.5"},
+        json={"version": "0.5.10"},
     )
     assert res.status_code == 202
     body = res.json()
-    assert body["target_version"] == "0.5.5"
+    assert body["target_version"] == "0.5.10"
     assert body["is_downgrade"] is True
     mock_spawn.assert_called_once()
     kwargs = mock_spawn.call_args.kwargs
-    assert kwargs["target_image"].endswith(":0.5.5")
+    assert kwargs["target_image"].endswith(":0.5.10")
 
 
 @patch("app.api.system_update._fetch_releases", new_callable=AsyncMock)

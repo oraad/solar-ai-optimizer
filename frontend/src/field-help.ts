@@ -10,10 +10,6 @@ const FIELD_HELP: Record<string, Record<string, string>> = {
 
       "Usable battery energy capacity. Used for autonomy, reserve, and ETA calculations.",
 
-    max_grid_charge_a:
-
-      "Ceiling for grid charge current in amps. The ramp engine writes up to this value via the max grid charge current entity.",
-
     nominal_voltage:
 
       "Nominal pack voltage used to convert max grid charge current (amps) to watts in the MPC optimizer.",
@@ -151,6 +147,10 @@ const FIELD_HELP: Record<string, Record<string, string>> = {
     ramp_enabled:
 
       "When enabled, grid charge current ramps up/down using the factor cap chain below. When off, uses legacy max-or-off charging.",
+
+    max_grid_charge_a:
+
+      "Ceiling for grid charge current in amps. The ramp engine writes up to this value via the max grid charge current entity.",
 
     min_grid_charge_a:
 

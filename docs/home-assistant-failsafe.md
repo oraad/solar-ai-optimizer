@@ -29,7 +29,7 @@ Edit placeholders before reloading:
 
 - `switch.YOUR_GRID_CHARGE_ENTITY` — same as Settings → Inverter → Grid charge enable
 - `number.YOUR_MAX_GRID_CHARGE_CURRENT` — same as Settings → Inverter → Max grid charge current
-- `input_number.solar_optimizer_max_grid_charge_a` **initial** — match Battery → Max grid charge current (A)
+- `input_number.solar_optimizer_max_grid_charge_a` **initial** — match Grid charge → Max grid charge current (A)
 
 Reload helpers, templates, and automations after editing.
 
@@ -66,7 +66,7 @@ Kill switch         →  grid ON + max current + pause + restore sheds
 |-----------|-----------|--------|
 | Template stale threshold | 90–120s | ~3–4× default 30s control loop |
 | Automation `for:` | 2–3 min | Survives restarts without false triggers |
-| `input_number.solar_optimizer_max_grid_charge_a` | Match optimizer battery config | HA has no direct read of optimizer settings |
+| `input_number.solar_optimizer_max_grid_charge_a` | Match optimizer grid charge config | HA has no direct read of optimizer settings |
 
 ## Limitations
 

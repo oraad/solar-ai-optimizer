@@ -143,7 +143,7 @@ docker rm -f solar-dashboard 2>/dev/null || true   # legacy container name
 docker compose up -d --build
 ```
 
-If upgrading from a release before the grid-charge ramp changes: remove `inverter.write.work_mode` and `inverter.work_modes` from your config (set work mode manually in Home Assistant), and use `battery.max_grid_charge_a` instead of the removed `max_charge_a`. Runtime overrides are migrated automatically on next save.
+If upgrading from a release before the grid-charge ramp changes: remove `inverter.write.work_mode` and `inverter.work_modes` from your config (set work mode manually in Home Assistant), and use `grid_charge.max_grid_charge_a` instead of the removed `max_charge_a` / `battery.max_grid_charge_a`. Runtime overrides are migrated automatically on next load.
 
 ## Changelog
 

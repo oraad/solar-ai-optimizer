@@ -19,6 +19,7 @@ async def test_shutdown_applies_failsafe_before_aclose(monkeypatch: pytest.Monke
     cfg_yaml = """
 battery:
   capacity_kwh: 10
+grid_charge:
   max_grid_charge_a: 55
 fail_safe:
   shutdown_failsafe_enabled: true

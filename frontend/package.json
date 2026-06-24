@@ -1,6 +1,6 @@
 {
   "name": "solar-ai-optimizer-dashboard",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Lit dashboard for the Solar AI Optimizer",
   "type": "module",
   "engines": {
@@ -15,10 +15,13 @@
     "test:charts-visual": "tsx scripts/verify-charts.mts"
   },
   "dependencies": {
+    "dompurify": "^3.2.6",
     "lit": "^3.3.3",
+    "marked": "^15.0.12",
     "uplot": "^1.6.32"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.2.0",
     "jsdom": "^26.1.0",
     "playwright": "^1.52.0",
     "tsx": "^4.19.4",

@@ -9,16 +9,22 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from ..config import BatteryConfig, ControlConfig
+from ..config import BatteryConfig, ControlConfig, GridChargeConfig
 from ..models import Capability, utcnow
 
 log = logging.getLogger("control.safety")
 
 
 class SafetyGuard:
-    def __init__(self, battery: BatteryConfig, control: ControlConfig) -> None:
+    def __init__(
+        self,
+        battery: BatteryConfig,
+        control: ControlConfig,
+        grid_charge: GridChargeConfig | None = None,
+    ) -> None:
         self._battery = battery
         self._control = control
+        self._grid_charge = grid_charge or GridChargeConfig()
         # capability -> (last_write_ts, last_value)
         self._last_write: dict[Capability, tuple[datetime, object]] = {}
 
@@ -27,7 +33,7 @@ class SafetyGuard:
     ) -> tuple[float | bool, str | None]:
         """Clamp a value to its hardware-safe bounds. Returns (value, note)."""
         if capability is Capability.MAX_GRID_CHARGE_CURRENT:
-            v = max(0.0, min(self._battery.max_grid_charge_a, float(value)))
+            v = max(0.0, min(self._grid_charge.max_grid_charge_a, float(value)))
             note = None if v == float(value) else "grid charge current clamped"
             return v, note
         if capability is Capability.GRID_CHARGE_ENABLE:
@@ -44,9 +50,9 @@ class SafetyGuard:
             amps = float(value)
             if amps < 0:
                 return "negative grid charge current"
-            if amps > self._battery.max_grid_charge_a:
+            if amps > self._grid_charge.max_grid_charge_a:
                 return (
-                    f"exceeds max_grid_charge_a ({self._battery.max_grid_charge_a} A)"
+                    f"exceeds max_grid_charge_a ({self._grid_charge.max_grid_charge_a} A)"
                 )
         return None
 

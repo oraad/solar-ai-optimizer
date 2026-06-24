@@ -158,6 +158,7 @@ class Orchestrator:
             self.ha,
             cfg.battery,
             cfg.control,
+            cfg.grid_charge,
             self.snapshot_store,
         )
         self._mpc = self._try_load_mpc() if cfg.engine.mode == "mpc" else None

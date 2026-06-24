@@ -81,7 +81,7 @@ class ReactiveGrid:
         last_amps: float | None = None,
     ) -> GridChargeResult:
         """Grid charge on/off + target amps (ramp or legacy max-or-off)."""
-        max_a = self._battery.max_grid_charge_a
+        max_a = self._grid_charge.max_grid_charge_a
 
         if not self._grid_charge.ramp_enabled:
             return self._legacy_actions(telemetry, target_soc, max_a)

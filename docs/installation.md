@@ -49,8 +49,10 @@ Optional environment overrides go in `docker-compose.yml` `environment:` or an `
 
 ### Dashboard updates (optional)
 
-Admins can check for new releases under **Settings → Software updates**. The panel shows
-the current version, latest GitHub release notes, and manual upgrade steps.
+Admins can check for new releases under **Settings → Software updates**. The panel lists
+recent stable releases with formatted release notes. On Docker self-update hosts, pick
+**Install** on any version (upgrade or downgrade); a data backup is created automatically
+before each install. Use **Restore** in the backups section if an install fails.
 
 To enable **one-click updates** from the dashboard (pull image and recreate the container),
 use the self-update overlay. This mounts the host Docker socket into the app container —
@@ -60,10 +62,15 @@ only use on trusted homelab hosts:
 docker compose -f docker-compose.yml -f docker-compose.self-update.yml up -d
 ```
 
+Each install pins `SELF_UPDATE_IMAGE` to the selected tag (e.g. `ghcr.io/oraad/solar-ai-optimizer:0.5.8`).
+To track `:latest` again, install the newest release from the picker or set the env var manually
+when recreating the container.
+
 !!! note "Image version"
-    One-click update requires **v0.5.5 or newer** (the image includes the Docker CLI via
-    `docker-cli`). If you enabled self-update on v0.5.2–0.5.4, run `docker pull` and recreate
-    the container once manually before using **Update now** in the dashboard.
+    One-click install requires **v0.5.5 or newer** (the image includes the Docker CLI via
+    `docker-cli`). Releases below v0.5.5 cannot be installed via the dashboard picker.
+    If you enabled self-update on v0.5.2–0.5.4, run `docker pull` and recreate the container
+    once manually before using the version picker.
 
 ---
 

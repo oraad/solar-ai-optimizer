@@ -8,7 +8,6 @@ ha:
 
 battery:
   capacity_kwh: 10.0
-  max_grid_charge_a: 60.0
   nominal_voltage: 51.2
   min_soc_floor: 20.0
   max_soc_ceiling: 100.0
@@ -76,6 +75,7 @@ grid_charge:
     - load_power
     - solar_bridge
     - blackout_risk
+  max_grid_charge_a: 60.0
   min_grid_charge_a: 5.0
   ramp_step_a: 10.0
   off_threshold_a: 1.0

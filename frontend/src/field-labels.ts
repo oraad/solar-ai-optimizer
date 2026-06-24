@@ -34,8 +34,6 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
 
     capacity_kwh: "Capacity (kWh)",
 
-    max_grid_charge_a: "Max grid charge current (A)",
-
     nominal_voltage: "Nominal voltage (V)",
 
     min_soc_floor: "Minimum SOC floor (%)",
@@ -123,6 +121,8 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
   grid_charge: {
 
     ramp_enabled: "Ramp grid charge current",
+
+    max_grid_charge_a: "Max grid charge current (A)",
 
     min_grid_charge_a: "Min grid charge current (A)",
 

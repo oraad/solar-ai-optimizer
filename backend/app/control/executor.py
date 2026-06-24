@@ -13,7 +13,7 @@ from datetime import datetime
 
 from ..adapters.base import InverterAdapter
 from ..adapters.ha_entity import _to_bool
-from ..config import BatteryConfig, ControlConfig, LoadTier
+from ..config import BatteryConfig, ControlConfig, GridChargeConfig, LoadTier
 from ..ha.client import HAClient
 from ..ha.device_discovery import discover_device_companions
 from ..ha.entity_restore import (
@@ -45,13 +45,15 @@ class Executor:
         ha: HAClient,
         battery: BatteryConfig,
         control: ControlConfig,
+        grid_charge: GridChargeConfig | None = None,
         snapshot_store: ShedSnapshotStore | None = None,
     ) -> None:
         self._adapter = adapter
         self._ha = ha
         self._battery = battery
         self._control = control
-        self._guard = SafetyGuard(battery, control)
+        self._grid_charge = grid_charge or GridChargeConfig()
+        self._guard = SafetyGuard(battery, control, self._grid_charge)
         self._snapshots = snapshot_store
         self._verify_delay = 1.5
         self._switch_last_write: dict[str, tuple[datetime, bool]] = {}
@@ -419,7 +421,7 @@ class Executor:
     ) -> list[ExecutionResult]:
         log.warning("Applying fail-safe: grid charge ON at max current.")
         amps, _ = self._guard.clamp(
-            Capability.MAX_GRID_CHARGE_CURRENT, self._battery.max_grid_charge_a
+            Capability.MAX_GRID_CHARGE_CURRENT, self._grid_charge.max_grid_charge_a
         )
         pairs: list[tuple[Capability, float | bool]] = [
             (Capability.GRID_CHARGE_ENABLE, True),

@@ -139,7 +139,7 @@ class MPCEngine:
         floor_wh = cap_wh * self._battery.min_soc_floor / 100.0
         eff = self._battery.round_trip_efficiency
         dt = 1.0  # forecast is hourly
-        max_power_w = self._battery.max_grid_charge_a * self._battery.nominal_voltage
+        max_power_w = self._grid_charge.max_grid_charge_a * self._battery.nominal_voltage
         max_charge_w = max_discharge_w = max_power_w
 
         # Align hourly solar to load timeline over the horizon.

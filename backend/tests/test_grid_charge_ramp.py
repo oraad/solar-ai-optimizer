@@ -25,13 +25,18 @@ from app.models import (
 def _battery(**kwargs) -> BatteryConfig:
     defaults = dict(
         capacity_kwh=10.0,
-        max_grid_charge_a=60.0,
         nominal_voltage=51.2,
         min_soc_floor=20.0,
         max_soc_ceiling=100.0,
     )
     defaults.update(kwargs)
     return BatteryConfig(**defaults)
+
+
+def _grid_charge(**kwargs) -> GridChargeConfig:
+    defaults = dict(ramp_enabled=True, max_grid_charge_a=60.0)
+    defaults.update(kwargs)
+    return GridChargeConfig(**defaults)
 
 
 def _telemetry(**kwargs) -> Telemetry:
@@ -57,7 +62,7 @@ def _reserve(target: float = 55.0) -> ReserveTarget:
 
 def _ctx(**kwargs) -> RampContext:
     battery = kwargs.pop("battery", _battery())
-    grid_charge = kwargs.pop("grid_charge", GridChargeConfig(ramp_enabled=True))
+    grid_charge = kwargs.pop("grid_charge", _grid_charge())
     defaults = dict(
         telemetry=_telemetry(),
         forecast=None,

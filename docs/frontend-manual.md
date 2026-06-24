@@ -234,13 +234,17 @@ Per-tier toggles:
 
 ### Software updates
 
-Under **Software updates** (admin), the dashboard checks GitHub for new releases, shows
-release notes, and offers **Update now** when self-update is enabled (Docker Compose
-with socket mount). Use **Check for updates** to force a fresh release lookup. The top
-bar **UPDATE** badge appears when a newer version is available.
+Under **Software updates** (admin), the dashboard lists recent GitHub releases with
+**Markdown-formatted** release notes. On Docker self-update hosts, use **Install** on any
+stable version. Downgrades show an extra warning; a `/app/data` backup is created before
+each install. If the service does not come back after an install, use **Restore** from the
+backups section. Use **Check for updates** to refresh the release list. The top bar
+**UPDATE** badge appears when a newer version is available.
+
+Home Assistant add-on installs are updated via Supervisor (the release list is informational).
 
 !!! note "Image version"
-    One-click update requires **v0.5.5+** (Docker CLI in the image). v0.5.2–0.5.4 need a
+    One-click install requires **v0.5.5+** (Docker CLI in the image). v0.5.2–0.5.4 need a
     manual `docker pull` and recreate once — see [Installation](installation.md).
 
 ### Toast notifications

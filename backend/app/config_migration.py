@@ -10,7 +10,7 @@ import yaml
 
 log = logging.getLogger("config_migration")
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 SCHEMA_VERSION_KEY = "schema_version"
 OVERRIDES_KEY = "overrides"
 
@@ -65,9 +65,40 @@ def migrate_v1_to_v2(overrides: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def migrate_v2_to_v3(overrides: dict[str, Any]) -> dict[str, Any]:
+    """Move max_grid_charge_a from battery to grid_charge."""
+    out = dict(overrides)
+
+    battery = out.get("battery")
+    if not isinstance(battery, dict):
+        return out
+
+    battery = dict(battery)
+    legacy_max = battery.pop("max_grid_charge_a", None)
+    if legacy_max is None:
+        return out
+
+    grid_charge = out.get("grid_charge")
+    if not isinstance(grid_charge, dict):
+        grid_charge = {}
+    else:
+        grid_charge = dict(grid_charge)
+
+    if grid_charge.get("max_grid_charge_a") is None:
+        grid_charge["max_grid_charge_a"] = legacy_max
+        log.info(
+            "Migrated battery.max_grid_charge_a -> grid_charge.max_grid_charge_a (%s A)",
+            legacy_max,
+        )
+    out["grid_charge"] = grid_charge
+    out["battery"] = battery
+    return out
+
+
 MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = [
     (0, 1, migrate_v0_to_v1),
     (1, 2, migrate_v1_to_v2),
+    (2, 3, migrate_v2_to_v3),
 ]
 
 

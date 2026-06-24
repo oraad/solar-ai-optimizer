@@ -69,8 +69,25 @@ def test_migrate_v1_to_v2_max_charge_a():
             },
         }
     )
-    assert version == 2
-    assert overrides["battery"]["max_grid_charge_a"] == 100.0
-    assert "max_charge_a" not in overrides["battery"]
+    assert version == CURRENT_SCHEMA_VERSION
+    assert overrides["grid_charge"]["max_grid_charge_a"] == 100.0
+    assert "max_grid_charge_a" not in overrides.get("battery", {})
+    assert "max_charge_a" not in overrides.get("battery", {})
     assert "work_mode" not in overrides["inverter"]["write"]
     assert "work_modes" not in overrides["inverter"]
+
+
+def test_migrate_v2_to_v3_moves_max_to_grid_charge():
+    overrides, version = migrate_overrides(
+        {
+            "schema_version": 2,
+            "overrides": {
+                "battery": {"max_grid_charge_a": 80.0, "capacity_kwh": 10.0},
+                "grid_charge": {"min_grid_charge_a": 5.0},
+            },
+        }
+    )
+    assert version == CURRENT_SCHEMA_VERSION
+    assert overrides["grid_charge"]["max_grid_charge_a"] == 80.0
+    assert overrides["grid_charge"]["min_grid_charge_a"] == 5.0
+    assert "max_grid_charge_a" not in overrides["battery"]

@@ -147,6 +147,32 @@ export interface SessionInfo {
 
 export type DeploymentKind = "addon" | "docker" | "compose" | "unknown";
 
+export type ReleaseRelation = "current" | "newer" | "older";
+
+export interface ReleaseSummary {
+  version: string;
+  tag_name: string;
+  published_at: string | null;
+  release_url: string | null;
+  release_notes: string | null;
+  relation: ReleaseRelation;
+  installable: boolean;
+  image: string;
+  apply_instructions?: string | null;
+}
+
+export interface UpdateBackup {
+  name: string;
+  created_at: string;
+  size_bytes: number;
+  before_version?: string | null;
+}
+
+export interface UpdateFailedInfo {
+  message: string;
+  backup?: string | null;
+}
+
 export interface UpdateInfo {
   current_version: string;
   latest_version: string | null;
@@ -160,6 +186,12 @@ export interface UpdateInfo {
   update_in_progress?: boolean;
   release_checked_at?: string | null;
   release_from_cache?: boolean;
+  releases?: ReleaseSummary[];
+  previous_version?: string | null;
+  min_self_update_version?: string;
+  backups?: UpdateBackup[];
+  downgrade_warning?: string;
+  update_failed?: UpdateFailedInfo | null;
 }
 
 export interface DecisionHistoryRow {

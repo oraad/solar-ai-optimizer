@@ -9,7 +9,8 @@ import { sharedStyles } from "../styles.js";
 import { dismissToast, runWithToast, showToast, updateToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
-import type { AppConfigView, EntityInfo, SessionInfo, SystemStatus, UpdateInfo } from "../types.js";
+import type { AppConfigView, EntityInfo, ReleaseSummary, SessionInfo, SystemStatus, UpdateInfo } from "../types.js";
+import { renderMarkdown } from "../markdown.js";
 
 type Section = Record<string, unknown>;
 
@@ -42,6 +43,10 @@ const DEFAULT_PRIORITY_ORDER = [
   "savings",
   "self_sufficiency",
 ] as const;
+
+const SCHEMA_DOWNGRADE_NOTE =
+  "If you saved config on a newer release, downgrading may ignore newer settings keys " +
+  "(e.g. grid_charge.max_grid_charge_a on releases before schema v3).";
 
 type OptimizationPriorityKey = (typeof DEFAULT_PRIORITY_ORDER)[number];
 
@@ -100,9 +105,59 @@ export class SettingsPanel extends LitElement {
         background: var(--panel-2);
         font-size: 0.8rem;
         line-height: 1.45;
-        white-space: pre-wrap;
         word-break: break-word;
       }
+      .release-notes :is(h1, h2, h3, h4) { margin: 0.6em 0 0.35em; font-size: 0.95rem; }
+      .release-notes :is(ul, ol) { margin: 0.35em 0; padding-left: 1.25em; }
+      .release-notes p { margin: 0.35em 0; }
+      .release-notes a { color: var(--accent, #6ad); }
+      .release-notes code {
+        font-family: ui-monospace, monospace;
+        font-size: 0.85em;
+        background: var(--panel);
+        padding: 1px 4px;
+        border-radius: 4px;
+      }
+      .release-notes pre {
+        overflow: auto;
+        padding: 8px;
+        border-radius: 6px;
+        background: var(--panel);
+        font-size: 0.75rem;
+      }
+      .release-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.8rem; }
+      .release-table th, .release-table td {
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .release-table th { color: var(--muted); font-weight: 600; }
+      .release-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        background: color-mix(in srgb, var(--muted) 18%, transparent);
+        color: var(--muted);
+      }
+      .release-badge.current { color: var(--good, #6c6); background: color-mix(in srgb, var(--good, #6c6) 18%, transparent); }
+      .release-badge.newer { color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+      .settings-footer {
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .recovery-banner {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid color-mix(in srgb, var(--warn, #c90) 45%, var(--border));
+        background: color-mix(in srgb, var(--warn, #c90) 12%, var(--panel-2));
+      }
+      .recovery-banner p { margin: 0 0 8px; font-size: 0.8rem; line-height: 1.45; }
       .upgrade-cmd {
         margin-top: 10px;
         padding: 10px 12px;
@@ -144,6 +199,8 @@ export class SettingsPanel extends LitElement {
   @state() private mlLoadEnabled = false;
   @state() private updateBusy = false;
   @state() private updateChecking = false;
+  @state() private expandedRelease: string | null = null;
+  @state() private installRecoveryOffer = false;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -629,6 +686,7 @@ export class SettingsPanel extends LitElement {
     try {
       const info = await api.updateInfo({ refresh: true });
       this.updateInfo = info;
+      if (!info.update_failed) this.installRecoveryOffer = false;
       this.dispatchEvent(
         new CustomEvent("solar-update-info", { detail: info, bubbles: true, composed: true }),
       );
@@ -678,17 +736,50 @@ export class SettingsPanel extends LitElement {
     return false;
   }
 
-  private async applyUpdate(): Promise<void> {
-    if (!this.updateInfo?.can_apply || !this.updateInfo.update_available) return;
-    if (
-      !window.confirm(
-        "Install the latest release now? The service will restart and this page may disconnect briefly.",
-      )
-    ) {
-      return;
+  private versionBelowMin(version: string, minVersion?: string): boolean {
+    if (!minVersion) return false;
+    const parse = (v: string) =>
+      v.replace(/^v/i, "").split(".").map((n) => parseInt(n, 10) || 0);
+    const a = parse(version);
+    const b = parse(minVersion);
+    for (let i = 0; i < 3; i++) {
+      if ((a[i] ?? 0) < (b[i] ?? 0)) return true;
+      if ((a[i] ?? 0) > (b[i] ?? 0)) return false;
     }
+    return false;
+  }
+
+  private formatBackupSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  private toggleReleaseNotes(version: string): void {
+    this.expandedRelease = this.expandedRelease === version ? null : version;
+  }
+
+  private async applyUpdate(version?: string): Promise<void> {
+    const info = this.updateInfo;
+    if (!info?.can_apply) return;
+    const release = version
+      ? info.releases?.find((r) => r.version === version)
+      : info.releases?.find((r) => r.relation === "newer");
+    const target = version ?? release?.version ?? info.latest_version;
+    if (!target) return;
+    if (release?.relation === "current") return;
+
+    const isDowngrade = release?.relation === "older";
+    const downgradeWarning = info.downgrade_warning ?? "";
+    const schemaNote = isDowngrade ? `\n\n${SCHEMA_DOWNGRADE_NOTE}` : "";
+    const confirmMsg = isDowngrade
+      ? `Install v${target}? This is an older release.\n\n${downgradeWarning}${schemaNote}`
+      : `Install v${target} now? The service will restart and this page may disconnect briefly.`;
+    if (!window.confirm(confirmMsg)) return;
+
     const toastId = "update-apply";
     this.updateBusy = true;
+    this.installRecoveryOffer = false;
     let reloaded = false;
     showToast({
       id: toastId,
@@ -697,7 +788,7 @@ export class SettingsPanel extends LitElement {
       persistent: true,
     });
     try {
-      await api.applyUpdate();
+      await api.applyUpdate(target);
       updateToast(toastId, { message: "Pulling image and restarting container…" });
       const ok = await this.waitForHealth(120_000, toastId);
       if (ok) {
@@ -705,10 +796,11 @@ export class SettingsPanel extends LitElement {
         reloaded = true;
         window.location.reload();
       } else {
+        this.installRecoveryOffer = true;
         dismissToast(toastId);
         showToast({
           message:
-            "Update started but the service did not respond in time. Check container logs on the host.",
+            "Update started but the service did not respond in time. Use Restore below to recover from the pre-install backup.",
           variant: "error",
           persistent: true,
         });
@@ -726,10 +818,156 @@ export class SettingsPanel extends LitElement {
     }
   }
 
+  private async restoreBackup(backupName?: string): Promise<void> {
+    const info = this.updateInfo;
+    if (!info?.can_apply) return;
+    const name = backupName ?? info.backups?.[0]?.name;
+    if (!name) return;
+    if (
+      !window.confirm(
+        `Restore backup ${name}? This overwrites current /app/data and restarts the service.`,
+      )
+    ) {
+      return;
+    }
+    const toastId = "update-restore";
+    this.updateBusy = true;
+    this.installRecoveryOffer = false;
+    let reloaded = false;
+    showToast({
+      id: toastId,
+      message: "Starting restore…",
+      variant: "loading",
+      persistent: true,
+    });
+    try {
+      await api.restoreUpdateBackup(name);
+      updateToast(toastId, { message: "Restoring data and restarting container…" });
+      const ok = await this.waitForHealth(120_000, toastId);
+      if (ok) {
+        updateToast(toastId, { message: "Restore complete. Reloading…", variant: "success" });
+        reloaded = true;
+        window.location.reload();
+      } else {
+        dismissToast(toastId);
+        showToast({
+          message: "Restore started but the service did not respond in time. Check container logs on the host.",
+          variant: "error",
+          persistent: true,
+        });
+      }
+    } catch (e) {
+      dismissToast(toastId);
+      showToast({
+        message: e instanceof Error ? e.message : String(e),
+        variant: "error",
+        persistent: true,
+      });
+    } finally {
+      this.updateBusy = false;
+      if (!reloaded) void this.refreshUpdateInfo();
+    }
+  }
+
+  private recoveryBackupName(): string | undefined {
+    const failed = this.updateInfo?.update_failed;
+    if (failed?.backup) {
+      const name = failed.backup.split("/").pop();
+      if (name) return name;
+    }
+    return this.updateInfo?.backups?.[0]?.name;
+  }
+
+  private renderRecoveryBanner() {
+    const failed = this.updateInfo?.update_failed;
+    if (!failed && !this.installRecoveryOffer) return null;
+    const backup = this.recoveryBackupName();
+    const message =
+      failed?.message ??
+      "The service did not respond after the last install attempt. Restore the pre-install backup to recover.";
+    return html`
+      <div class="recovery-banner">
+        <p>${message}</p>
+        ${backup
+          ? html`
+              <div class="buttons">
+                <button
+                  class="primary"
+                  ?disabled=${this.updateBusy || Boolean(this.updateInfo?.update_in_progress)}
+                  @click=${() => void this.restoreBackup(backup)}
+                >
+                  Restore last backup
+                </button>
+              </div>
+            `
+          : null}
+      </div>
+    `;
+  }
+
+  private renderReleaseRow(release: ReleaseSummary, info: UpdateInfo) {
+    const minVer = info.min_self_update_version;
+    const belowMin = this.versionBelowMin(release.version, minVer);
+    const expanded = this.expandedRelease === release.version;
+    const badge =
+      release.relation === "current"
+        ? html`<span class="release-badge current">current</span>`
+        : release.relation === "newer"
+          ? html`<span class="release-badge newer">newer</span>`
+          : null;
+
+    return html`
+      <tr>
+        <td>
+          <strong>v${release.version}</strong>${badge}
+          ${release.published_at
+            ? html`<div class="label">${this.formatPublishedAt(release.published_at)}</div>`
+            : null}
+        </td>
+        <td>
+          ${release.release_notes
+            ? html`
+                <button type="button" class="link" @click=${() => this.toggleReleaseNotes(release.version)}>
+                  ${expanded ? "Hide notes" : "Show notes"}
+                </button>
+                ${expanded
+                  ? html`<div class="release-notes">${renderMarkdown(release.release_notes)}</div>`
+                  : null}
+              `
+            : html`<span class="label">—</span>`}
+          ${!info.can_apply && info.deployment !== "addon" && expanded && release.apply_instructions
+            ? html`<pre class="upgrade-cmd">${release.apply_instructions}</pre>`
+            : null}
+        </td>
+        <td>
+          ${info.can_apply && release.installable
+            ? html`
+                <button
+                  class=${release.relation === "newer" ? "primary" : ""}
+                  ?disabled=${this.updateBusy || Boolean(info.update_in_progress) || belowMin}
+                  title=${belowMin ? `Requires v${minVer}+ for one-click install` : ""}
+                  @click=${() => void this.applyUpdate(release.version)}
+                >
+                  Install
+                </button>
+              `
+            : release.relation === "current"
+              ? html`<span class="label">Running</span>`
+              : belowMin
+                ? html`<span class="label">Below v${minVer}</span>`
+                : info.deployment === "addon"
+                  ? html`<span class="label">Use HA Supervisor</span>`
+                  : null}
+        </td>
+      </tr>
+    `;
+  }
+
   private renderUpdatesSection() {
     const info = this.updateInfo;
     const current = info?.current_version ?? this.session?.version ?? "—";
     const latest = info?.latest_version;
+    const releases = info?.releases ?? [];
     const upToDate = info && !info.update_available && latest;
 
     return html`
@@ -742,53 +980,81 @@ export class SettingsPanel extends LitElement {
         </summary>
         <p class="label">
           Running <strong>v${current}</strong>
-          ${latest ? html` · latest release <strong>v${latest}</strong>` : null}
-          ${info?.published_at && info.update_available
-            ? html` · published ${this.formatPublishedAt(info.published_at)}`
+          ${info?.previous_version
+            ? html` · previously <strong>v${info.previous_version}</strong>`
             : null}
+          ${latest ? html` · latest release <strong>v${latest}</strong>` : null}
         </p>
         ${upToDate
           ? html`<p class="label">You are on the latest release.</p>`
           : info?.update_available
             ? html`<p class="label">A newer release is available.</p>`
-            : html`<p class="label">Could not check for updates right now.</p>`}
-        ${info?.release_url
-          ? html`<p class="label">
-              <a href=${info.release_url} target="_blank" rel="noopener noreferrer">View on GitHub</a>
-            </p>`
+            : releases.length
+              ? null
+              : html`<p class="label">Could not check for updates right now.</p>`}
+        ${info?.deployment === "addon"
+          ? html`<p class="label">Install specific versions via Home Assistant Supervisor.</p>`
           : null}
-        ${info?.release_notes
-          ? html`<div class="release-notes">${info.release_notes}</div>`
-          : null}
-        ${info?.can_apply && info.update_available
+        ${this.renderRecoveryBanner()}
+        ${releases.length
           ? html`
-              <div class="buttons">
-                <button
-                  class="primary"
-                  ?disabled=${this.updateBusy || info.update_in_progress}
-                  @click=${() => void this.applyUpdate()}
-                >
-                  ${this.updateBusy || info.update_in_progress ? "Updating…" : "Update now"}
-                </button>
-                <button type="button" ?disabled=${this.updateBusy} @click=${() => void this.refreshUpdateInfo()}>
-                  ${this.updateChecking ? "Checking…" : "Check again"}
-                </button>
-              </div>
+              <table class="release-table">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Release notes</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${releases.map((r) => this.renderReleaseRow(r, info!))}
+                </tbody>
+              </table>
             `
-          : html`
-              ${info?.apply_instructions
-                ? html`<pre class="upgrade-cmd">${info.apply_instructions}</pre>`
-                : null}
-              <div class="buttons">
-                <button
-                  type="button"
-                  ?disabled=${this.updateChecking}
-                  @click=${() => void this.refreshUpdateInfo()}
-                >
-                  ${this.updateChecking ? "Checking…" : "Check for updates"}
-                </button>
-              </div>
-            `}
+          : info?.release_notes
+            ? html`<div class="release-notes">${renderMarkdown(info.release_notes)}</div>`
+            : null}
+        ${info?.can_apply
+          ? null
+          : info?.apply_instructions
+            ? html`<pre class="upgrade-cmd">${info.apply_instructions}</pre>`
+            : null}
+        ${info?.can_apply && info.backups && info.backups.length
+          ? html`
+              <details style="margin-top:12px">
+                <summary>Data backups (${info.backups.length})</summary>
+                <p class="label">Automatic backups created before each install.</p>
+                ${info.backups.map(
+                  (b) => html`
+                    <div class="row" style="margin:6px 0">
+                      <span style="flex:1">
+                        ${b.name}
+                        <span class="label">
+                          · ${this.formatPublishedAt(b.created_at)} · ${this.formatBackupSize(b.size_bytes)}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        ?disabled=${this.updateBusy || Boolean(info.update_in_progress)}
+                        @click=${() => void this.restoreBackup(b.name)}
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  `,
+                )}
+              </details>
+            `
+          : null}
+        <div class="buttons">
+          <button
+            type="button"
+            ?disabled=${this.updateChecking || this.updateBusy}
+            @click=${() => void this.refreshUpdateInfo()}
+          >
+            ${this.updateChecking ? "Checking…" : "Check for updates"}
+          </button>
+        </div>
       </details>
     `;
   }
@@ -1126,6 +1392,12 @@ export class SettingsPanel extends LitElement {
       order.push(key);
     }
     gc.factor_order = order.length ? order : [...DEFAULT_GRID_CHARGE_FACTORS];
+    const maxA = Number(gc.max_grid_charge_a ?? 60);
+    const minA = Number(gc.min_grid_charge_a ?? 5);
+    if (Number.isFinite(maxA) && Number.isFinite(minA)) {
+      gc.max_grid_charge_a = Math.max(maxA, minA);
+      gc.min_grid_charge_a = Math.min(minA, gc.max_grid_charge_a as number);
+    }
   }
 
   private renderGridChargeSection() {
@@ -1153,6 +1425,19 @@ export class SettingsPanel extends LitElement {
               .checked=${Boolean(gc.ramp_enabled ?? true)}
               @change=${(e: Event) =>
                 this.setGridChargeField("ramp_enabled", (e.target as HTMLInputElement).checked)}
+            />
+          </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "max_grid_charge_a")}</label>
+            <input
+              type="number"
+              step="any"
+              .value=${String(gc.max_grid_charge_a ?? 60)}
+              @input=${(e: Event) =>
+                this.setGridChargeField(
+                  "max_grid_charge_a",
+                  Number((e.target as HTMLInputElement).value),
+                )}
             />
           </div>
           <div class="field">
@@ -1244,15 +1529,6 @@ export class SettingsPanel extends LitElement {
         ${this.renderTemperature()}
         ${this.renderInverterMap()}
         ${this.renderGridChargeSection()}
-        <div class="buttons">
-          <button class="primary" @click=${() => void this.save()}>Save changes</button>
-          <button @click=${() => void this.reset()}>Revert to file</button>
-          <button @click=${() => void this.exportConfig()}>Export config</button>
-          <label style="padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--border)">
-            Import config
-            <input type="file" accept="application/json" hidden @change=${(e: Event) => this.importConfig(e)} />
-          </label>
-        </div>
 
         <details>
           <summary>Advanced: raw config + entity map (JSON)</summary>
@@ -1276,6 +1552,16 @@ export class SettingsPanel extends LitElement {
             <button @click=${() => void this.retrainModel()}>Retrain from telemetry</button>
           </div>
         </details>
+
+        <div class="buttons settings-footer">
+          <button class="primary" @click=${() => void this.save()}>Save changes</button>
+          <button @click=${() => void this.reset()}>Revert to file</button>
+          <button @click=${() => void this.exportConfig()}>Export config</button>
+          <label style="padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--border)">
+            Import config
+            <input type="file" accept="application/json" hidden @change=${(e: Event) => this.importConfig(e)} />
+          </label>
+        </div>
 
       </div>
     `;

@@ -46,7 +46,7 @@ def _clamp(value: float, lo: float, hi: float) -> float:
 
 
 def _max_amps(ctx: RampContext) -> float:
-    return ctx.battery.max_grid_charge_a
+    return ctx.grid_charge.max_grid_charge_a
 
 
 def _resolve_site_tz(tz_name: str) -> timezone | ZoneInfo:

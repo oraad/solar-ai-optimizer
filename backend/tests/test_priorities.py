@@ -118,7 +118,11 @@ def test_blend_ceiling_trim_strengthens_when_resilience_promoted():
 
 
 def test_savings_first_raises_grid_window_ceiling():
-    battery = BatteryConfig(max_grid_charge_a=60.0)
+    battery = BatteryConfig()
+    grid_charge = GridChargeConfig(
+        max_grid_charge_a=60.0,
+        factor_order=[GridChargeFactor.grid_window],
+    )
     reserve = ReserveTarget(
         target_soc=55.0,
         solar_bridge_soc=55.0,
@@ -134,7 +138,7 @@ def test_savings_first_raises_grid_window_ceiling():
         blackout_risk=BlackoutRisk.LOW,
         blackout_risk_score=0.2,
         battery=battery,
-        grid_charge=GridChargeConfig(factor_order=[GridChargeFactor.grid_window]),
+        grid_charge=grid_charge,
     )
     ctx_default = RampContext(
         **base,

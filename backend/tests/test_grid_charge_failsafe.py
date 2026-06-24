@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.adapters.base import InverterAdapter
-from app.config import BatteryConfig, ControlConfig
+from app.config import BatteryConfig, ControlConfig, GridChargeConfig
 from app.control.executor import Executor
 from app.ha.client import HAClient
 from app.models import Capability, Telemetry, utcnow
@@ -42,9 +42,10 @@ def executor(monkeypatch: pytest.MonkeyPatch) -> tuple[Executor, _StubAdapter]:
     adapter = _StubAdapter()
     ha = MagicMock(spec=HAClient)
     ha.is_stale = MagicMock(return_value=False)
-    battery = BatteryConfig(max_grid_charge_a=72.0)
+    battery = BatteryConfig()
+    grid_charge = GridChargeConfig(max_grid_charge_a=72.0)
     control = ControlConfig()
-    ex = Executor(adapter, ha, battery, control)
+    ex = Executor(adapter, ha, battery, control, grid_charge)
     ex._verify = AsyncMock(return_value=True)  # noqa: SLF001
     return ex, adapter
 

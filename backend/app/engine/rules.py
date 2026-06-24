@@ -210,7 +210,7 @@ class RuleEngine:
         actions: list[ControlAction] = []
         advisories: list[str] = []
         grid_charge_plan: GridChargePlan | None = None
-        max_a = self._battery.max_grid_charge_a
+        max_a = self._grid_charge.max_grid_charge_a
 
         # Blackout risk (needed before grid charge ramp factors).
         risk, score = self._blackout_risk(telemetry, reserve, forecast)

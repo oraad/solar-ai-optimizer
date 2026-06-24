@@ -177,7 +177,7 @@ Before reloading, edit placeholders:
 
 - `switch.YOUR_GRID_CHARGE_ENTITY` — same as Settings → Inverter → Grid charge enable
 - `number.YOUR_MAX_GRID_CHARGE_CURRENT` — same as Settings → Inverter → Max grid charge current
-- `input_number.solar_optimizer_max_grid_charge_a` **initial** — match Settings → Battery → Max grid charge current (A)
+- `input_number.solar_optimizer_max_grid_charge_a` **initial** — match Settings → Grid charge → Max grid charge current (A)
 
 Reload **helpers**, **templates**, and **automations**. Then configure the optimizer side:
 [Home Assistant fail-safe](home-assistant-failsafe.md).

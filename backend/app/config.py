@@ -152,7 +152,6 @@ class InverterConfig(BaseModel):
 
 class BatteryConfig(BaseModel):
     capacity_kwh: float = 10.0
-    max_grid_charge_a: float = 60.0
     nominal_voltage: float = 51.2
     min_soc_floor: float = 20.0
     max_soc_ceiling: float = 100.0
@@ -329,6 +328,7 @@ class GridChargeConfig(BaseModel):
     factor_order: list[GridChargeFactor] = Field(
         default_factory=lambda: list(_DEFAULT_FACTOR_ORDER)
     )
+    max_grid_charge_a: float = 60.0
     min_grid_charge_a: float = 5.0
     ramp_step_a: float = 10.0
     off_threshold_a: float = 1.0

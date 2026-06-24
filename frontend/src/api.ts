@@ -198,10 +198,26 @@ export const api = {
     const qs = opts?.refresh ? "?refresh=true" : "";
     return getJSON<UpdateInfo>(`/api/system/update${qs}`);
   },
-  applyUpdate: async (): Promise<void> => {
-    const res = await fetch(`${getBase()}/api/system/update`, fetchInit({ method: "POST" }));
-    if (res.status === 202) return;
+  applyUpdate: async (version?: string): Promise<{ target_version: string; is_downgrade: boolean }> => {
+    const body = version ? JSON.stringify({ version }) : "{}";
+    const res = await fetch(
+      `${getBase()}/api/system/update`,
+      fetchInit({ method: "POST", body, headers: { "Content-Type": "application/json" } }),
+    );
+    if (res.status === 202) {
+      return res.json() as Promise<{ target_version: string; is_downgrade: boolean }>;
+    }
     if (!res.ok) throw new Error(await parseError(res, "/api/system/update"));
+    throw new Error("Unexpected response from update endpoint.");
+  },
+  restoreUpdateBackup: async (backup?: string): Promise<void> => {
+    const body = backup ? JSON.stringify({ backup }) : "{}";
+    const res = await fetch(
+      `${getBase()}/api/system/update/restore`,
+      fetchInit({ method: "POST", body, headers: { "Content-Type": "application/json" } }),
+    );
+    if (res.status === 202) return;
+    if (!res.ok) throw new Error(await parseError(res, "/api/system/update/restore"));
   },
   health: () => getJSON<{ status: string }>("/api/health"),
 };

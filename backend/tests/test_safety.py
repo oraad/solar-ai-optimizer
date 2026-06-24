@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from app.config import BatteryConfig, ControlConfig
+from app.config import BatteryConfig, ControlConfig, GridChargeConfig
 from app.control.safety import SafetyGuard
 from app.models import Capability, utcnow
 
 
 def _guard() -> SafetyGuard:
-    battery = BatteryConfig(min_soc_floor=20.0, max_soc_ceiling=100.0, max_grid_charge_a=90.0)
+    battery = BatteryConfig(min_soc_floor=20.0, max_soc_ceiling=100.0)
+    grid_charge = GridChargeConfig(max_grid_charge_a=90.0)
     control = ControlConfig(min_write_interval_seconds=60, enforce_hard_bounds=True)
-    return SafetyGuard(battery, control)
+    return SafetyGuard(battery, control, grid_charge)
 
 
 def test_clamp_grid_charge_current():
@@ -64,7 +65,8 @@ def test_hard_bounds_rejects_negative():
 
 
 def test_hard_bounds_disabled_allows_clamp_path():
-    battery = BatteryConfig(min_soc_floor=20.0, max_soc_ceiling=100.0, max_grid_charge_a=90.0)
+    battery = BatteryConfig(min_soc_floor=20.0, max_soc_ceiling=100.0)
+    grid_charge = GridChargeConfig(max_grid_charge_a=90.0)
     control = ControlConfig(min_write_interval_seconds=60, enforce_hard_bounds=False)
-    g = SafetyGuard(battery, control)
+    g = SafetyGuard(battery, control, grid_charge)
     assert g.violates_hard_bounds(Capability.MAX_GRID_CHARGE_CURRENT, 200.0) is None

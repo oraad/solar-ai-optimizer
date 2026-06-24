@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-06-24
+
+### Added
+
+- **Settings → Software updates:** release picker to install any recent stable version (upgrade or downgrade); pre-install data backup; backup restore for Docker self-update hosts
+- `POST /api/system/update/restore` (admin) to recover from a failed install
+- Markdown rendering for GitHub release notes in the dashboard
+- Runtime config schema **v3** migration (`battery.max_grid_charge_a` → `grid_charge.max_grid_charge_a`)
+
+### Changed
+
+- **Max grid charge current (A)** moved from Battery settings to **Grid charge** (config key `grid_charge.max_grid_charge_a`)
+- Settings **Save changes** bar moved to the bottom of the panel (after Advanced and model sections)
+- Self-update pins `SELF_UPDATE_IMAGE` to the chosen release tag instead of always using `:latest`
+
+### Fixed
+
+- Restore after a failed upgrade now targets the pre-install release (`from_version`) instead of the broken target or an older `previous_image`
+- Stale self-update locks older than 30 minutes are cleared automatically; failed-update details are exposed in `GET /api/system/update` for recovery UI
+
+### Breaking
+
+- `battery.max_grid_charge_a` removed — use `grid_charge.max_grid_charge_a` (runtime overrides auto-migrate on load)
+
 ## [0.5.7] - 2026-06-24
 
 ### Added
@@ -241,6 +265,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.5.8]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.8
 [0.5.7]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.7
 [0.5.6]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.6
 [0.5.5]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.5

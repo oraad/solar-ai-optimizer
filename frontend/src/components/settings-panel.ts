@@ -2,11 +2,6 @@ import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { api, getApiToken, setApiToken } from "../api.js";
-import {
-  entityDatalistId,
-  hasEntitiesForDomains,
-  renderEntityDatalists,
-} from "../entity-datalists.js";
 import { entityLabel, fieldLabel, gridChargeFactorLabel, INVERTER_READ_ENTITY_KEYS, optimizationPriorityLabel, pvLabel, sectionTitle } from "../field-labels.js";
 import { entityHelp, fieldHelp, priorityEffectHelp, priorityRankBlurb, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
@@ -73,16 +68,6 @@ const WRITE_DOMAIN: Record<string, string> = {
   max_grid_charge_current: "number",
 };
 const WRITE_ENTITY_KEYS = Object.keys(WRITE_DOMAIN);
-
-const DATALIST_DOMAINS = [
-  "sensor",
-  "binary_sensor",
-  "switch",
-  "input_boolean",
-  "number",
-  "select",
-  "input_datetime",
-] as const;
 
 function isScalar(v: unknown): v is number | string | boolean {
   return typeof v === "number" || typeof v === "string" || typeof v === "boolean";
@@ -621,26 +606,15 @@ export class SettingsPanel extends LitElement {
   }
 
   // ----------------------------------------------------------- entity fields --
-  private renderDatalists() {
-    return renderEntityDatalists(
-      this.entities,
-      DATALIST_DOMAINS.map((d) => ({ id: entityDatalistId(d), domains: [d] })),
-    );
-  }
-
   private entityInput(section: string, group: string, key: string, domain: string) {
     const d = this.draft as unknown as Record<string, any>;
     const value = (d[section]?.[group]?.[key] ?? "") as string;
-    const listId = hasEntitiesForDomains(this.entities, [domain])
-      ? entityDatalistId(domain)
-      : "";
     return html`<div class="field">
       <label>${labelWithTip(entityLabel(key), entityHelp(key))}</label>
       <solar-entity-input
         .entityId=${value}
         .entities=${this.entities}
         .domains=${[domain]}
-        .listId=${listId}
         placeholder=${`${domain}.…`}
         @entity-id-change=${(e: CustomEvent<string | null>) =>
           this.setNested(section, group, key, e.detail)}
@@ -660,7 +634,6 @@ export class SettingsPanel extends LitElement {
           .entityId=${value}
           .entities=${this.entities}
           .domains=${["sensor"]}
-          .listId=${hasEntitiesForDomains(this.entities, ["sensor"]) ? entityDatalistId("sensor") : ""}
           placeholder="sensor.…"
           @entity-id-change=${(e: CustomEvent<string | null>) =>
             this.setNested("inverter", "read", "battery_power", e.detail)}
@@ -716,9 +689,6 @@ export class SettingsPanel extends LitElement {
               .entityId=${heartbeatEntity}
               .entities=${this.entities}
               .domains=${["input_datetime"]}
-              .listId=${hasEntitiesForDomains(this.entities, ["input_datetime"])
-                ? entityDatalistId("input_datetime")
-                : ""}
               placeholder="input_datetime.solar_optimizer_heartbeat"
               @entity-id-change=${(e: CustomEvent<string | null>) =>
                 this.setField("fail_safe", "heartbeat_entity", e.detail)}
@@ -1870,7 +1840,6 @@ export class SettingsPanel extends LitElement {
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
         <h3>Settings (config from UI)</h3>
-        ${this.renderDatalists()}
         ${this.renderHaSection()}
         ${this.renderFailSafeSection()}
         ${this.renderSecuritySection()}

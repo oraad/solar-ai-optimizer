@@ -1,13 +1,17 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { ifDefined } from "lit/directives/if-defined.js";
 
+import { filterEntitiesByDomains } from "../entity-datalists.js";
 import { entityDisplayName, resolveEntity } from "../entity-resolve.js";
 import type { EntityInfo } from "../types.js";
 
-/** Entity picker: stores entity_id, displays HA friendly name; uses parent shared datalist. */
+let datalistSeq = 0;
+
+/** Entity picker: stores entity_id, displays HA friendly name; owns a light-DOM datalist. */
 @customElement("solar-entity-input")
 export class EntityInput extends LitElement {
-  /** Light DOM so `list` can reference shared datalists in settings-panel. */
+  /** Light DOM so `list` can reference the co-located datalist. */
   createRenderRoot() {
     return this;
   }
@@ -32,12 +36,15 @@ export class EntityInput extends LitElement {
 
   @property() placeholder = "";
 
-  /** Shared datalist id from settings-panel, e.g. dl-sensor or dl-shed. */
-  @property() listId = "";
-
   @state() private editing = false;
 
   @state() private editText = "";
+
+  private readonly datalistId = `dl-ei-${++datalistSeq}`;
+
+  private filteredEntities(): EntityInfo[] {
+    return filterEntitiesByDomains(this.entities, this.domains);
+  }
 
   private displayValue(): string {
     if (this.editing) return this.editText;
@@ -88,17 +95,24 @@ export class EntityInput extends LitElement {
   }
 
   render() {
+    const opts = this.filteredEntities();
+    const listAttr = opts.length ? this.datalistId : undefined;
     return html`
       <input
         type="text"
         placeholder=${this.placeholder}
-        list=${this.listId || undefined}
+        list=${ifDefined(listAttr)}
         .value=${this.displayValue()}
         @focus=${this.onFocus}
         @blur=${this.onBlur}
         @change=${this.onChange}
         @input=${this.onInput}
       />
+      ${opts.length
+        ? html`<datalist id=${this.datalistId}>
+            ${opts.map((e) => html`<option value=${e.entity_id}>${e.name}</option>`)}
+          </datalist>`
+        : null}
     `;
   }
 }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.13] - 2026-06-25
+
+### Fixed
+
+- **Software updates:** release and backup dates always use ISO format (`YYYY-MM-DD HH:mm`) instead of US-style locale dates on en-US browsers
+
 ## [0.5.12] - 2026-06-24
 
 ### Fixed

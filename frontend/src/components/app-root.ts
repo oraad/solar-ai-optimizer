@@ -583,7 +583,7 @@ export class SolarApp extends LitElement {
     `;
   }
 
-  private renderStatusMenu(): ReturnType<typeof html> {
+  private renderStatusMenu(): ReturnType<typeof html> | null {
     const alerts = this.secondaryAlerts;
     if (!alerts.length) return null;
     return html`

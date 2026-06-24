@@ -40,7 +40,8 @@ PROXMOX_ENV_PREFIX = "/opt/solar-ai-optimizer"
 BACKUP_DIR = ".update-backups"
 BACKUP_RETENTION = 3
 UPDATE_LOCK_MAX_AGE_SECONDS = 30 * 60
-MIN_SELF_UPDATE_VERSION = "0.5.5"
+MIN_SELF_UPDATE_VERSION = "0.5.10"
+UPDATE_SCRIPT = "/app/scripts/docker-self-update.sh"
 RELEASES_LIST_LIMIT = 20
 
 DOWNGRADE_WARNING = (
@@ -51,7 +52,7 @@ DOWNGRADE_WARNING = (
 
 MISSING_DOCKER_CLI_DETAIL = (
     "Docker CLI is not available in this container. Pull "
-    "ghcr.io/oraad/solar-ai-optimizer:latest (v0.5.5+) and recreate the "
+    f"ghcr.io/oraad/solar-ai-optimizer:latest (v{MIN_SELF_UPDATE_VERSION}+) and recreate the "
     "container once manually; see docs/installation.md."
 )
 RELEASE_CACHE_TTL_SECONDS = 15 * 60
@@ -503,289 +504,128 @@ def _write_update_pending(
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def _shell_progress_block(operation: str) -> str:
-    """Shell helpers to write UPDATE_PROGRESS_FILE on the data volume."""
-    return f"""
-PROGRESS_FILE='{UPDATE_PROGRESS_FILE}'
-OPERATION='{operation}'
-STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u)"
-
-write_progress() {{
-  local stage="$1" msg="$2" detail="${{3:-}}"
-  local updated detail_json
-  updated="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u)"
-  detail_json=""
-  if [ -n "$detail" ]; then
-    detail_json=$(printf ', "pull_detail": "%s"' "$(printf '%s' "$detail" | tr '\\n' ' ' | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')")
-  fi
-  docker run --rm -i -v "${{DATA_VOL}}:/data" alpine sh -c "cat > /data/$PROGRESS_FILE" <<WPEOF
-{{"operation":"$OPERATION","stage":"$stage","message":"$msg"$detail_json,"from_version":"$FROM_VERSION","to_version":"$TO_VERSION","started_at":"$STARTED_AT","updated_at":"$updated"}}
-WPEOF
-}}
-
-mark_progress_failed() {{
-  write_progress "failed" "$1" || true
-}}
-"""
+def _current_container_image(settings: Settings) -> str | None:
+    """Image ref of the running app container (for restore helper spawn)."""
+    container = settings.self_update_container
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "-f", "{{.Config.Image}}", container],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    image = result.stdout.strip()
+    return image or None
 
 
-def _shell_run_container_block() -> str:
-    """Start solar-optimizer with a given image tag (rollback uses PREVIOUS_IMAGE)."""
-    return """
-run_container() {
-  local image="$1"
-  docker run -d --name "$CONTAINER" --restart unless-stopped \\
-    $ENV_ARGS \\
-    -e SELF_UPDATE_ENABLED=true \\
-    -e SELF_UPDATE_ENV_FILE="$ENV_FILE" \\
-    -e SELF_UPDATE_IMAGE="$image" \\
-    -v /var/run/docker.sock:/var/run/docker.sock \\
-    -v "${DATA_VOL}:${DATA_PATH}" \\
-    -p "${PORT}:8000" \\
-    "$image"
-}
+def _helper_env(settings: Settings, **extra: str) -> list[str]:
+    env: list[str] = [
+        "-e",
+        f"CONTAINER={settings.self_update_container}",
+        "-e",
+        f"DATA_VOL={settings.self_update_data_volume}",
+        "-e",
+        f"DATA_PATH={settings.self_update_data_path}",
+        "-e",
+        f"PORT={settings.self_update_port}",
+        "-e",
+        f"ENV_FILE={settings.self_update_env_file.strip()}",
+        "-e",
+        f"HEALTH_TIMEOUT={settings.self_update_health_timeout}",
+        "-e",
+        f"BACKUP_DIR={BACKUP_DIR}",
+        "-e",
+        f"BACKUP_RETENTION={BACKUP_RETENTION}",
+        "-e",
+        f"LOCK_FILE={UPDATE_LOCK_FILE}",
+        "-e",
+        f"PENDING_FILE={UPDATE_PENDING_FILE}",
+        "-e",
+        f"FAILED_FILE={UPDATE_FAILED_FILE}",
+        "-e",
+        f"PROGRESS_FILE={UPDATE_PROGRESS_FILE}",
+        "-e",
+        f"DEPLOY_STATE={DEPLOY_STATE_FILE}",
+    ]
+    for key, value in extra.items():
+        env.extend(["-e", f"{key}={value}"])
+    return env
 
-try_recreate_container() {
-  local target_image="$1"
-  write_progress "recreating" "Starting updated container"
-  if run_container "$target_image"; then
-    return 0
-  fi
-  if [ -n "$PREVIOUS_IMAGE" ]; then
-    write_progress "recreating" "Rolling back to previous container image"
-    docker rm -f "$CONTAINER" 2>/dev/null || true
-    if run_container "$PREVIOUS_IMAGE"; then
-      fail "new image failed to start; rolled back to previous image"
-    fi
-  fi
-  fail "container recreate failed"
-}
-"""
 
-
-def _build_updater_shell(
+def _build_helper_argv(
     settings: Settings,
     *,
+    operation: Literal["update", "restore"],
+    helper_image: str,
     target_image: str,
     from_version: str,
     to_version: str,
-) -> str:
-    """Shell script run inside a transient docker:cli container on the host."""
-    env_file = settings.self_update_env_file.strip().replace("'", "'\\''")
-    target_image_esc = target_image.replace("'", "'\\''")
-    from_version_esc = from_version.replace("'", "'\\''")
-    to_version_esc = to_version.replace("'", "'\\''")
-    deploy_state_esc = DEPLOY_STATE_FILE.replace("'", "'\\''")
-    return f"""set -e
-TARGET_IMAGE='{target_image_esc}'
-FROM_VERSION='{from_version_esc}'
-TO_VERSION='{to_version_esc}'
-CONTAINER='{settings.self_update_container}'
-ENV_FILE='{env_file}'
-DATA_VOL='{settings.self_update_data_volume}'
-DATA_PATH='{settings.self_update_data_path}'
-PORT='{settings.self_update_port}'
-BACKUP_DIR='{BACKUP_DIR}'
-DEPLOY_STATE='{deploy_state_esc}'
-LOCK_FILE='{UPDATE_LOCK_FILE}'
-PENDING_FILE='{UPDATE_PENDING_FILE}'
-FAILED_FILE='{UPDATE_FAILED_FILE}'
-{_shell_progress_block("update")}
-{_shell_run_container_block()}
-
-fail() {{
-  MSG="$1"
-  mark_progress_failed "$MSG"
-  docker run --rm -i -v "${{DATA_VOL}}:/data" alpine sh -c "cat > /data/$FAILED_FILE" <<FAILJSON
-{{"message":"$MSG","backup":"$BACKUP"}}
-FAILJSON
-  docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PENDING_FILE" "/data/$PROGRESS_FILE" 2>/dev/null || true
-  exit 1
-}}
-
-write_progress "starting" "Preparing update"
-
-BACKUP="${{BACKUP_DIR}}/pre-from-${{FROM_VERSION}}-to-${{TO_VERSION}}-$(date +%s).tar.gz"
-write_progress "backing_up" "Backing up data"
-docker run --rm -v "${{DATA_VOL}}:/data" alpine sh -c \\
-  "mkdir -p /data/${{BACKUP_DIR}} && tar czf /data/${{BACKUP}} -C /data --exclude=${{BACKUP_DIR}} ." \\
-  || fail "backup failed"
-
-docker run --rm -v "${{DATA_VOL}}:/data" alpine sh -c \\
-  'cd /data/'"${{BACKUP_DIR}}"' && ls -1t pre-*.tar.gz 2>/dev/null | tail -n +{BACKUP_RETENTION + 1} | while read f; do rm -f "$f"; done' \\
-  || true
-
-write_progress "pulling" "Pulling $TARGET_IMAGE"
-docker pull --progress=plain "$TARGET_IMAGE" 2>&1 | tee /tmp/solar-pull.log || fail "docker pull failed"
-PULL_LAST="$(grep -v '^$' /tmp/solar-pull.log 2>/dev/null | tail -1 || true)"
-write_progress "pulling" "Pulling $TARGET_IMAGE" "$PULL_LAST"
-
-PREVIOUS_IMAGE=""
-if docker inspect "$CONTAINER" >/dev/null 2>&1; then
-  PREVIOUS_IMAGE=$(docker inspect -f '{{{{.Config.Image}}}}' "$CONTAINER" 2>/dev/null || echo "")
-fi
-
-ENV_ARGS=""
-ENV_TMP=""
-if [ -n "$ENV_FILE" ]; then
-  ENV_ARGS="--env-file $ENV_FILE"
-elif docker inspect "$CONTAINER" >/dev/null 2>&1; then
-  ENV_TMP="/tmp/solar-update-env-$$"
-  docker inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$CONTAINER" > "$ENV_TMP"
-  ENV_ARGS="--env-file $ENV_TMP"
-fi
-
-write_progress "stopping" "Stopping current container"
-docker stop "$CONTAINER" 2>/dev/null || true
-docker rm "$CONTAINER" 2>/dev/null || true
-
-docker volume inspect "$DATA_VOL" >/dev/null 2>&1 || docker volume create "$DATA_VOL" >/dev/null
-
-try_recreate_container "$TARGET_IMAGE"
-
-rm -f "$ENV_TMP" 2>/dev/null || true
-
-write_progress "finishing" "Finalizing"
-
-DEPLOY_JSON=$(cat <<EOF
-{{
-  "version": "$TO_VERSION",
-  "image": "$TARGET_IMAGE",
-  "previous_version": "$FROM_VERSION",
-  "previous_image": "$PREVIOUS_IMAGE",
-  "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "last_backup": "$BACKUP",
-  "restored_from_backup": false
-}}
-EOF
-)
-docker run --rm -i -v "${{DATA_VOL}}:/data" alpine sh -c "cat > /data/$DEPLOY_STATE" <<< "$DEPLOY_JSON" || true
-
-docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PENDING_FILE" "/data/$FAILED_FILE" "/data/$PROGRESS_FILE" 2>/dev/null || true
-"""
-
-
-def _build_restore_shell(
-    settings: Settings,
-    *,
-    backup_name: str,
-    restore_image: str,
-    restore_version: str,
-) -> str:
-    env_file = settings.self_update_env_file.strip().replace("'", "'\\''")
-    backup_esc = backup_name.replace("'", "'\\''")
-    restore_image_esc = restore_image.replace("'", "'\\''")
-    restore_version_esc = restore_version.replace("'", "'\\''")
-    deploy_state_esc = DEPLOY_STATE_FILE.replace("'", "'\\''")
-    pending_file_esc = UPDATE_PENDING_FILE.replace("'", "'\\''")
-    return f"""set -e
-BACKUP_NAME='{backup_esc}'
-TARGET_IMAGE='{restore_image_esc}'
-RESTORE_VERSION='{restore_version_esc}'
-FROM_VERSION='{restore_version_esc}'
-TO_VERSION='{restore_version_esc}'
-CONTAINER='{settings.self_update_container}'
-ENV_FILE='{env_file}'
-DATA_VOL='{settings.self_update_data_volume}'
-DATA_PATH='{settings.self_update_data_path}'
-PORT='{settings.self_update_port}'
-BACKUP_DIR='{BACKUP_DIR}'
-DEPLOY_STATE='{deploy_state_esc}'
-LOCK_FILE='{UPDATE_LOCK_FILE}'
-PENDING_FILE='{pending_file_esc}'
-FAILED_FILE='{UPDATE_FAILED_FILE}'
-{_shell_progress_block("restore")}
-{_shell_run_container_block()}
-
-fail() {{
-  MSG="$1"
-  mark_progress_failed "$MSG"
-  docker run --rm -i -v "${{DATA_VOL}}:/data" alpine sh -c "cat > /data/$FAILED_FILE" <<FAILJSON
-{{"message":"$MSG","backup":"$BACKUP_NAME"}}
-FAILJSON
-  docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PROGRESS_FILE" 2>/dev/null || true
-  exit 1
-}}
-
-write_progress "starting" "Preparing restore"
-
-docker run --rm -v "${{DATA_VOL}}:/data" alpine sh -c \\
-  "test -f /data/${{BACKUP_DIR}}/$BACKUP_NAME" || fail "backup not found"
-
-PREVIOUS_IMAGE=""
-if docker inspect "$CONTAINER" >/dev/null 2>&1; then
-  PREVIOUS_IMAGE=$(docker inspect -f '{{{{.Config.Image}}}}' "$CONTAINER" 2>/dev/null || echo "")
-fi
-
-ENV_ARGS=""
-ENV_TMP=""
-if [ -n "$ENV_FILE" ]; then
-  ENV_ARGS="--env-file $ENV_FILE"
-elif docker inspect "$CONTAINER" >/dev/null 2>&1; then
-  ENV_TMP="/tmp/solar-restore-env-$$"
-  docker inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$CONTAINER" > "$ENV_TMP"
-  ENV_ARGS="--env-file $ENV_TMP"
-fi
-
-write_progress "stopping" "Stopping current container"
-docker stop "$CONTAINER" 2>/dev/null || true
-docker rm "$CONTAINER" 2>/dev/null || true
-
-write_progress "restoring_data" "Restoring backup data"
-docker run --rm -v "${{DATA_VOL}}:/data" alpine sh -c \\
-  "cd /data && find . -mindepth 1 -maxdepth 1 ! -name ${{BACKUP_DIR}} -exec rm -rf {{}} +" \\
-  || fail "clear data failed"
-
-docker run --rm -v "${{DATA_VOL}}:/data" alpine sh -c \\
-  "tar xzf /data/${{BACKUP_DIR}}/$BACKUP_NAME -C /data" \\
-  || fail "extract backup failed"
-
-try_recreate_container "$TARGET_IMAGE"
-
-rm -f "$ENV_TMP" 2>/dev/null || true
-
-write_progress "finishing" "Finalizing"
-
-DEPLOY_JSON=$(cat <<EOF
-{{
-  "version": "$RESTORE_VERSION",
-  "image": "$TARGET_IMAGE",
-  "previous_version": null,
-  "previous_image": null,
-  "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "last_backup": "${{BACKUP_DIR}}/$BACKUP_NAME",
-  "restored_from_backup": true
-}}
-EOF
-)
-docker run --rm -i -v "${{DATA_VOL}}:/data" alpine sh -c "cat > /data/$DEPLOY_STATE" <<< "$DEPLOY_JSON" || true
-
-docker run --rm -v "${{DATA_VOL}}:/data" alpine rm -f "/data/$LOCK_FILE" "/data/$PENDING_FILE" "/data/$FAILED_FILE" "/data/$PROGRESS_FILE" 2>/dev/null || true
-"""
-
-
-def _spawn_shell(script: str, *, log_label: str) -> None:
-    cmd = [
+    backup_name: str = "",
+) -> list[str]:
+    """docker run argv for the detached self-update helper."""
+    cmd: list[str] = [
         "docker",
         "run",
         "-d",
         "--rm",
+        "--label",
+        "solar.self-update=1",
         "-v",
         f"{DOCKER_SOCKET}:{DOCKER_SOCKET}",
         "-v",
-        "/tmp:/tmp",
-        "docker:cli",
-        "sh",
-        "-c",
-        script,
+        f"{settings.self_update_data_volume}:{settings.self_update_data_path}",
     ]
-    log.info("Spawning %s", log_label)
-    subprocess.Popen(
+    env_file = settings.self_update_env_file.strip()
+    if env_file:
+        parent = str(Path(env_file).parent)
+        cmd.extend(["-v", f"{parent}:{parent}:ro"])
+    cmd.extend(_helper_env(
+        settings,
+        TARGET_IMAGE=target_image,
+        FROM_VERSION=from_version,
+        TO_VERSION=to_version,
+        BACKUP_NAME=backup_name,
+    ))
+    cmd.extend([
+        "--entrypoint",
+        UPDATE_SCRIPT,
+        helper_image,
+        operation,
+    ])
+    return cmd
+
+
+def _spawn_helper(
+    settings: Settings,
+    cmd: list[str],
+    *,
+    log_label: str,
+) -> None:
+    log.info("Spawning %s: %s", log_label, " ".join(cmd))
+    proc = subprocess.Popen(
         cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         start_new_session=True,
+        text=True,
     )
+    # Brief wait to capture immediate spawn errors / container id
+    try:
+        stdout, stderr = proc.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        log.info("Helper started in background (pid=%s)", proc.pid)
+        return
+    if proc.returncode != 0:
+        detail = (stderr or stdout or "").strip() or f"exit {proc.returncode}"
+        raise OSError(f"Helper failed to start: {detail}")
+    container_id = (stdout or "").strip()
+    if container_id:
+        log.info("Helper container id: %s", container_id[:12])
 
 
 def _spawn_updater(
@@ -795,13 +635,19 @@ def _spawn_updater(
     from_version: str,
     to_version: str,
 ) -> None:
-    script = _build_updater_shell(
+    cmd = _build_helper_argv(
         settings,
+        operation="update",
+        helper_image=target_image,
         target_image=target_image,
         from_version=from_version,
         to_version=to_version,
     )
-    _spawn_shell(script, log_label=f"self-update container for {target_image}")
+    _spawn_helper(
+        settings,
+        cmd,
+        log_label=f"self-update for {target_image}",
+    )
 
 
 def _spawn_restore(
@@ -811,13 +657,21 @@ def _spawn_restore(
     restore_image: str,
 ) -> None:
     restore_version = _image_version(restore_image) or __version__
-    script = _build_restore_shell(
+    helper_image = _current_container_image(settings) or settings.self_update_image
+    cmd = _build_helper_argv(
         settings,
+        operation="restore",
+        helper_image=helper_image,
+        target_image=restore_image,
+        from_version=restore_version,
+        to_version=restore_version,
         backup_name=backup_name,
-        restore_image=restore_image,
-        restore_version=restore_version,
     )
-    _spawn_shell(script, log_label=f"restore from backup {backup_name}")
+    _spawn_helper(
+        settings,
+        cmd,
+        log_label=f"restore from {backup_name}",
+    )
 
 
 def _resolve_target_version(

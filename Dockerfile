@@ -36,13 +36,17 @@ RUN pip install --upgrade pip && pip install -r requirements.txt \
 COPY VERSION ./VERSION
 COPY backend/app ./app
 COPY backend/scripts ./scripts
+COPY scripts/docker-self-update.sh ./scripts/docker-self-update.sh
+COPY scripts/lib ./scripts/lib
 COPY config/config.yaml.example ./config/config.yaml
 COPY run.sh ./run.sh
 COPY --from=frontend /ui/dist ./static
 
 # Normalize line endings (Windows checkouts use CRLF, which breaks the shebang)
 # and make the entrypoint executable.
-RUN sed -i 's/\r$//' /app/run.sh && chmod +x /app/run.sh && mkdir -p /app/data
+RUN sed -i 's/\r$//' /app/run.sh /app/scripts/docker-self-update.sh /app/scripts/lib/pull-progress.sh \
+    && chmod +x /app/run.sh /app/scripts/docker-self-update.sh \
+    && mkdir -p /app/data
 
 # Persistent state (SQLite DB, runtime config, learned models). Mount at deploy time.
 VOLUME ["/app/data"]
@@ -74,6 +78,8 @@ COPY backend/requirements-dev.txt ./
 RUN pip install -r requirements-dev.txt
 COPY VERSION ./VERSION
 COPY scripts ./scripts
+RUN sed -i 's/\r$//' /app/scripts/docker-self-update.sh /app/scripts/lib/pull-progress.sh \
+    && chmod +x /app/scripts/docker-self-update.sh
 COPY config.yaml ./config.yaml
 COPY frontend/package.json ./frontend/package.json
 COPY backend/tests ./tests

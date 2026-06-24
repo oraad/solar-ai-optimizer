@@ -180,6 +180,7 @@ export type UpdateStage =
   | "stopping"
   | "restoring_data"
   | "recreating"
+  | "verifying"
   | "finishing"
   | "failed";
 
@@ -188,6 +189,7 @@ export interface UpdateProgress {
   stage: UpdateStage;
   message: string;
   pull_detail?: string | null;
+  pull_percent?: number | null;
   from_version?: string | null;
   to_version?: string | null;
   started_at?: string;

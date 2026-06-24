@@ -15,8 +15,15 @@ import { sharedStyles } from "../styles.js";
 import { dismissToast, runWithToast, showToast, updateToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
-import type { AppConfigView, EntityInfo, ReleaseSummary, SessionInfo, SystemStatus, UpdateInfo, UpdateProgress, UpdateStage } from "../types.js";
+import type { AppConfigView, EntityInfo, ReleaseSummary, SessionInfo, SystemStatus, UpdateInfo, UpdateProgress } from "../types.js";
 import { renderMarkdown } from "../markdown.js";
+import {
+  activeStageIndex,
+  flowStages,
+  progressHeaderTitle,
+  stageLabel,
+  UPDATE_LOG_HINT,
+} from "../update-progress.js";
 
 type Section = Record<string, unknown>;
 
@@ -53,48 +60,6 @@ const DEFAULT_PRIORITY_ORDER = [
 const SCHEMA_DOWNGRADE_NOTE =
   "If you saved config on a newer release, downgrading may ignore newer settings keys " +
   "(e.g. grid_charge.max_grid_charge_a on releases before schema v3).";
-
-const UPDATE_STAGE_LABELS: Record<UpdateStage, string> = {
-  starting: "Preparing update…",
-  backing_up: "Backing up data…",
-  pulling: "Pulling container image…",
-  stopping: "Stopping current container…",
-  restoring_data: "Restoring backup data…",
-  recreating: "Starting updated container…",
-  finishing: "Finalizing…",
-  failed: "Update failed",
-};
-
-const UPDATE_FLOW_STAGES: UpdateStage[] = [
-  "starting",
-  "backing_up",
-  "pulling",
-  "stopping",
-  "recreating",
-  "finishing",
-];
-
-const RESTORE_FLOW_STAGES: UpdateStage[] = [
-  "starting",
-  "stopping",
-  "restoring_data",
-  "recreating",
-  "finishing",
-];
-
-function stageLabel(stage: UpdateStage, progress?: UpdateProgress | null): string {
-  if (progress?.message && progress.stage === stage) return progress.message;
-  return UPDATE_STAGE_LABELS[stage] ?? stage;
-}
-
-function flowStages(operation: UpdateProgress["operation"]): UpdateStage[] {
-  return operation === "restore" ? RESTORE_FLOW_STAGES : UPDATE_FLOW_STAGES;
-}
-
-function stageIndex(stages: UpdateStage[], stage: UpdateStage): number {
-  const idx = stages.indexOf(stage);
-  return idx >= 0 ? idx : 0;
-}
 
 type OptimizationPriorityKey = (typeof DEFAULT_PRIORITY_ORDER)[number];
 
@@ -263,6 +228,21 @@ export class SettingsPanel extends LitElement {
         font-weight: 400;
         color: var(--muted);
         margin-top: 2px;
+      }
+      .update-pull-track {
+        width: 100%;
+        height: 4px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--border) 80%, transparent);
+        margin: 4px 0 2px 22px;
+        max-width: calc(100% - 22px);
+        overflow: hidden;
+      }
+      .update-pull-bar {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--accent);
+        transition: width 0.3s ease;
       }
       .update-spinner {
         display: inline-block;
@@ -957,11 +937,18 @@ export class SettingsPanel extends LitElement {
           await new Promise((r) => setTimeout(r, 2000));
           continue;
         }
-        if (sawInProgress || pollErrors > 0) break;
+        if (sawInProgress || pollErrors > 0) {
+          this.updateHealthWait = true;
+          break;
+        }
         await new Promise((r) => setTimeout(r, 2000));
       } catch {
         pollErrors += 1;
-        if (sawInProgress || pollErrors >= 3) break;
+        if (sawInProgress) {
+          this.updateHealthWait = true;
+          break;
+        }
+        if (pollErrors >= 3) break;
         await new Promise((r) => setTimeout(r, 2000));
       }
     }
@@ -1159,22 +1146,35 @@ export class SettingsPanel extends LitElement {
 
   private renderUpdateProgress() {
     const progress = this.updateProgress ?? this.updateInfo?.update_progress ?? null;
+    const failed = this.updateInfo?.update_failed;
     const inProgress = Boolean(this.updateInfo?.update_in_progress) || this.updateBusy;
-    if (!inProgress && !progress) return null;
+    if (!inProgress && !progress && !failed) return null;
 
     const operation = progress?.operation ?? "update";
     const stages = flowStages(operation);
-    const activeStage = this.updateHealthWait
-      ? null
-      : (progress?.stage ?? (this.updateInfo?.update_in_progress ? "starting" : null));
-    const activeIdx = activeStage ? stageIndex(stages, activeStage) : stages.length;
+    const failedActive = Boolean(failed) && !inProgress;
+    const activeIdx = failedActive
+      ? stages.length
+      : activeStageIndex(
+          stages,
+          progress,
+          this.updateHealthWait,
+          Boolean(this.updateInfo?.update_in_progress),
+        );
+    const activeStage = failedActive
+      ? "failed"
+      : this.updateHealthWait
+        ? null
+        : (progress?.stage ?? (this.updateInfo?.update_in_progress ? "starting" : null));
 
     return html`
       <div class="update-progress">
-        <h4>${this.updateHealthWait ? "Restarting service…" : "Update in progress"}</h4>
+        <h4>${progressHeaderTitle(progress, this.updateHealthWait)}</h4>
         ${stages.map((stage, idx) => {
           const done = idx < activeIdx;
-          const active = !this.updateHealthWait && activeStage === stage;
+          const active = !failedActive && !this.updateHealthWait && activeStage === stage;
+          const showPullBar =
+            active && progress?.stage === "pulling" && progress.pull_percent != null;
           return html`
             <div class="update-step ${done ? "done" : ""} ${active ? "active" : ""}">
               <span class="update-step-icon">
@@ -1182,6 +1182,22 @@ export class SettingsPanel extends LitElement {
               </span>
               <span>
                 ${stageLabel(stage, active ? progress : null)}
+                ${showPullBar
+                  ? html`
+                      <div
+                        class="update-pull-track"
+                        role="progressbar"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                        aria-valuenow=${progress!.pull_percent!}
+                      >
+                        <div
+                          class="update-pull-bar"
+                          style="width: ${progress!.pull_percent}%"
+                        ></div>
+                      </div>
+                    `
+                  : null}
                 ${active && progress?.stage === "pulling" && progress.pull_detail
                   ? html`<span class="update-step-detail">${progress.pull_detail}</span>`
                   : null}
@@ -1189,6 +1205,14 @@ export class SettingsPanel extends LitElement {
             </div>
           `;
         })}
+        ${failedActive
+          ? html`
+              <div class="update-step active">
+                <span class="update-step-icon">✕</span>
+                <span>${failed!.message}</span>
+              </div>
+            `
+          : null}
         ${this.updateHealthWait
           ? html`
               <div class="update-step active">
@@ -1211,6 +1235,7 @@ export class SettingsPanel extends LitElement {
     return html`
       <div class="recovery-banner">
         <p>${message}</p>
+        <p class="label">${UPDATE_LOG_HINT}</p>
         ${backup
           ? html`
               <div class="buttons">
@@ -1292,9 +1317,10 @@ export class SettingsPanel extends LitElement {
     const latest = info?.latest_version;
     const releases = info?.releases ?? [];
     const upToDate = info && !info.update_available && latest;
+    const updatesOpen = this.updateBusy || Boolean(info?.update_in_progress);
 
     return html`
-      <details open>
+      <details ?open=${updatesOpen}>
         <summary>
           Software updates
           ${info?.update_available

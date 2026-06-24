@@ -91,6 +91,7 @@ class Settings(BaseSettings):
     self_update_data_volume: str = Field(default="solar-data")
     self_update_data_path: str = Field(default="/app/data")
     self_update_port: int = Field(default=8000)
+    self_update_health_timeout: int = Field(default=120)
 
     @property
     def is_addon(self) -> bool:

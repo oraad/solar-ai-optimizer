@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.11] - 2026-06-24
+
+### Added
+
+- **Dependable Docker self-update:** versioned `docker-self-update.sh` helper with rename-first container swap, health-gated verification, and automatic rollback on failed recreate or health check
+- Self-update **pull progress** (`pull_percent`) with layer-based percentage in the dashboard; new **verifying** stage with health-check attempt counter
+- Helper logs written to `$DATA_PATH/.update-logs/latest.log` for failed install troubleshooting
+- `self_update_health_timeout` setting (default 120s) for post-swap health wait
+
+### Changed
+
+- Dashboard **Install** spawns the **target image** as updater helper (not `docker:cli`) with `--entrypoint` override; restore uses the **current running image**
+- Settings update progress: version header (`vX → vY`), pull progress bar, header chip shows current step, auto-open Software updates details, log path hint on failure
+- Minimum self-update version raised to **0.5.10** (first release shipping the updater script)
+
+### Fixed
+
+- Dashboard self-update no longer stops and removes the container before the replacement is proven healthy; failed installs roll back to the previous container automatically
+
 ## [0.5.10] - 2026-06-24
 
 ### Fixed

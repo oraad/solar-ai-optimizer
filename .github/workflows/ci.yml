@@ -24,7 +24,7 @@ jobs:
         run: bash scripts/check-python.sh
       - name: Verify version files match VERSION
         run: python scripts/sync-version.py --check
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build test image
         run: docker compose build test
       - name: Run backend tests
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build frontend test image
         run: docker compose build frontend-test
       - name: Run frontend tests
@@ -45,7 +45,7 @@ jobs:
     needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build production image
         run: docker compose build solar
       - name: Verify OCI metadata on production image

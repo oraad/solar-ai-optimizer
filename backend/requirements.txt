@@ -6,7 +6,7 @@ fastapi==0.137.2
 uvicorn>=0.35.0
 
 # Data validation / settings
-pydantic>=2.11.0
+pydantic>=2.13.4
 pydantic-settings>=2.7.0
 
 # HTTP + WebSocket client for Home Assistant

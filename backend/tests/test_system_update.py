@@ -144,7 +144,7 @@ def test_get_update_info_newer_release(mock_fetch, mock_list, update_client):
     assert "New feature" in data["release_notes"]
     assert data["can_apply"] is False
     assert data["apply_instructions"]
-    assert len(data["releases"]) == 3
+    assert len(data["releases"]) == 4
     assert all(r["version"] != "0.5.3-beta" for r in data["releases"])
     assert data["min_self_update_version"] == "0.5.10"
     assert data["downgrade_warning"]

@@ -18,7 +18,7 @@ APScheduler>=3.11.2
 
 # Storage (async SQLite)
 SQLAlchemy[asyncio]>=2.0.51,<2.1
-aiosqlite>=0.21.0
+aiosqlite>=0.22.1
 
 # Config + time
 PyYAML>=6.0.2

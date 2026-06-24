@@ -20,7 +20,7 @@ def _executor(ha: MagicMock, store: ShedSnapshotStore) -> Executor:
         ha,
         BatteryConfig(),
         ControlConfig(),
-        store,
+        snapshot_store=store,
     )
 
 

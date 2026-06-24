@@ -18,7 +18,7 @@ describe("markdownToSafeHtml", () => {
   });
 
   it("strips inline event handlers", () => {
-    const html = markdownToSafeHtml('![x](x" onerror="alert(1))');
-    expect(html).not.toContain("onerror");
+    const html = markdownToSafeHtml('<img src="x" onerror="alert(1)">');
+    expect(html).not.toMatch(/onerror\s*=/i);
   });
 });

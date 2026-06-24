@@ -52,8 +52,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
       - name: Prepare release notes from CHANGELOG
         run: |
+          bash scripts/check-python.sh
           tag="${GITHUB_REF_NAME#v}"
           if python scripts/changelog-excerpt.py --version "$tag" > release-notes.md; then
             echo "Using CHANGELOG excerpt for v$tag"

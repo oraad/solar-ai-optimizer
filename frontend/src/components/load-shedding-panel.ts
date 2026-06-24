@@ -2,6 +2,12 @@ import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { api } from "../api.js";
+import {
+  hasEntitiesForDomains,
+  renderEntityDatalist,
+  SHED_DATALIST_ID,
+  SHED_ENTITY_DOMAINS,
+} from "../entity-datalists.js";
 import { fieldLabel } from "../field-labels.js";
 import { fieldHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
@@ -71,6 +77,7 @@ export class LoadSheddingPanel extends LitElement {
 
   @state() private draft: Record<string, unknown> | null = null;
   @state() private entities: EntityInfo[] = [];
+  @state() private entitiesConnected = false;
   @state() private busy = false;
   @state() private companionMeta: Record<string, CompanionEntity[]> = {};
 
@@ -99,8 +106,10 @@ export class LoadSheddingPanel extends LitElement {
     try {
       const res = await api.entities();
       this.entities = res.entities;
+      this.entitiesConnected = res.connected;
     } catch {
       this.entities = [];
+      this.entitiesConnected = false;
     }
   }
 
@@ -303,8 +312,12 @@ export class LoadSheddingPanel extends LitElement {
     }
     const d = this.draft;
     const tiers = (d.tiers ?? []) as Record<string, unknown>[];
+    const shedListId = hasEntitiesForDomains(this.entities, SHED_ENTITY_DOMAINS)
+      ? SHED_DATALIST_ID
+      : "";
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
+        ${renderEntityDatalist(this.entities, SHED_DATALIST_ID, SHED_ENTITY_DOMAINS)}
         <h3>
           Load shedding
           <solar-info-tip .text=${sectionHelp("load_shedding")!}></solar-info-tip>
@@ -340,6 +353,13 @@ export class LoadSheddingPanel extends LitElement {
 
         <p class="label" style="margin-top:16px">
           Tiers — lowest priority sheds first. All entities in a tier shed and restore together.
+        </p>
+        <p class="label">
+          ${this.entitiesConnected
+            ? html`Start typing to pick from your Home Assistant entities.`
+            : html`Home Assistant not connected — set the connection in Settings and
+                <button class="link" @click=${() => void this.loadEntities()}>reload entities</button>
+                for autocomplete.`}
         </p>
         ${tiers.map((t, i) => {
           const se = stateEntitiesMap(t);
@@ -421,7 +441,8 @@ export class LoadSheddingPanel extends LitElement {
                         <solar-entity-input
                           .entityId=${entity}
                           .entities=${this.entities}
-                          .domains=${["switch", "input_boolean"]}
+                          .domains=${[...SHED_ENTITY_DOMAINS]}
+                          .listId=${shedListId}
                           placeholder="switch.… or input_boolean.…"
                           @entity-id-change=${(e: CustomEvent<string | null>) =>
                             this.setTierSwitch(i, j, e.detail ?? "")}

@@ -2,6 +2,11 @@ import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { api, getApiToken, setApiToken } from "../api.js";
+import {
+  entityDatalistId,
+  hasEntitiesForDomains,
+  renderEntityDatalists,
+} from "../entity-datalists.js";
 import { entityLabel, fieldLabel, gridChargeFactorLabel, INVERTER_READ_ENTITY_KEYS, optimizationPriorityLabel, pvLabel, sectionTitle } from "../field-labels.js";
 import { entityHelp, fieldHelp, priorityEffectHelp, priorityRankBlurb, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
@@ -636,24 +641,19 @@ export class SettingsPanel extends LitElement {
   }
 
   // ----------------------------------------------------------- entity fields --
-  private hasEntitiesForDomain(domain: string): boolean {
-    return this.entities.some((e) => e.domain === domain);
-  }
-
   private renderDatalists() {
-    const domainLists = DATALIST_DOMAINS.map((dom) => {
-      const opts = this.entities.filter((e) => e.domain === dom);
-      return html`<datalist id="dl-${dom}">
-        ${opts.map((e) => html`<option value=${e.entity_id}>${e.name}</option>`)}
-      </datalist>`;
-    });
-    return html`${domainLists}`;
+    return renderEntityDatalists(
+      this.entities,
+      DATALIST_DOMAINS.map((d) => ({ id: entityDatalistId(d), domains: [d] })),
+    );
   }
 
   private entityInput(section: string, group: string, key: string, domain: string) {
     const d = this.draft as unknown as Record<string, any>;
     const value = (d[section]?.[group]?.[key] ?? "") as string;
-    const listId = this.hasEntitiesForDomain(domain) ? `dl-${domain}` : "";
+    const listId = hasEntitiesForDomains(this.entities, [domain])
+      ? entityDatalistId(domain)
+      : "";
     return html`<div class="field">
       <label>${labelWithTip(entityLabel(key), entityHelp(key))}</label>
       <solar-entity-input
@@ -680,7 +680,7 @@ export class SettingsPanel extends LitElement {
           .entityId=${value}
           .entities=${this.entities}
           .domains=${["sensor"]}
-          .listId=${this.hasEntitiesForDomain("sensor") ? "dl-sensor" : ""}
+          .listId=${hasEntitiesForDomains(this.entities, ["sensor"]) ? entityDatalistId("sensor") : ""}
           placeholder="sensor.…"
           @entity-id-change=${(e: CustomEvent<string | null>) =>
             this.setNested("inverter", "read", "battery_power", e.detail)}
@@ -736,7 +736,9 @@ export class SettingsPanel extends LitElement {
               .entityId=${heartbeatEntity}
               .entities=${this.entities}
               .domains=${["input_datetime"]}
-              .listId=${this.hasEntitiesForDomain("input_datetime") ? "dl-input_datetime" : ""}
+              .listId=${hasEntitiesForDomains(this.entities, ["input_datetime"])
+                ? entityDatalistId("input_datetime")
+                : ""}
               placeholder="input_datetime.solar_optimizer_heartbeat"
               @entity-id-change=${(e: CustomEvent<string | null>) =>
                 this.setField("fail_safe", "heartbeat_entity", e.detail)}

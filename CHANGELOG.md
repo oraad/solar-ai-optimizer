@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.10] - 2026-06-24
+
+### Fixed
+
+- **Load shedding** tier entity inputs: restore Home Assistant entity autocomplete (datalist suggestions) after the tier editor moved to its own tab
+
+### Changed
+
+- Extract shared `entity-datalists` helpers used by Settings and Load shedding entity pickers
+
 ## [0.5.9] - 2026-06-24
 
 ### Added
@@ -289,6 +299,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.5.10]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.10
 [0.5.9]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.9
 [0.5.8]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.8
 [0.5.7]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.7

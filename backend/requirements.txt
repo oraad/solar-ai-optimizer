@@ -2,7 +2,7 @@
 # Kept lean (plain fastapi/uvicorn) for fast, reliable builds on Python 3.14.
 
 # Web framework / ASGI server
-fastapi==0.137.2
+fastapi==0.138.0
 uvicorn>=0.35.0
 
 # Data validation / settings

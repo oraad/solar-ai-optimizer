@@ -256,7 +256,7 @@ export class LoadSheddingPanel extends LitElement {
         d.tiers = tiers;
       });
       if (res.warning) {
-        showToast({ message: res.warning, variant: "warn" });
+        showToast({ message: res.warning, variant: "info" });
       }
     } catch (e) {
       showToast({

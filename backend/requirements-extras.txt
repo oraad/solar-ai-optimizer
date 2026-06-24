@@ -1,4 +1,4 @@
 # Optional Phase 3/4 engine extras (installed when INSTALL_EXTRAS=1 in Docker).
 numpy>=2.1.0
-scikit-learn>=1.6.0
+scikit-learn>=1.9.0
 pulp>=2.9.0

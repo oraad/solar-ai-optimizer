@@ -1,0 +1,22 @@
+---
+description: Python 3.14+ and Docker-first execution for this repo
+alwaysApply: true
+---
+
+# Python execution (agents)
+
+- **Minimum version: Python 3.14+** — matches production Docker image.
+- **Prefer Docker** for all Python work in this repo:
+  - Tests: `docker compose run --rm test`
+  - One-off scripts: `docker compose run --rm --entrypoint python test -m scripts.<name>`
+  - Running app: `docker compose up -d solar`
+- **Do not** run host `python`, `pip`, `pytest`, or `uvicorn` unless:
+  1. `bash scripts/check-python.sh` succeeds first, AND
+  2. Docker is unavailable for the specific task.
+- On Windows: use Git Bash, WSL, or Docker; never assume PowerShell `python` is 3.14+.
+- For repo maintenance scripts (`sync-version.py`, `changelog-excerpt.py`): run via Docker if host Python is not 3.14+:
+
+  ```bash
+  docker run --rm -v "$(pwd):/repo" -w /repo python:3.14-slim-trixie \
+    python scripts/sync-version.py --check
+  ```

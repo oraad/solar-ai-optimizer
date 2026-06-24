@@ -21,7 +21,7 @@ SQLAlchemy[asyncio]>=2.0.51,<2.1
 aiosqlite>=0.21.0
 
 # Config + time
-PyYAML>=6.0.2
+PyYAML>=6.0.3
 python-dateutil>=2.9.0
 
 # Local admin login (bcrypt password verification)

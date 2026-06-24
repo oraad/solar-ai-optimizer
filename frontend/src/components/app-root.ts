@@ -13,6 +13,7 @@ import type {
   SystemStatus,
   UpdateInfo,
 } from "../types.js";
+import { updateChipLabel } from "../update-progress.js";
 
 import "./status-cards.js";
 import "./decision-panel.js";
@@ -546,8 +547,9 @@ export class SolarApp extends LitElement {
       });
     }
     if (this.isAdmin && this.updateInfo?.update_in_progress) {
+      const chip = updateChipLabel(this.updateInfo.update_progress);
       alerts.push({
-        label: "UPDATING…",
+        label: chip,
         className: "warn",
         title: "Software update in progress — open Settings",
         onClick: () => this.setTab("settings"),

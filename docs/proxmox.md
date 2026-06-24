@@ -129,6 +129,11 @@ One-click update requires **v0.5.5 or newer** (the image includes the Docker CLI
 no longer provides `/usr/bin/docker`. If you see *"Docker CLI is not available in this
 container"*, pull **v0.5.5+** and recreate (`update` or the manual `docker run` above).
 
+Dashboard **Install** renames the running container, starts the new image, waits for
+`/api/health`, and rolls back to the previous container if the health check fails. Progress
+(layers, health attempts) appears under **Settings → Software updates**. Helper logs:
+`/app/data/.update-logs/latest.log` inside the `solar-data` volume.
+
 ## Troubleshooting
 
 | Issue | Check |
@@ -139,8 +144,8 @@ container"*, pull **v0.5.5+** and recreate (`update` or the manual `docker run` 
 | Can't reach Home Assistant | LXC must route to HA on your LAN; use HA IP instead of mDNS if needed |
 | Health check fails | `docker logs solar-optimizer` inside the LXC |
 | Port 8000 in use | Change host mapping in `/opt/solar-ai-optimizer/solar.env` deployment or edit the `docker run` port |
-| **502** after dashboard **Install**; `update` says *No Installation Found* | Dashboard self-update removed the container but recreate failed. If `/opt/solar-ai-optimizer/solar.env` exists, run `update` again (v0.5.9+ recreates the container automatically) or recreate manually: `docker run -d --name solar-optimizer --restart unless-stopped --env-file /opt/solar-ai-optimizer/solar.env -v solar-data:/app/data -p 8000:8000 -v /var/run/docker.sock:/var/run/docker.sock -e SELF_UPDATE_ENABLED=true -e SELF_UPDATE_ENV_FILE=/opt/solar-ai-optimizer/solar.env -e SELF_UPDATE_IMAGE=ghcr.io/oraad/solar-ai-optimizer:latest ghcr.io/oraad/solar-ai-optimizer:latest` |
-| Dashboard update appeared to finish then service went down | Fixed in v0.5.9+: the UI waits for the update lock to clear before treating health checks as success. Stay on Settings until the step list completes. |
+| **502** after dashboard **Install** | Check `/app/data/.update-logs/latest.log` on the `solar-data` volume. If rollback failed, run `update` inside the LXC or recreate manually with the full `docker run` flags (socket + `SELF_UPDATE_*` env). |
+| Dashboard update appeared to finish then service went down | Stay on Settings until the step list completes. Failed health checks trigger automatic rollback when possible; otherwise use **Restore** from the pre-install backup. |
 
 ## Fork / branch
 

@@ -2,12 +2,7 @@ import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { api } from "../api.js";
-import {
-  hasEntitiesForDomains,
-  renderEntityDatalist,
-  SHED_DATALIST_ID,
-  SHED_ENTITY_DOMAINS,
-} from "../entity-datalists.js";
+import { SHED_ENTITY_DOMAINS } from "../entity-datalists.js";
 import { fieldLabel } from "../field-labels.js";
 import { fieldHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
@@ -44,7 +39,7 @@ export class LoadSheddingPanel extends LitElement {
       .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-top: 10px; }
       @media (max-width: 700px) { .fields { grid-template-columns: 1fr; } }
       .field { display: flex; flex-direction: column; gap: 3px; }
-      .field label { font-size: 0.75rem; color: var(--muted); }
+      .field label { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 0.75rem; color: var(--muted); }
       .field input { width: 100%; box-sizing: border-box; }
       .tier-block {
         border: 1px solid var(--border);
@@ -312,12 +307,8 @@ export class LoadSheddingPanel extends LitElement {
     }
     const d = this.draft;
     const tiers = (d.tiers ?? []) as Record<string, unknown>[];
-    const shedListId = hasEntitiesForDomains(this.entities, SHED_ENTITY_DOMAINS)
-      ? SHED_DATALIST_ID
-      : "";
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
-        ${renderEntityDatalist(this.entities, SHED_DATALIST_ID, SHED_ENTITY_DOMAINS)}
         <h3>
           Load shedding
           <solar-info-tip .text=${sectionHelp("load_shedding")!}></solar-info-tip>
@@ -442,7 +433,6 @@ export class LoadSheddingPanel extends LitElement {
                           .entityId=${entity}
                           .entities=${this.entities}
                           .domains=${[...SHED_ENTITY_DOMAINS]}
-                          .listId=${shedListId}
                           placeholder="switch.… or input_boolean.…"
                           @entity-id-change=${(e: CustomEvent<string | null>) =>
                             this.setTierSwitch(i, j, e.detail ?? "")}

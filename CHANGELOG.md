@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-06-24
+
+### Fixed
+
+- **Info tips:** restore compact circled “i” on desktop/pointer devices; keep larger tap targets on touch screens
+- **Load shedding** tier entity autocomplete: render datalists inside each entity input so suggestions work across shadow DOM boundaries (fixes empty datalist after v0.5.10)
+
+### Changed
+
+- **Entity inputs** own per-instance filtered datalists; Settings and Load shedding no longer render shared panel-level datalists
+
 ## [0.5.11] - 2026-06-24
 
 ### Added

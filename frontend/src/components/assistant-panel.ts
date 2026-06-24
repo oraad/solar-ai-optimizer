@@ -24,7 +24,12 @@ export class AssistantPanel extends LitElement {
         display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;
         height: 420px; max-height: 55vh; overflow-y: auto; padding-right: 4px;
       }
-      @media (max-width: 760px) { .log { height: 320px; } }
+      @media (max-width: 760px) {
+        .log {
+          height: min(320px, 40dvh, 40vh);
+          max-height: min(55dvh, 55vh);
+        }
+      }
       .row { display: flex; flex-direction: column; gap: 3px; max-width: 85%; }
       .row.you { align-self: flex-end; align-items: flex-end; }
       .row.assistant { align-self: flex-start; align-items: flex-start; }
@@ -42,7 +47,11 @@ export class AssistantPanel extends LitElement {
       .typing span:nth-child(2) { animation-delay: 0.2s; }
       .typing span:nth-child(3) { animation-delay: 0.4s; }
       @keyframes blink { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
-      .inputrow { display: flex; gap: 8px; }
+      .inputrow {
+        display: flex;
+        gap: 8px;
+        padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+      }
       .inputrow input { flex: 1; }
       label.apply { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.8rem; margin-top: 10px; }
       .apply-row {

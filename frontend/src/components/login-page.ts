@@ -17,7 +17,7 @@ export class LoginPage extends LitElement {
     css`
       :host {
         display: grid;
-        min-height: 100vh;
+        min-height: 100%;
         place-items: center;
         padding: 24px;
         box-sizing: border-box;

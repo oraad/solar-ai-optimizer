@@ -27,6 +27,7 @@ nav:
   - Home: index.md
   - Installation: installation.md
   - Dashboard User Guide: frontend-manual.md
+  - Mobile Ingress QA: mobile-ingress-qa.md
   - Roles and Access: ingress-auth.md
   - Home Assistant Setup: home-assistant-setup.md
   - Home Assistant Fail-safe: home-assistant-failsafe.md

@@ -144,9 +144,11 @@ ADMIN_USER_IDS=abc123,def456
 3. Ensure the HA long-lived token (env `HA_TOKEN` or **Settings → Home Assistant connection**) was created from an admin/owner account — the user list API requires admin credentials on the token.
 4. Break-glass: set `ADMIN_USER_IDS=<your-user-id>` (copy `user_id` from `/api/me`) and restart the container.
 
-### HA UI flashes inside the panel iframe on first load
+### Blank iframe or HA UI flashes inside the panel on first load
 
-Common with hass_ingress when the ingress URL lacks a trailing slash: relative asset paths resolve to `/api/ingress/assets/...` instead of `/api/ingress/<panel>/assets/...`, briefly loading HA's frontend.
+**Blank iframe before Solar AI appears:** current builds show a branded boot splash (“Verifying access…”) as soon as the ingress iframe loads HTML, before JavaScript runs. Upgrade to **v0.5.7+** if you still see a white gap.
+
+**HA frontend briefly inside the panel:** common with hass_ingress when the ingress URL lacks a trailing slash — relative asset paths resolve to `/api/ingress/assets/...` instead of `/api/ingress/<panel>/assets/...`, briefly loading HA's frontend.
 
 1. Use `work_mode: ingress` and `ui_mode: normal` in your hass_ingress panel config.
 2. In DevTools → Network, confirm JS bundles load from `/api/ingress/<panel>/assets/...`, not `/api/ingress/assets/...`.

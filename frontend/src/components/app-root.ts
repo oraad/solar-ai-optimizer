@@ -41,6 +41,13 @@ const VIEWER_TABS = ALL_TABS.filter(
   (t) => t.id !== "settings" && t.id !== "assistant" && t.id !== "load_shedding",
 );
 
+const MOBILE_TAB_LABELS: Partial<Record<Tab, string>> = {
+  load_shedding: "Shedding",
+  assistant: "Chat",
+};
+
+type StatusAlert = { label: string; className: string; title?: string; onClick?: () => void };
+
 const UPDATE_FORCE_INTERVAL_MS = 15 * 60 * 1000;
 
 @customElement("solar-app")
@@ -50,7 +57,7 @@ export class SolarApp extends LitElement {
     css`
       :host {
         display: block;
-        min-height: 100vh;
+        min-height: 100%;
         box-sizing: border-box;
       }
       .topbar {
@@ -61,6 +68,7 @@ export class SolarApp extends LitElement {
         background: var(--panel);
         background: color-mix(in srgb, var(--bg) 78%, transparent);
         border-bottom: 1px solid var(--border);
+        padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
       }
       .topbar-inner {
         max-width: 1400px;
@@ -87,6 +95,31 @@ export class SolarApp extends LitElement {
       .brand h1 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
       .brand .sub { font-size: 0.72rem; color: var(--muted); }
       .status-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .status-menu { position: relative; }
+      .status-menu-btn {
+        min-height: 34px;
+        padding: 4px 10px;
+        font-size: 0.78rem;
+      }
+      .status-menu-panel {
+        display: none;
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        z-index: 30;
+        min-width: 180px;
+        padding: 8px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--panel);
+        box-shadow: var(--shadow-lg);
+        flex-direction: column;
+        gap: 6px;
+      }
+      .status-menu.open .status-menu-panel { display: flex; }
+      .pill.short-text .pill-long { display: none; }
+      .pill.short-text .pill-short { display: inline; }
+      .pill .pill-short { display: none; }
       .updated { font-size: 0.72rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
       .icon-btn {
         width: 38px; height: 38px; padding: 0; display: grid; place-items: center;
@@ -100,6 +133,7 @@ export class SolarApp extends LitElement {
         display: flex;
         gap: 6px;
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
       nav button {
         background: transparent;
@@ -125,7 +159,7 @@ export class SolarApp extends LitElement {
       main {
         max-width: 1400px;
         margin: 0 auto;
-        padding: var(--app-pad, 18px) var(--app-pad, 20px) 40px;
+        padding: var(--app-pad, 18px) var(--app-pad, 20px) calc(40px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
       }
       .layout {
         display: grid;
@@ -144,15 +178,31 @@ export class SolarApp extends LitElement {
       @media (max-width: 1100px) {
         .span-3, .span-4, .span-6, .span-8 { grid-column: span 12; }
       }
+      @media (max-width: 760px) {
+        nav {
+          gap: 4px;
+          padding-bottom: 4px;
+          scroll-snap-type: x proximity;
+        }
+        nav button {
+          scroll-snap-align: start;
+          flex-shrink: 0;
+          padding: 10px 14px;
+          font-size: 0.82rem;
+          min-height: 44px;
+        }
+        nav button .tab-label { display: inline; }
+        .status-menu-btn { min-height: 44px; }
+        .icon-btn { width: 44px; height: 44px; }
+      }
       @media (max-width: 600px) {
         .brand .sub { display: none; }
         .updated { display: none; }
-        nav button { padding: 8px 12px; }
+        .status-secondary { display: none; }
+        .status-menu { display: block; }
       }
-      @media (max-width: 460px) {
-        nav button .tab-label { display: none; }
-        nav button { padding: 8px 12px; }
-        nav button .ic { font-size: 1.1rem; opacity: 1; }
+      @media (min-width: 601px) {
+        .status-menu { display: none; }
       }
       .api-error {
         max-width: 1400px;
@@ -166,13 +216,6 @@ export class SolarApp extends LitElement {
         border: 1px solid var(--border);
         background: color-mix(in srgb, var(--bad) 12%, var(--panel-2));
         color: var(--bad);
-      }
-      .auth-loading {
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        color: var(--muted);
-        font-size: 0.9rem;
       }
     `,
   ];
@@ -192,15 +235,40 @@ export class SolarApp extends LitElement {
   @state() private now = Date.now();
   @state() private apiError = "";
   @state() private updateInfo: UpdateInfo | null = null;
+  @state() private compactTopbar = false;
+  @state() private navNarrow = false;
+  @state() private statusMenuOpen = false;
 
   private unsub?: () => void;
   private pollTimer?: number;
   private clockTimer?: number;
   private gridStatsFetching = false;
   private lastForcedUpdateCheck = 0;
+  private compactMql?: MediaQueryList;
+  private navMql?: MediaQueryList;
+  private onCompactChange = (): void => {
+    this.compactTopbar = this.compactMql?.matches ?? false;
+    if (!this.compactTopbar) this.statusMenuOpen = false;
+  };
+  private onNavNarrowChange = (): void => {
+    this.navNarrow = this.navMql?.matches ?? false;
+  };
+  private onDocClick = (e: Event): void => {
+    if (!this.statusMenuOpen) return;
+    const path = e.composedPath();
+    if (path.includes(this)) return;
+    this.statusMenuOpen = false;
+  };
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.compactMql = window.matchMedia("(max-width: 600px)");
+    this.navMql = window.matchMedia("(max-width: 760px)");
+    this.compactTopbar = this.compactMql.matches;
+    this.navNarrow = this.navMql.matches;
+    this.compactMql.addEventListener("change", this.onCompactChange);
+    this.navMql.addEventListener("change", this.onNavNarrowChange);
+    document.addEventListener("click", this.onDocClick, true);
     this.theme =
       (document.documentElement.getAttribute("data-theme") as "light" | "dark") || "dark";
     const savedTab = localStorage.getItem("solar-tab") as Tab | null;
@@ -216,6 +284,9 @@ export class SolarApp extends LitElement {
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.compactMql?.removeEventListener("change", this.onCompactChange);
+    this.navMql?.removeEventListener("change", this.onNavNarrowChange);
+    document.removeEventListener("click", this.onDocClick, true);
     live.disconnect();
     this.unsub?.();
     window.removeEventListener("solar-plan-refresh", this.onPlanRefresh);
@@ -239,7 +310,7 @@ export class SolarApp extends LitElement {
     this.unsub?.();
     this.unsub = undefined;
     this.session = null;
-    this.authReady = false;
+    this.authReady = true;
     this.needsLogin = true;
     this.status = null;
     this.gridStats = null;
@@ -255,6 +326,15 @@ export class SolarApp extends LitElement {
     if (detail) this.updateInfo = detail;
   };
 
+  private dismissBootSplash(): void {
+    const el = document.getElementById("boot-splash");
+    if (!el || el.classList.contains("boot-splash-out")) return;
+    el.classList.add("boot-splash-out");
+    const remove = () => el.remove();
+    el.addEventListener("transitionend", remove, { once: true });
+    window.setTimeout(remove, 300);
+  }
+
   private async initAuth(): Promise<void> {
     this.authReady = false;
     this.needsLogin = false;
@@ -262,15 +342,18 @@ export class SolarApp extends LitElement {
       this.session = await api.me();
       this.normalizeTabForRole();
       this.authReady = true;
+      this.dismissBootSplash();
       this.startDashboard();
     } catch (e) {
       if (e instanceof AuthRequiredError) {
         this.needsLogin = true;
         this.session = null;
         this.authReady = true;
+        this.dismissBootSplash();
         return;
       }
       this.authReady = true;
+      this.dismissBootSplash();
       this.noteApiError(e);
     }
   }
@@ -447,6 +530,95 @@ export class SolarApp extends LitElement {
     return `updated ${m}m ago`;
   }
 
+  private tabDisplayLabel(t: { id: Tab; label: string }): string {
+    if (this.navNarrow && MOBILE_TAB_LABELS[t.id]) return MOBILE_TAB_LABELS[t.id]!;
+    return t.label;
+  }
+
+  private get secondaryAlerts(): StatusAlert[] {
+    const alerts: StatusAlert[] = [];
+    if (this.status?.engine_mode) {
+      const suffix =
+        this.status.engine_mode === "mpc" && this.status.engine_active !== "mpc" ? " (rules)" : "";
+      alerts.push({
+        label: `${this.status.engine_mode.toUpperCase()}${suffix}`,
+        className: this.status.engine_active === "mpc" ? "good" : "warn",
+      });
+    }
+    if (this.isAdmin && this.updateInfo?.update_available) {
+      alerts.push({
+        label: "UPDATE",
+        className: "warn",
+        title: "A newer release is available — open Settings",
+        onClick: () => this.setTab("settings"),
+      });
+    }
+    if (this.isAdmin && this.status?.forecast_misconfigured) {
+      alerts.push({ label: "SET LOCATION", className: "bad" });
+    }
+    if (this.status?.forecast_degraded) {
+      alerts.push({ label: "FORECAST DEGRADED", className: "warn" });
+    }
+    if (
+      this.isAdmin &&
+      this.status?.forecast_provider === "solcast" &&
+      this.status?.solcast_configured === false
+    ) {
+      alerts.push({ label: "SOLCAST MISCONFIGURED", className: "bad" });
+    }
+    if (this.status?.telemetry_stale) {
+      alerts.push({ label: "STALE DATA", className: "warn" });
+    }
+    return alerts;
+  }
+
+  private renderStatusPill(alert: StatusAlert): ReturnType<typeof html> {
+    return html`
+      <span
+        class="pill ${alert.className} status-secondary"
+        title=${alert.title ?? ""}
+        @click=${alert.onClick}
+        style=${alert.onClick ? "cursor:pointer" : ""}
+      >${alert.label}</span>
+    `;
+  }
+
+  private renderStatusMenu(): ReturnType<typeof html> {
+    const alerts = this.secondaryAlerts;
+    if (!alerts.length) return null;
+    return html`
+      <div class="status-menu ${this.statusMenuOpen ? "open" : ""}">
+        <button
+          type="button"
+          class="status-menu-btn pill warn"
+          aria-expanded=${this.statusMenuOpen}
+          @click=${(e: Event) => {
+            e.stopPropagation();
+            this.statusMenuOpen = !this.statusMenuOpen;
+          }}
+        >
+          ${alerts.length} alert${alerts.length === 1 ? "" : "s"}
+        </button>
+        <div class="status-menu-panel" role="menu">
+          ${alerts.map(
+            (a) => html`
+              <span
+                class="pill ${a.className}"
+                role="menuitem"
+                title=${a.title ?? ""}
+                @click=${() => {
+                  a.onClick?.();
+                  this.statusMenuOpen = false;
+                }}
+                style=${a.onClick ? "cursor:pointer" : ""}
+              >${a.label}</span>
+            `,
+          )}
+        </div>
+      </div>
+    `;
+  }
+
   private renderTabBody() {
     switch (this.tab) {
       case "forecast":
@@ -502,7 +674,7 @@ export class SolarApp extends LitElement {
 
   render() {
     if (!this.authReady) {
-      return html`<solar-toast-host></solar-toast-host><div class="auth-loading">Loading…</div>`;
+      return html`<solar-toast-host></solar-toast-host>`;
     }
     if (this.needsLogin) {
       return html`<solar-toast-host></solar-toast-host><solar-login-page></solar-login-page>`;
@@ -524,46 +696,19 @@ export class SolarApp extends LitElement {
             ${!this.isAdmin
               ? html`<span class="pill warn" title=${this.viewerTooltip}>VIEWER</span>`
               : null}
-            <span class="pill ${this.haConnected ? "good" : "bad"}">
+            <span class="pill ${this.haConnected ? "good" : "bad"} ${this.compactTopbar ? "short-text" : ""}">
               <span class="dot ${this.haConnected ? "on" : "off"}"></span>
-              ${this.haConnected ? "HA connected" : "HA offline"}
+              <span class="pill-long">${this.haConnected ? "HA connected" : "HA offline"}</span>
+              <span class="pill-short">${this.haConnected ? "HA" : "Offline"}</span>
             </span>
             <span class="pill ${this.shadow ? "warn" : "good"}">
               ${this.shadow ? "SHADOW" : "LIVE"}
             </span>
-            ${this.status?.engine_mode
-              ? html`<span class="pill ${this.status.engine_active === "mpc" ? "good" : "warn"}">
-                  ${this.status.engine_mode.toUpperCase()}
-                  ${this.status.engine_mode === "mpc" && this.status.engine_active !== "mpc"
-                    ? " (rules)"
-                    : ""}
-                </span>`
-              : null}
-            ${this.isAdmin && this.updateInfo?.update_available
-              ? html`<span
-                  class="pill warn"
-                  title="A newer release is available — open Settings"
-                  @click=${() => this.setTab("settings")}
-                  style="cursor:pointer"
-                >UPDATE</span>`
-              : null}
-            ${this.isAdmin && this.status?.forecast_misconfigured
-              ? html`<span class="pill bad">SET LOCATION</span>`
-              : null}
-            ${this.status?.forecast_degraded
-              ? html`<span class="pill warn">FORECAST DEGRADED</span>`
-              : null}
-            ${this.isAdmin &&
-            this.status?.forecast_provider === "solcast" &&
-            this.status?.solcast_configured === false
-              ? html`<span class="pill bad">SOLCAST MISCONFIGURED</span>`
-              : null}
-            ${this.status?.telemetry_stale
-              ? html`<span class="pill warn">STALE DATA</span>`
-              : null}
             ${this.paused
               ? html`<span class="pill bad">PAUSED</span>`
               : null}
+            ${this.secondaryAlerts.map((a) => this.renderStatusPill(a))}
+            ${this.renderStatusMenu()}
             <button
               class="icon-btn"
               title=${this.theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
@@ -582,7 +727,7 @@ export class SolarApp extends LitElement {
                 aria-selected=${this.tab === t.id}
                 @click=${() => this.setTab(t.id)}
               >
-                <span class="ic">${t.icon}</span><span class="tab-label">${t.label}</span>
+                <span class="ic">${t.icon}</span><span class="tab-label">${this.tabDisplayLabel(t)}</span>
               </button>
             `,
           )}

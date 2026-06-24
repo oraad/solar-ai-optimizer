@@ -5,6 +5,7 @@ import type uPlot from "uplot";
 import { api } from "../api.js";
 import {
   chartContainerStyles,
+  chartAxisPaddingRight,
   chartHeight,
   cssVar,
   makeChart,
@@ -29,15 +30,36 @@ export class HistoryView extends LitElement {
     chartContainerStyles,
     css`
       .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
-      .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
-      .tabs button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); cursor: pointer; }
+      .tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 12px;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
+      }
+      .tabs button {
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        cursor: pointer;
+        flex-shrink: 0;
+        scroll-snap-align: start;
+        white-space: nowrap;
+      }
+      @media (max-width: 760px) {
+        .tabs button { min-height: 44px; padding: 8px 14px; }
+      }
       .tabs button.active { border-color: var(--accent); color: var(--accent); }
       .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; flex-shrink: 0; }
       .swatch { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); }
       .swatch i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
       .cursor-values { min-height: 1.2em; font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
       select { margin-left: 8px; }
-      .table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+      .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 480px; }
       .table th, .table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
       .table tr:hover { background: var(--panel-2); }
       .scroll { max-height: 320px; overflow: auto; }
@@ -209,6 +231,8 @@ export class HistoryView extends LitElement {
           ]
         : []),
     ];
+    const axisSize = chartAxisPaddingRight(hasTemp);
+    const axisGap = window.innerWidth < 400 ? 4 : 8;
     this.chartHandle = makeChart(
       this.chartEl,
       [],
@@ -216,7 +240,7 @@ export class HistoryView extends LitElement {
       {
         showLegend: false,
         cursorLegendEl: this.cursorLegendEl,
-        padding: [8, hasTemp ? 72 : 56, 14, 0],
+        padding: [8, axisSize, 14, 0],
         scales: {
           x: { time: true },
           power: {},
@@ -238,8 +262,8 @@ export class HistoryView extends LitElement {
             stroke: good,
             grid: { show: false },
             ticks: { stroke: gridStroke },
-            size: 56,
-            gap: 8,
+            size: axisSize,
+            gap: axisGap,
           },
           ...(hasTemp
             ? [
@@ -249,8 +273,8 @@ export class HistoryView extends LitElement {
                   stroke: muted,
                   grid: { show: false },
                   ticks: { stroke: gridStroke },
-                  size: 60,
-                  gap: 8,
+                  size: axisSize,
+                  gap: axisGap,
                 },
               ]
             : []),
@@ -265,7 +289,7 @@ export class HistoryView extends LitElement {
       return html`<p class="label">No decisions recorded yet.</p>`;
     }
     return html`
-      <div class="scroll">
+      <div class="scroll table-scroll">
         <table class="table">
           <thead>
             <tr>
@@ -295,7 +319,7 @@ export class HistoryView extends LitElement {
       return html`<p class="label">No inverter writes recorded yet.</p>`;
     }
     return html`
-      <div class="scroll">
+      <div class="scroll table-scroll">
         <table class="table">
           <thead>
             <tr><th>Time</th><th>Capability</th><th>Requested</th><th>Result</th></tr>
@@ -328,7 +352,7 @@ export class HistoryView extends LitElement {
       return html`<p class="label">No shed switch writes recorded yet.</p>`;
     }
     return html`
-      <div class="scroll">
+      <div class="scroll table-scroll">
         <table class="table">
           <thead>
             <tr><th>Time</th><th>Tier</th><th>Entity</th><th>Desired</th><th>Result</th><th>Companions</th></tr>
@@ -372,7 +396,7 @@ export class HistoryView extends LitElement {
       return html`<p class="label">No grid transitions in this window.</p>`;
     }
     return html`
-      <div class="scroll">
+      <div class="scroll table-scroll">
         <table class="table">
           <thead><tr><th>Time</th><th>Grid</th></tr></thead>
           <tbody>

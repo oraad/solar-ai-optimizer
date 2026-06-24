@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-06-24
+
+### Added
+
+- Branded **boot splash** in the dashboard HTML that paints before JS loads when opening Solar AI via HA ingress (sun icon, spinner, “Verifying access…”); fades out after `/api/me` completes
+- **Mobile ingress QA** checklist ([`docs/mobile-ingress-qa.md`](docs/mobile-ingress-qa.md)) for Home Assistant Companion validation
+- Mobile screenshot captures (390×844) in the docs screenshot workflow
+- Compact **status alerts menu** on narrow screens (≤600px) for secondary pills (RULES/MPC, UPDATE, forecast warnings, etc.)
+- Horizontal scroll and snap for main nav tabs and History sub-tabs on mobile
+
+### Changed
+
+- Dashboard **mobile layout** for HA Companion ingress: safe-area insets (`viewport-fit=cover`), 44px tap targets, sticky topbar padding, bottom safe-area on main content and toasts
+- Tab labels stay visible on narrow screens (short labels: “Shedding”, “Chat”)
+- HA/LIVE pills use short labels on compact topbar widths
+- History tables scroll horizontally without breaking page layout; chart axis padding tightens on narrow screens
+- Info tips and touch controls improved for tap devices (`hover: none` button styles)
+- Removed `background-attachment: fixed` on body to avoid double-scroll in ingress iframes
+- Replaced `100vh` with `100%` min-height to reduce mobile browser chrome jump
+
+### Fixed
+
+- Logout shows the login page immediately instead of a stuck loading state
+
 ## [0.5.6] - 2026-06-24
 
 ### Added
@@ -217,6 +241,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.5.7]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.7
+[0.5.6]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.6
+[0.5.5]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.5
+[0.5.4]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.4
 [0.5.3]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.3
 [0.5.2]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.2
 [0.5.1]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.1

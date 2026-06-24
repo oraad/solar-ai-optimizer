@@ -25,13 +25,13 @@ export class ToastHost extends LitElement {
   static styles = css`
     :host {
       position: fixed;
-      bottom: 20px;
-      right: 20px;
+      bottom: max(20px, var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+      right: max(20px, var(--safe-right, env(safe-area-inset-right, 0px)));
       z-index: 10000;
       display: flex;
       flex-direction: column-reverse;
       gap: 10px;
-      max-width: min(380px, calc(100vw - 40px));
+      max-width: min(380px, calc(100% - 40px));
       pointer-events: none;
       font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
     }

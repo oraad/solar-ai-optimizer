@@ -59,6 +59,12 @@ export class OverridesPanel extends LitElement {
       .banner.danger { background: color-mix(in srgb, var(--bad) 12%, var(--panel-2)); color: var(--bad); }
       .viewer-note { font-size: 0.78rem; color: var(--muted); margin: -4px 0 12px; }
       .seg button:disabled { opacity: 0.45; cursor: not-allowed; }
+      @media (max-width: 760px) {
+        .seg button {
+          min-height: 44px;
+          padding: 8px 14px;
+        }
+      }
     `,
   ];
 

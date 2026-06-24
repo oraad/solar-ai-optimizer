@@ -97,6 +97,7 @@ export const sharedStyles = css`
     border-radius: var(--radius-sm);
     padding: 8px 14px;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
     transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease,
       box-shadow 0.15s ease;
   }
@@ -154,6 +155,8 @@ export const sharedStyles = css`
     flex-direction: row;
     align-items: center;
     gap: 8px;
+    min-height: 44px;
+    padding: 4px 0;
   }
   .checkbox-row label {
     order: 1;
@@ -186,6 +189,16 @@ export const sharedStyles = css`
   @keyframes shimmer {
     0% { background-position: 100% 0; }
     100% { background-position: 0 0; }
+  }
+
+  @media (max-width: 760px) {
+    button { min-height: 44px; }
+  }
+
+  @media (hover: none) {
+    button:hover { background: var(--panel-2); border-color: var(--border); }
+    button.primary:hover { filter: none; }
+    .card:hover { border-color: var(--border); }
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -13,6 +13,7 @@ import { chromium, type Page } from "playwright";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(__dirname, "../../docs/images/frontend");
 const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:8000";
+const MOBILE_VIEWPORT = { width: 390, height: 844 };
 
 const VIEWER_HEADERS = {
   "X-Remote-User-Id": "viewer-demo",
@@ -111,6 +112,26 @@ async function captureViewer(page: Page): Promise<void> {
   await shot(page, "viewer-overview.png");
 }
 
+async function captureMobile(page: Page): Promise<void> {
+  await waitForDashboard(page);
+
+  await clickMainTab(page, "Overview");
+  await shotFull(page, "mobile-overview.png");
+
+  await clickMainTab(page, "History");
+  await shot(page, "mobile-history-chart.png");
+  await app(page)
+    .locator("solar-history-view .tabs button")
+    .filter({ hasText: "Decisions" })
+    .click();
+  await page.waitForTimeout(500);
+  await shot(page, "mobile-history-decisions.png");
+
+  await clickMainTab(page, "Settings");
+  await expandDetails(page, "Home Assistant");
+  await shotFull(page, "mobile-settings.png");
+}
+
 async function main(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });
   const browser = await chromium.launch();
@@ -130,12 +151,23 @@ async function main(): Promise<void> {
   });
   const viewerPage = await viewerContext.newPage();
 
+  const mobileContext = await browser.newContext({
+    locale: "en-US",
+    timezoneId: "UTC",
+    viewport: MOBILE_VIEWPORT,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const mobilePage = await mobileContext.newPage();
+
   try {
     await captureAdmin(adminPage);
     await captureViewer(viewerPage);
+    await captureMobile(mobilePage);
   } finally {
     await adminContext.close();
     await viewerContext.close();
+    await mobileContext.close();
     await browser.close();
   }
 }

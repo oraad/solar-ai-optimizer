@@ -82,6 +82,7 @@ export class SettingsPanel extends LitElement {
       .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-top: 10px; }
       @media (max-width: 700px) {
         .fields { grid-template-columns: 1fr; }
+        summary { font-size: 0.82rem; }
       }
       .field { display: flex; flex-direction: column; gap: 3px; }
       .field label { font-size: 0.75rem; color: var(--muted); }

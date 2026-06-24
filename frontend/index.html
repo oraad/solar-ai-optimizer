@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#0b0e13" />
     <title>Solar AI Optimizer</title>
@@ -57,6 +57,10 @@
         --card-pad: 18px;
         --gap: 16px;
         --metric: 2rem;
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left: env(safe-area-inset-left, 0px);
+        --safe-right: env(safe-area-inset-right, 0px);
         color-scheme: dark;
       }
       @media (max-width: 760px) {
@@ -86,16 +90,20 @@
         color-scheme: light;
       }
       * { box-sizing: border-box; }
-      html, body { margin: 0; height: 100%; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        overflow-x: hidden;
+      }
       body {
         background:
           radial-gradient(1100px 600px at 100% -10%, rgba(255, 176, 32, 0.06), transparent 60%),
           radial-gradient(1000px 700px at -10% 0%, rgba(76, 194, 255, 0.06), transparent 55%),
           var(--bg);
-        background-attachment: fixed;
         color: var(--text);
         font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
         -webkit-font-smoothing: antialiased;
+        -webkit-tap-highlight-color: transparent;
         transition: background-color 0.25s ease, color 0.25s ease;
       }
       /* Pleasant scrollbars across the app. */
@@ -108,9 +116,86 @@
         background-clip: padding-box;
       }
       *::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: padding-box; }
+      /* Boot splash: paints before JS loads (HA ingress iframe). */
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+        background:
+          radial-gradient(1100px 600px at 100% -10%, rgba(255, 176, 32, 0.06), transparent 60%),
+          radial-gradient(1000px 700px at -10% 0%, rgba(76, 194, 255, 0.06), transparent 55%),
+          var(--bg);
+        color: var(--text);
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        transition: opacity 0.2s ease;
+      }
+      #boot-splash.boot-splash-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #boot-splash .boot-splash-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        text-align: center;
+      }
+      #boot-splash .boot-splash-sun {
+        font-size: 1.5rem;
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        border-radius: 11px;
+        background: linear-gradient(150deg, var(--accent), var(--accent-2));
+        color: #1a1205;
+        box-shadow: var(--shadow);
+      }
+      #boot-splash h1 {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      #boot-splash .boot-splash-sub {
+        margin: 0;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+      #boot-splash .boot-splash-spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--muted);
+        border-top-color: var(--accent-2);
+        border-radius: 50%;
+        animation: boot-spin 0.7s linear infinite;
+      }
+      @keyframes boot-spin {
+        to { transform: rotate(360deg); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-splash .boot-splash-spinner {
+          animation: none;
+          border-top-color: var(--muted);
+        }
+        #boot-splash {
+          transition: none;
+        }
+      }
     </style>
   </head>
   <body>
+    <div id="boot-splash" role="status" aria-busy="true" aria-label="Loading Solar AI Optimizer">
+      <div class="boot-splash-inner">
+        <span class="boot-splash-sun" aria-hidden="true">&#9728;</span>
+        <h1>Solar AI Optimizer</h1>
+        <p class="boot-splash-sub">Verifying access…</p>
+        <span class="boot-splash-spinner" aria-hidden="true"></span>
+      </div>
+    </div>
     <solar-app></solar-app>
     <script type="module" src="/src/main.ts"></script>
   </body>

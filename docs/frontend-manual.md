@@ -1,6 +1,6 @@
 # Solar AI Optimizer — Dashboard User Guide
 
-This guide walks through the Lit web dashboard served with the backend at **http://localhost:8000** (or via the Home Assistant add-on ingress panel). Screenshots use the default **dark** theme at 1280×900.
+This guide walks through the Lit web dashboard served with the backend at **http://localhost:8000** (or via the Home Assistant add-on ingress panel). Screenshots use the default **dark** theme at 1280×900 unless noted.
 
 ## Getting started
 
@@ -18,6 +18,12 @@ The top bar shows live connection status and operating mode:
 - Status pills such as **SET LOCATION**, **FORECAST DEGRADED**, **STALE DATA**, or **SOLCAST MISCONFIGURED** highlight configuration or data issues (admin only)
 
 Use the **theme toggle** (sun/moon icon) to switch light/dark; charts repaint to match.
+
+### Opening from Home Assistant ingress
+
+When you open Solar AI from the HA sidebar (add-on or hass_ingress), a **boot splash** appears immediately while the app verifies your session (`GET /api/me`). This avoids a blank iframe while JavaScript loads and while ingress role resolution runs. The splash fades out once you are signed in or the login page is shown.
+
+On phones using the **Home Assistant Companion** app, the dashboard respects safe areas (notch, home indicator) and uses larger tap targets. See the [Mobile ingress QA](mobile-ingress-qa.md) checklist when validating layout on iOS or Android.
 
 ---
 
@@ -256,6 +262,8 @@ longer than success messages.
 | **API errors banner** | API token in Settings → API security; CORS if using a separate origin |
 | Empty charts | Wait for telemetry history; widen History window |
 | **VIEWER** but need Settings | Ask an HA admin or use local admin login for direct access |
+| Blank iframe on ingress open | Upgrade to **v0.5.7+** for the boot splash; see [ingress troubleshooting](ingress-auth.md#blank-iframe-or-ha-ui-flashes-inside-the-panel-on-first-load) |
+| Double scrollbar in HA app | Fixed in **v0.5.7+** (`background-attachment` and `100vh` layout tweaks); see [Mobile ingress QA](mobile-ingress-qa.md) |
 
 ---
 
@@ -293,4 +301,4 @@ npx playwright install chromium
 npm run docs:screenshots
 ```
 
-Commit updated files under `docs/images/frontend/` together with any manual text changes.
+Commit updated files under `docs/images/frontend/` together with any manual text changes. Mobile captures (`mobile-*.png`, 390×844) are included when the script runs with a narrow viewport.

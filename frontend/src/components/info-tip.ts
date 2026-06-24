@@ -13,7 +13,7 @@ function ensurePopoverStyles(): void {
       position: fixed;
       z-index: 10000;
       width: max-content;
-      max-width: min(280px, 70vw);
+      max-width: min(280px, calc(100% - 24px));
       padding: 8px 10px;
       border-radius: var(--radius-sm, 9px);
       border: 1px solid var(--border-strong, #39414e);
@@ -51,12 +51,12 @@ export class InfoTip extends LitElement {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 15px;
-      height: 15px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       border: 1px solid var(--muted);
       color: var(--muted);
-      font-size: 0.62rem;
+      font-size: 0.72rem;
       font-weight: 700;
       font-style: italic;
       font-family: Georgia, "Times New Roman", serif;
@@ -65,6 +65,7 @@ export class InfoTip extends LitElement {
       background: var(--panel-2);
       padding: 0;
       box-shadow: none;
+      -webkit-tap-highlight-color: transparent;
     }
     .btn:hover,
     .btn:focus-visible,
@@ -82,8 +83,14 @@ export class InfoTip extends LitElement {
   @property() text = "";
 
   @state() private open = false;
+  @state() private touchOnly = false;
 
   private portalEl: HTMLDivElement | null = null;
+  private touchMql?: MediaQueryList;
+  private onTouchModeChange = (): void => {
+    this.touchOnly = this.touchMql?.matches ?? false;
+    if (this.touchOnly) this.close();
+  };
 
   private onDocClick = (e: Event) => {
     if (!this.open) return;
@@ -99,6 +106,9 @@ export class InfoTip extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.touchMql = window.matchMedia("(hover: none)");
+    this.touchOnly = this.touchMql.matches;
+    this.touchMql.addEventListener("change", this.onTouchModeChange);
     document.addEventListener("click", this.onDocClick, true);
     document.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("scroll", this.reposition, true);
@@ -107,6 +117,7 @@ export class InfoTip extends LitElement {
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.touchMql?.removeEventListener("change", this.onTouchModeChange);
     document.removeEventListener("click", this.onDocClick, true);
     document.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("scroll", this.reposition, true);
@@ -184,10 +195,18 @@ export class InfoTip extends LitElement {
           aria-label="More information"
           aria-expanded=${this.open}
           @click=${this.toggle}
-          @mouseenter=${() => this.openTip()}
-          @mouseleave=${() => this.close()}
-          @focus=${() => this.openTip()}
-          @blur=${() => this.close()}
+          @mouseenter=${() => {
+            if (!this.touchOnly) this.openTip();
+          }}
+          @mouseleave=${() => {
+            if (!this.touchOnly) this.close();
+          }}
+          @focus=${() => {
+            if (!this.touchOnly) this.openTip();
+          }}
+          @blur=${() => {
+            if (!this.touchOnly) this.close();
+          }}
         >
           i
         </button>

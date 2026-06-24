@@ -34,6 +34,14 @@ export const chartContainerStyles = css`
     flex-direction: column;
     min-height: min(50vh, 480px);
   }
+  @media (max-width: 760px) {
+    .chart-card {
+      min-height: min(40vh, 360px);
+    }
+    .legend .swatch {
+      font-size: 0.75rem;
+    }
+  }
   .chart-panel {
     display: flex;
     flex-direction: column;
@@ -98,9 +106,25 @@ export const chartContainerStyles = css`
   }
 `;
 
-/** Responsive chart height used by forecast and history views (clamp 240px–360px, ~32vh). */
+/** True when chart layout should use mobile sizing. */
+export function isChartMobile(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia(CHART_BREAKPOINT).matches;
+}
+
+/** Right-side chart padding for multi-axis layouts. */
+export function chartAxisPaddingRight(hasTemp: boolean): number {
+  if (typeof window === "undefined") return hasTemp ? 72 : 56;
+  const narrow = window.innerWidth < 400;
+  if (narrow) return hasTemp ? 48 : 40;
+  if (isChartMobile()) return hasTemp ? 56 : 44;
+  return hasTemp ? 72 : 56;
+}
+
+/** Responsive chart height used by forecast and history views. */
 export function chartHeight(): number {
   if (typeof window === "undefined") return CHART_HEIGHT_DESKTOP;
+  if (isChartMobile()) return CHART_HEIGHT_MOBILE;
   const vh = Math.round(window.innerHeight * 0.32);
   return Math.min(360, Math.max(240, vh));
 }

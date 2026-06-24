@@ -42,6 +42,22 @@ def _to_bool(raw: Any) -> bool | None:
     return None
 
 
+def is_entity_on(domain: str, state: str | None) -> bool | None:
+    """Whether an HA entity state represents 'on' for shed/restore semantics."""
+    if state is None:
+        return None
+    s = str(state).strip().lower()
+    if domain == "climate":
+        if s in {"off", "unavailable", "unknown"}:
+            return False
+        return True
+    if domain == "fan":
+        if s in {"off", "unavailable", "unknown"}:
+            return False
+        return True
+    return _to_bool(state)
+
+
 class HAEntityAdapter(InverterAdapter):
     def __init__(self, ha: HAClient, cfg: InverterConfig) -> None:
         self._ha = ha

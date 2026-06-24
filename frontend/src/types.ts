@@ -81,7 +81,23 @@ export interface ShedResult {
   verified: boolean;
   skipped_reason: string | null;
   error: string | null;
+  companions_captured?: string[];
+  companions_restored?: string[];
+  companion_errors?: Record<string, string>;
   ts: string;
+}
+
+export interface CompanionEntity {
+  entity_id: string;
+  domain: string;
+  name: string | null;
+}
+
+export interface ShedDeviceCompanionsResponse {
+  power_entity: string;
+  device_id: string | null;
+  companions: CompanionEntity[];
+  warning?: string | null;
 }
 
 export interface BatterySummary {
@@ -182,6 +198,9 @@ export interface ShedExecutionRow {
   verified: boolean;
   skipped_reason: string | null;
   error: string | null;
+  companions_captured?: string[];
+  companions_restored?: string[];
+  companion_errors?: Record<string, string>;
 }
 
 export interface SolarForecastPoint {

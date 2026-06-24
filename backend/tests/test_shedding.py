@@ -71,3 +71,51 @@ def test_legacy_switch_field_loads_as_switches():
     )
     assert tier.switches == ["switch.old"]
     assert tier.entity_ids() == ["switch.old"]
+
+
+def test_restore_disabled_skips_soc_restore():
+    ctrl = _ctrl(
+        tiers=[
+            LoadTier(
+                name="pool",
+                switches=["switch.pool"],
+                shed_below_soc=40,
+                restore_above_soc=55,
+                restore_enabled=False,
+                priority=1,
+            )
+        ]
+    )
+    actions = ctrl.plan(Telemetry(battery_soc=80.0, grid_present=False))
+    assert actions == []
+
+
+def test_restore_on_grid_disabled_skips_grid_restore():
+    ctrl = _ctrl(
+        tiers=[
+            LoadTier(
+                name="pool",
+                switches=["switch.pool"],
+                shed_below_soc=40,
+                restore_above_soc=55,
+                restore_on_grid=False,
+                priority=1,
+            )
+        ]
+    )
+    actions = ctrl.plan(Telemetry(battery_soc=30.0, grid_present=True))
+    assert actions == []
+
+
+def test_companions_for_autodiscover_when_key_missing():
+    tier = LoadTier(name="t", switches=["switch.a"])
+    assert tier.companions_for("switch.a") is None
+
+
+def test_companions_for_empty_list_when_explicit():
+    tier = LoadTier(
+        name="t",
+        switches=["switch.a"],
+        state_entities={"switch.a": []},
+    )
+    assert tier.companions_for("switch.a") == []

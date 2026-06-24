@@ -150,14 +150,24 @@ export class DecisionPanel extends LitElement {
               <div class="subhead">Shed execution</div>
               <div class="chips">
                 ${this.shedResults.map(
-                  (r) => html`
-                    <span class="chip">
+                  (r) => {
+                    const extra =
+                      r.skipped_reason === "was off before shed"
+                        ? "was off before shed"
+                        : (r.companions_restored?.length ?? 0) > 0
+                          ? `companions: ${r.companions_restored!.join(", ")}`
+                          : "";
+                    const title = [r.skipped_reason, extra].filter(Boolean).join(" · ");
+                    return html`
+                    <span class="chip" title=${title}>
                       <span class="cap">${r.tier}</span>
                       <span class="val ${r.verified ? "on" : "off"}">
                         ${r.desired_on ? "ON" : "OFF"} ${r.verified ? "ok" : r.skipped_reason || "pending"}
                       </span>
+                      ${extra ? html`<span class="why">${extra}</span>` : null}
                     </span>
-                  `,
+                  `;
+                  },
                 )}
               </div>
             `

@@ -136,6 +136,14 @@ const FIELD_HELP: Record<string, Record<string, string>> = {
 
       "Shed order: lower numbers shed first; higher numbers are kept longer.",
 
+    restore_enabled:
+
+      "When enabled, turn this tier back on when SOC rises above restore threshold.",
+
+    restore_on_grid:
+
+      "When enabled, restore this tier when grid is detected (if global grid restore is on).",
+
   },
 
   grid_charge: {

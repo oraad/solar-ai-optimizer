@@ -76,3 +76,4 @@ class ShedExecutionRow(Base):
     verified: Mapped[bool] = mapped_column(Boolean, default=False)
     skipped_reason: Mapped[str | None] = mapped_column(String(128), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    companion_audit_json: Mapped[str] = mapped_column(Text, default="{}")

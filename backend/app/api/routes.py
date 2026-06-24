@@ -206,6 +206,54 @@ async def entities(
     }
 
 
+@router.get("/shed/device-companions")
+async def shed_device_companions(
+    request: Request,
+    entity: str = Query(..., min_length=3),
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
+    """Discover actionable companion entities on the same HA device as a power entity."""
+    from ..ha.device_discovery import discover_device_companions
+
+    orch = _orch(request)
+    try:
+        result = await discover_device_companions(orch.ha, entity, use_cache=False)
+    except Exception as e:  # noqa: BLE001
+        return {
+            "power_entity": entity,
+            "device_id": None,
+            "companions": [],
+            "warning": str(e),
+        }
+    return {
+        "power_entity": result.power_entity,
+        "device_id": result.device_id,
+        "companions": [c.model_dump() for c in result.companions],
+        "warning": result.warning,
+    }
+
+
+@router.get("/shed/snapshots")
+async def shed_snapshots(
+    request: Request,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
+    """Pending shed snapshots (debug / operator visibility)."""
+    orch = _orch(request)
+    snaps = orch.snapshot_store.list_all()
+    return {
+        "snapshots": [
+            {
+                "entity": entity,
+                "was_on": snap.was_on,
+                "companion_count": len(snap.companions),
+                "captured_at": snap.captured_at.isoformat(),
+            }
+            for entity, snap in snaps.items()
+        ]
+    }
+
+
 @router.get("/config")
 async def get_config(
     request: Request,

@@ -20,8 +20,10 @@ Key sections (all editable in Settings):
 - Battery specs and reserve policy
 - Forecast location, PV arrays, temperature model
 - Control timing and engine mode (`rules` or `mpc`)
-- Load-shedding tiers
 - Fail-safe heartbeat
+
+**Load shedding** is configured in the dedicated **Load shedding** tab (not Settings).
+See [Dashboard user guide → Load-shedding tiers](frontend-manual.md#load-shedding-tiers).
 
 See [Home Assistant setup](home-assistant-setup.md) for connection and entity mapping,
 and [Dashboard user guide → Settings](frontend-manual.md#settings) for a UI walkthrough.
@@ -94,6 +96,33 @@ engine:
 Higher-ranked priorities influence reserve buffers, blackout-risk scoring, MPC
 objective weights, and grid-charge ramp factor strength. **Savings** means
 opportunistic grid use when present — not time-of-use or tariff optimization.
+
+## Load shedding
+
+Configure tiers in the dashboard **Load shedding** tab. Each tier can control
+several power switches (`switch.*` or `input_boolean.*`) that shed and restore
+together using SOC hysteresis. Lower **priority** sheds first.
+
+Companion entities on the same Home Assistant device (climate, select, fan, etc.)
+are discovered automatically and snapshotted when shedding; they are restored when
+the tier comes back. Devices that were **off before shedding** are never turned
+on by restore.
+
+| Field | Purpose |
+|-------|---------|
+| `restore_enabled` | Restore on SOC when `soc >= restore_above_soc` |
+| `restore_on_grid` | Restore when grid is present (if global flag is on) |
+| `state_entities` | Optional map of power entity → companion entity IDs |
+
+Omit a key in `state_entities` to autodiscover companions; set `[]` for
+switch-only shedding. Snapshots persist under the data volume and are pruned
+when tier configuration changes.
+
+API (admin): `GET /api/shed/device-companions?entity_id=…` previews discovery;
+`GET /api/shed/snapshots` lists stored pre-shed state.
+
+See [Home Assistant setup → Load shedding](home-assistant-setup.md#load-shedding)
+for entity examples.
 
 ## Docker build extras
 

@@ -114,6 +114,10 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
 
     priority: "Priority",
 
+    restore_enabled: "Auto-restore on SOC",
+
+    restore_on_grid: "Restore when grid present",
+
   },
 
   grid_charge: {

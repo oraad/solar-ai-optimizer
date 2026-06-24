@@ -21,22 +21,24 @@ import "./overrides-panel.js";
 import "./forecast-chart.js";
 import "./history-view.js";
 import "./assistant-panel.js";
+import "./load-shedding-panel.js";
 import "./settings-panel.js";
 import "./login-page.js";
 import "./toast-host.js";
 
-type Tab = "overview" | "forecast" | "history" | "assistant" | "settings";
+type Tab = "overview" | "forecast" | "history" | "assistant" | "settings" | "load_shedding";
 
 const ALL_TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "overview", label: "Overview", icon: "\u25A0" },
   { id: "forecast", label: "Forecast", icon: "\u2600" },
   { id: "history", label: "History", icon: "\u29D6" },
   { id: "assistant", label: "Assistant", icon: "\u2709" },
+  { id: "load_shedding", label: "Load shedding", icon: "\u26A1" },
   { id: "settings", label: "Settings", icon: "\u2699" },
 ];
 
 const VIEWER_TABS = ALL_TABS.filter(
-  (t) => t.id !== "settings" && t.id !== "assistant",
+  (t) => t.id !== "settings" && t.id !== "assistant" && t.id !== "load_shedding",
 );
 
 const UPDATE_FORCE_INTERVAL_MS = 15 * 60 * 1000;
@@ -467,6 +469,8 @@ export class SolarApp extends LitElement {
         return html`<div class="layout"><solar-assistant-panel class="span-12 center"></solar-assistant-panel></div>`;
       case "settings":
         return html`<div class="layout"><solar-settings-panel class="span-12 center" .config=${this.config} .status=${this.status} .session=${this.session} .updateInfo=${this.updateInfo}></solar-settings-panel></div>`;
+      case "load_shedding":
+        return html`<div class="layout"><solar-load-shedding-panel class="span-12 center" .config=${this.config} .status=${this.status}></solar-load-shedding-panel></div>`;
       default:
         return html`
           <div class="layout">

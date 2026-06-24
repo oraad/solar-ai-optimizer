@@ -250,6 +250,9 @@ class LoadTier(BaseModel):
     shed_below_soc: float = 40.0
     restore_above_soc: float = 55.0
     priority: int = 0                 # higher = more important (shed last)
+    restore_enabled: bool = True      # SOC-based restore when soc >= restore_above_soc
+    restore_on_grid: bool = True      # restore when grid present (if global flag on)
+    state_entities: dict[str, list[str]] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -266,6 +269,12 @@ class LoadTier(BaseModel):
     def entity_ids(self) -> list[str]:
         return [s.strip() for s in self.switches if s and s.strip()]
 
+    def companions_for(self, entity_id: str) -> list[str] | None:
+        """Return companion entity IDs, None to autodiscover, [] for switch-only."""
+        if entity_id not in self.state_entities:
+            return None
+        return list(self.state_entities.get(entity_id) or [])
+
     @model_validator(mode="after")
     def _hysteresis_order(self) -> "LoadTier":
         if self.restore_above_soc <= self.shed_below_soc:
@@ -274,6 +283,14 @@ class LoadTier(BaseModel):
                 f"({self.restore_above_soc}) must be > shed_below_soc "
                 f"({self.shed_below_soc})"
             )
+        known = set(self.entity_ids())
+        cleaned: dict[str, list[str]] = {}
+        for key, companions in self.state_entities.items():
+            k = key.strip()
+            if not k or k not in known:
+                continue
+            cleaned[k] = [c.strip() for c in companions if c and str(c).strip()]
+        object.__setattr__(self, "state_entities", cleaned)
         return self
 
 

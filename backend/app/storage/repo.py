@@ -214,6 +214,13 @@ async def get_recent_executions(limit: int = 100) -> list[dict]:
 
 
 async def save_shed_execution(r: ShedResult) -> None:
+    import json
+
+    audit = {
+        "companions_captured": r.companions_captured,
+        "companions_restored": r.companions_restored,
+        "companion_errors": r.companion_errors,
+    }
     sm = get_sessionmaker()
     async with sm() as s:
         s.add(
@@ -226,12 +233,15 @@ async def save_shed_execution(r: ShedResult) -> None:
                 verified=r.verified,
                 skipped_reason=r.skipped_reason,
                 error=r.error,
+                companion_audit_json=json.dumps(audit),
             )
         )
         await s.commit()
 
 
 async def get_recent_shed_executions(limit: int = 100) -> list[dict]:
+    import json
+
     sm = get_sessionmaker()
     async with sm() as s:
         rows = (
@@ -241,19 +251,29 @@ async def get_recent_shed_executions(limit: int = 100) -> list[dict]:
                 .limit(limit)
             )
         ).scalars().all()
-    return [
-        {
-            "ts": r.ts.isoformat(),
-            "tier": r.tier,
-            "entity": r.entity,
-            "desired_on": r.desired_on,
-            "applied": r.applied,
-            "verified": r.verified,
-            "skipped_reason": r.skipped_reason,
-            "error": r.error,
-        }
-        for r in rows
-    ]
+    out: list[dict] = []
+    for r in rows:
+        audit_raw = getattr(r, "companion_audit_json", None) or "{}"
+        try:
+            audit = json.loads(audit_raw)
+        except json.JSONDecodeError:
+            audit = {}
+        out.append(
+            {
+                "ts": r.ts.isoformat(),
+                "tier": r.tier,
+                "entity": r.entity,
+                "desired_on": r.desired_on,
+                "applied": r.applied,
+                "verified": r.verified,
+                "skipped_reason": r.skipped_reason,
+                "error": r.error,
+                "companions_captured": audit.get("companions_captured", []),
+                "companions_restored": audit.get("companions_restored", []),
+                "companion_errors": audit.get("companion_errors", {}),
+            }
+        )
+    return out
 
 
 async def purge_older_than(days: int) -> int:

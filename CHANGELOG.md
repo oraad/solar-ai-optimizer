@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-06-24
+
+### Added
+
+- Dedicated dashboard **Load shedding** tab (admin): tier editor moved out of Settings with per-tier restore toggles and companion discovery
+- Per-tier **`restore_enabled`** and **`restore_on_grid`** planner gates; optional **`state_entities`** map (omit key = autodiscover companions, `[]` = switch-only)
+- Home Assistant **device-scoped companion autodiscovery** (climate, select, fan, etc.) via entity registry WebSocket lookup
+- **Shed snapshot store** (`shed_snapshots.json`) capturing power and companion state before shed; prune on config reload
+- Domain-specific **entity restore** (climate, select, fan, `input_select`, and related domains) with `was_on` gating — devices off before shed stay off
+- **`GET /api/shed/device-companions`** and **`GET /api/shed/snapshots`** for discovery preview and snapshot inspection
+- Decision panel and history show companion restore audit and was-off-before-shed details; `companion_audit_json` on shed execution records
+
+### Changed
+
+- Load shedding configuration UI, field labels, and help text aligned with new restore and companion semantics
+- Shed executor captures snapshots before idempotency checks; shadow mode logs only (no snapshot persistence or HA writes)
+- Companion restore runs when the power entity is already on at restore time
+
+### Fixed
+
+- Kill switch and restore paths honor pre-shed `was_on` snapshots so restore never powers on originally-off devices
+
 ## [0.5.5] - 2026-06-21
 
 ### Fixed

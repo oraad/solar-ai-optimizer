@@ -331,12 +331,20 @@ export class HistoryView extends LitElement {
       <div class="scroll">
         <table class="table">
           <thead>
-            <tr><th>Time</th><th>Tier</th><th>Entity</th><th>Desired</th><th>Result</th></tr>
+            <tr><th>Time</th><th>Tier</th><th>Entity</th><th>Desired</th><th>Result</th><th>Companions</th></tr>
           </thead>
           <tbody>
             ${this.shedExecs.map(
-              (e) => html`
-                <tr title=${e.skipped_reason || e.error || ""}>
+              (e) => {
+                const comp =
+                  (e.companions_restored?.length ?? 0) > 0
+                    ? `restored: ${e.companions_restored!.join(", ")}`
+                    : (e.companions_captured?.length ?? 0) > 0
+                      ? `captured: ${e.companions_captured!.join(", ")}`
+                      : "";
+                const title = [e.skipped_reason, e.error, comp].filter(Boolean).join(" · ");
+                return html`
+                <tr title=${title}>
                   <td>${new Date(e.ts).toLocaleString()}</td>
                   <td>${e.tier}</td>
                   <td>${e.entity}</td>
@@ -348,8 +356,10 @@ export class HistoryView extends LitElement {
                         : "applied"
                       : e.skipped_reason || "skipped"}
                   </td>
+                  <td>${comp || "—"}</td>
                 </tr>
-              `,
+              `;
+              },
             )}
           </tbody>
         </table>

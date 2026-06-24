@@ -19,7 +19,6 @@ const FORM_SECTIONS = [
   "reserve",
   "forecast",
   "control",
-  "load_shedding",
 ] as const;
 
 // Sections persisted on save (includes custom-rendered sections).
@@ -69,15 +68,6 @@ const DATALIST_DOMAINS = [
 
 function isScalar(v: unknown): v is number | string | boolean {
   return typeof v === "number" || typeof v === "string" || typeof v === "boolean";
-}
-
-function tierSwitches(t: Record<string, unknown>): string[] {
-  if (Array.isArray(t.switches)) {
-    const list = t.switches.map((s) => String(s ?? ""));
-    return list.length ? list : [""];
-  }
-  const legacy = String(t.switch ?? "").trim();
-  return legacy ? [legacy] : [""];
 }
 
 @customElement("solar-settings-panel")
@@ -218,50 +208,12 @@ export class SettingsPanel extends LitElement {
     });
   }
 
-  private validateTiers(): string | null {
-    const d = this.draft as unknown as Record<string, any>;
-    const tiers = (d.load_shedding?.tiers ?? []) as Record<string, unknown>[];
-    for (let i = 0; i < tiers.length; i++) {
-      const t = tiers[i];
-      const name = String(t.name ?? "").trim();
-      const entities = tierSwitches(t).map((s) => s.trim()).filter(Boolean);
-      if (!name) return `Tier ${i + 1}: name is required.`;
-      if (!entities.length) return `Tier "${name}": at least one shed entity is required.`;
-      for (const entity of entities) {
-        if (!entity.includes(".")) {
-          return `Tier "${name}": entity must look like switch.foo`;
-        }
-      }
-    }
-    return null;
-  }
-
-  private normalizeTiersForSave(d: Record<string, any>): void {
-    const tiers = (d.load_shedding?.tiers ?? []) as Record<string, unknown>[];
-    d.load_shedding = {
-      ...(d.load_shedding ?? {}),
-      tiers: tiers.map((t) => {
-        const switches = tierSwitches(t).map((s) => s.trim()).filter(Boolean);
-        const { switch: _legacy, ...rest } = t as Record<string, unknown> & {
-          switch?: string;
-        };
-        return { ...rest, switches };
-      }),
-    };
-  }
-
   private async save(): Promise<void> {
     if (!this.draft) return;
     this.patchDraft((d) => {
-      this.normalizeTiersForSave(d);
       this.normalizeGridChargeForSave(d);
       this.normalizePriorityOrderForSave(d);
     });
-    const tierErr = this.validateTiers();
-    if (tierErr) {
-      showToast({ message: tierErr, variant: "error" });
-      return;
-    }
     await this.run(
       async () => {
         const patch: Record<string, unknown> = {};
@@ -465,12 +417,6 @@ export class SettingsPanel extends LitElement {
     return this.entities.some((e) => e.domain === domain);
   }
 
-  private hasShedEntities(): boolean {
-    return this.entities.some(
-      (e) => e.domain === "switch" || e.domain === "input_boolean",
-    );
-  }
-
   private renderDatalists() {
     const domainLists = DATALIST_DOMAINS.map((dom) => {
       const opts = this.entities.filter((e) => e.domain === dom);
@@ -478,15 +424,7 @@ export class SettingsPanel extends LitElement {
         ${opts.map((e) => html`<option value=${e.entity_id}>${e.name}</option>`)}
       </datalist>`;
     });
-    const shed = this.entities.filter(
-      (e) => e.domain === "switch" || e.domain === "input_boolean",
-    );
-    return html`
-      ${domainLists}
-      <datalist id="dl-shed">
-        ${shed.map((e) => html`<option value=${e.entity_id}>${e.name}</option>`)}
-      </datalist>
-    `;
+    return html`${domainLists}`;
   }
 
   private entityInput(section: string, group: string, key: string, domain: string) {
@@ -1135,75 +1073,6 @@ export class SettingsPanel extends LitElement {
     `;
   }
 
-  private setTier(i: number, key: string, value: unknown): void {
-    this.patchDraft((d) => {
-      const tiers = (d.load_shedding?.tiers ?? []) as Record<string, unknown>[];
-      tiers[i] = { ...tiers[i], [key]: value };
-      d.load_shedding = { ...(d.load_shedding ?? {}), tiers };
-    });
-  }
-
-  private setTierSwitch(tierIdx: number, entityIdx: number, value: string): void {
-    this.patchDraft((d) => {
-      const tiers = (d.load_shedding?.tiers ?? []) as Record<string, unknown>[];
-      const switches = [...tierSwitches(tiers[tierIdx])];
-      switches[entityIdx] = value;
-      const { switch: _legacy, ...rest } = tiers[tierIdx] as Record<string, unknown> & {
-        switch?: string;
-      };
-      tiers[tierIdx] = { ...rest, switches };
-      d.load_shedding = { ...(d.load_shedding ?? {}), tiers };
-    });
-  }
-
-  private addTierEntity(tierIdx: number): void {
-    this.patchDraft((d) => {
-      const tiers = (d.load_shedding?.tiers ?? []) as Record<string, unknown>[];
-      const switches = [...tierSwitches(tiers[tierIdx]), ""];
-      const { switch: _legacy, ...rest } = tiers[tierIdx] as Record<string, unknown> & {
-        switch?: string;
-      };
-      tiers[tierIdx] = { ...rest, switches };
-      d.load_shedding = { ...(d.load_shedding ?? {}), tiers };
-    });
-  }
-
-  private removeTierEntity(tierIdx: number, entityIdx: number): void {
-    this.patchDraft((d) => {
-      const tiers = (d.load_shedding?.tiers ?? []) as Record<string, unknown>[];
-      const switches = tierSwitches(tiers[tierIdx]);
-      switches.splice(entityIdx, 1);
-      if (!switches.length) switches.push("");
-      const { switch: _legacy, ...rest } = tiers[tierIdx] as Record<string, unknown> & {
-        switch?: string;
-      };
-      tiers[tierIdx] = { ...rest, switches };
-      d.load_shedding = { ...(d.load_shedding ?? {}), tiers };
-    });
-  }
-
-  private addTier(): void {
-    this.patchDraft((d) => {
-      const tiers = [...((d.load_shedding?.tiers ?? []) as unknown[])];
-      tiers.push({
-        name: "tier",
-        switches: [""],
-        shed_below_soc: 40,
-        restore_above_soc: 55,
-        priority: tiers.length,
-      });
-      d.load_shedding = { ...(d.load_shedding ?? {}), tiers };
-    });
-  }
-
-  private removeTier(i: number): void {
-    this.patchDraft((d) => {
-      const tiers = [...((d.load_shedding?.tiers ?? []) as unknown[])];
-      tiers.splice(i, 1);
-      d.load_shedding = { ...(d.load_shedding ?? {}), tiers };
-    });
-  }
-
   private gridChargeFactors(): string[] {
     const d = this.draft as unknown as Record<string, any>;
     const raw = d.grid_charge?.factor_order;
@@ -1355,83 +1224,6 @@ export class SettingsPanel extends LitElement {
     `;
   }
 
-  private renderTiers() {
-    const d = this.draft as unknown as Record<string, any>;
-    const tiers = (d.load_shedding?.tiers ?? []) as Record<string, any>[];
-    return html`
-      <details>
-        <summary>
-          <span class="summary-label">
-            Load-shedding tiers
-            <solar-info-tip .text=${sectionHelp("load_shedding")!}></solar-info-tip>
-          </span>
-        </summary>
-        <p class="label">
-          Map each sheddable tier to one or more switches. All entities in a tier shed and
-          restore together. Lowest priority sheds first.
-        </p>
-        ${tiers.map(
-          (t, i) => html`
-            <div class="fields" style="margin-bottom:8px">
-              <div class="field">
-                <label>${this.lbl("load_shedding", "name")}</label>
-                <input type="text" .value=${String(t.name ?? "")}
-                  @input=${(e: Event) => this.setTier(i, "name", (e.target as HTMLInputElement).value)} />
-              </div>
-              <div class="field" style="grid-column: 1 / -1">
-                <label>${this.lbl("load_shedding", "switches")}</label>
-                ${tierSwitches(t).map(
-                  (entity, j) => html`
-                    <div class="row" style="margin-bottom:6px">
-                      <solar-entity-input
-                        .entityId=${entity}
-                        .entities=${this.entities}
-                        .domains=${["switch", "input_boolean"]}
-                        .listId=${this.hasShedEntities() ? "dl-shed" : ""}
-                        placeholder="switch.… or input_boolean.…"
-                        @entity-id-change=${(e: CustomEvent<string | null>) =>
-                          this.setTierSwitch(i, j, e.detail ?? "")}
-                      />
-                      <button
-                        type="button"
-                        ?disabled=${tierSwitches(t).length <= 1}
-                        @click=${() => this.removeTierEntity(i, j)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  `,
-                )}
-                <button type="button" @click=${() => this.addTierEntity(i)}>Add entity</button>
-              </div>
-              <div class="field">
-                <label>${this.lbl("load_shedding", "shed_below_soc")}</label>
-                <input type="number" step="any" .value=${String(t.shed_below_soc ?? "")}
-                  @input=${(e: Event) => this.setTier(i, "shed_below_soc", Number((e.target as HTMLInputElement).value))} />
-              </div>
-              <div class="field">
-                <label>${this.lbl("load_shedding", "restore_above_soc")}</label>
-                <input type="number" step="any" .value=${String(t.restore_above_soc ?? "")}
-                  @input=${(e: Event) => this.setTier(i, "restore_above_soc", Number((e.target as HTMLInputElement).value))} />
-              </div>
-              <div class="field">
-                <label>${this.lbl("load_shedding", "priority")}</label>
-                <input type="number" step="1" .value=${String(t.priority ?? 0)}
-                  @input=${(e: Event) => this.setTier(i, "priority", Number((e.target as HTMLInputElement).value))} />
-              </div>
-              <div class="field" style="justify-content:flex-end">
-                <button @click=${() => this.removeTier(i)}>Remove tier</button>
-              </div>
-            </div>
-          `,
-        )}
-        <div class="buttons">
-          <button @click=${() => this.addTier()}>Add tier</button>
-        </div>
-      </details>
-    `;
-  }
-
   render() {
     if (!this.draft) {
       return html`<div class="card"><h3>Settings</h3><p class="label">Loading config...</p></div>`;
@@ -1451,7 +1243,6 @@ export class SettingsPanel extends LitElement {
         ${this.renderTemperature()}
         ${this.renderInverterMap()}
         ${this.renderGridChargeSection()}
-        ${this.renderTiers()}
         <div class="buttons">
           <button class="primary" @click=${() => void this.save()}>Save changes</button>
           <button @click=${() => void this.reset()}>Revert to file</button>

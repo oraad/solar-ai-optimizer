@@ -75,7 +75,7 @@ Admins get the full operator panel:
 
 - **Shadow / Live** — start in shadow; switch to live only after you trust the decisions
 - **Pause** — stop the control loop without losing telemetry
-- **Kill switch** — emergency stop; restores shed tiers when disengaged (requires confirmation)
+- **Kill switch** — emergency stop; attempts restore for entities that were on before shed (requires confirmation)
 - **Reserve override** — temporarily force a minimum target SOC (%)
 - **Force grid charge** — opportunistic grid top-up override
 - **Run cycle** / **Refresh forecast** — manual triggers
@@ -83,12 +83,13 @@ Admins get the full operator panel:
 
 ![Overrides panel](images/frontend/overrides.png)
 
-### Forecast, History, Assistant, Settings (admin)
+### Forecast, History, Assistant, Load shedding, Settings (admin)
 
 Admins use **Forecast** and **History** the same as viewers (see below), plus:
 
 - **Assistant** — LLM chat about recent decisions; optional command apply
-- **Settings** — all runtime configuration (HA, entities, battery, load shedding, etc.)
+- **Load shedding** — tiers, SOC thresholds, companion entity discovery, restore options
+- **Settings** — HA connection, entities, battery, forecast, grid charge, etc.
 
 ![Assistant chat panel](images/frontend/assistant.png)
 
@@ -102,7 +103,7 @@ When you sign in through Home Assistant ingress as a non-admin user, the dashboa
 
 ![Viewer Overview — three tabs and VIEWER badge](images/frontend/viewer-overview.png)
 
-- **Tabs:** Overview, Forecast, and History only — no Assistant or Settings
+- **Tabs:** Overview, Forecast, and History only — no Assistant, Load shedding, or Settings
 - **Top bar:** **VIEWER** badge; your HA display name may appear under the app title
 - **Overview overrides:** shadow/live toggle, pause/resume, and kill switch (with confirmation) only
 - **Read-only banners** on Overview when an admin has pinned reserve SOC or forced grid charge — viewers see the active override but cannot change it
@@ -185,7 +186,9 @@ Major sections:
 | **Engine** | Rules vs MPC mode; **optimization priority** order (resilience, savings, self-sufficiency) |
 | **Temperature** | Heating/cooling load model and outdoor sensor |
 | **Inverter entity map** | HA entities for read sensors and write controls |
-| **Load shedding** | Tiers with **multiple shed entities** per tier, SOC thresholds, priority |
+| **Grid charge** | Ramp and factor order for grid charging |
+
+Configure **load shedding** in the dedicated **Load shedding** tab (not Settings).
 
 Entity fields support autocomplete when Home Assistant is connected. See [Home Assistant setup](home-assistant-setup.md).
 
@@ -205,7 +208,19 @@ bucket influences the cap chain.
 
 ### Load-shedding tiers
 
-Each tier can control **several switches** (e.g. pool pump + heater). All entities in a tier shed and restore together using the same SOC hysteresis. Lower **priority** number sheds first.
+Open the **Load shedding** tab to configure tiers. Each tier can control **several power
+switches** (e.g. pool pump + heater, or an AC power switch). All entities in a tier shed
+and restore together using the same SOC hysteresis. Lower **priority** number sheds first.
+
+When you pick a power entity, companions on the same HA device (climate, select, fan, etc.)
+are **discovered automatically** and listed under that entity. Remove unwanted companions or
+use **Clear all** for switch-only shedding. Devices that were off before shedding stay off on
+restore.
+
+Per-tier toggles:
+
+- **Auto-restore on SOC** — restore when SOC rises above the tier threshold
+- **Restore when grid present** — restore when grid is detected (if the global flag is on)
 
 ![Load-shedding tier editor with multiple entities](images/frontend/settings-load-shedding.png)
 

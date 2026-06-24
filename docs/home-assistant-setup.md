@@ -214,8 +214,24 @@ Use **Developer tools → States** to find entity IDs. The tables below are **st
 
 ### Load shedding
 
-Each tier accepts **multiple switch entities** (pool pump + heater, etc.). Use any
-`switch.*` entities you want the optimizer to control. See
+Each tier accepts **multiple switch entities** (pool pump + heater, AC power switch, etc.).
+Use `switch.*` or `input_boolean.*` entities for power control.
+
+**Companion entities** (climate, select, fan, etc.) on the same Home Assistant device are
+discovered automatically and snapshotted when shedding; they are restored when the tier
+comes back. Devices that were **off before shedding** are never turned on by restore.
+
+Per-tier options:
+
+| Field | Purpose |
+|-------|---------|
+| `restore_enabled` | Restore on SOC when `soc >= restore_above_soc` |
+| `restore_on_grid` | Restore when grid is present (if global flag is on) |
+| `state_entities` | Optional override map of power entity → companion entity IDs |
+
+Omit a key in `state_entities` to autodiscover companions; set `[]` for switch-only.
+
+Configure in the dashboard **Load shedding** tab. See
 [Dashboard user guide → Load-shedding tiers](frontend-manual.md#load-shedding-tiers).
 
 ### Outdoor temperature (optional)

@@ -172,6 +172,17 @@ export const api = {
     getJSON<{ connected: boolean; entities: EntityInfo[] }>(
       `/api/entities${domain ? `?domain=${encodeURIComponent(domain)}` : ""}`,
     ),
+  shedDeviceCompanions: (entity: string) =>
+    getJSON<import("./types.js").ShedDeviceCompanionsResponse>(
+      `/api/shed/device-companions?entity=${encodeURIComponent(entity)}`,
+    ),
+  shedSnapshots: () =>
+    getJSON<{ snapshots: Array<{
+      entity: string;
+      was_on: boolean;
+      companion_count: number;
+      captured_at: string;
+    }> }>("/api/shed/snapshots"),
   putConfig: (patch: Record<string, unknown>) =>
     putJSON<{ ok: boolean; error?: string; config?: AppConfigView }>("/api/config", patch),
   resetConfig: () => postJSON<{ ok: boolean }>("/api/config/reset", {}),

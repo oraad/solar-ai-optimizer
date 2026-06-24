@@ -26,6 +26,12 @@ _DECISION_MIGRATIONS: dict[str, str] = {
     "shed_actions_json": "ALTER TABLE decisions ADD COLUMN shed_actions_json TEXT DEFAULT '[]'",
 }
 
+_SHED_MIGRATIONS: dict[str, str] = {
+    "companion_audit_json": (
+        "ALTER TABLE shed_executions ADD COLUMN companion_audit_json TEXT DEFAULT '{}'"
+    ),
+}
+
 log = logging.getLogger("storage.db")
 
 _engine: AsyncEngine | None = None
@@ -53,6 +59,7 @@ async def init_db(database_url: str) -> None:
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_table(conn, "telemetry", _TELEMETRY_MIGRATIONS)
         await _migrate_table(conn, "decisions", _DECISION_MIGRATIONS)
+        await _migrate_table(conn, "shed_executions", _SHED_MIGRATIONS)
     log.info("Database initialised at %s", database_url)
 
 

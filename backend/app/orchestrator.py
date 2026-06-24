@@ -38,6 +38,7 @@ from .models import (
     utcnow,
 )
 from .demo import synthetic_telemetry
+from .shed_snapshots import ShedSnapshotStore
 from .storage import repo
 from .storage.db import close_db, init_db
 
@@ -68,6 +69,7 @@ class Orchestrator:
         self.engine: RuleEngine
         self.executor: Executor
         self._mpc = None
+        self.snapshot_store = ShedSnapshotStore(settings.data_dir)
         self._build_engine_components()
 
         # Where learned model + config overrides live.
@@ -151,8 +153,24 @@ class Orchestrator:
             cfg.grid_charge,
         )
         self.engine.set_total_kwp(total_kwp(cfg.forecast.arrays))
-        self.executor = Executor(self.adapter, self.ha, cfg.battery, cfg.control)
+        self.executor = Executor(
+            self.adapter,
+            self.ha,
+            cfg.battery,
+            cfg.control,
+            self.snapshot_store,
+        )
         self._mpc = self._try_load_mpc() if cfg.engine.mode == "mpc" else None
+
+    def _all_shed_power_entities(self) -> set[str]:
+        return {
+            e
+            for tier in self.cfg.load_shedding.tiers
+            for e in tier.entity_ids()
+        }
+
+    def _prune_shed_snapshots(self) -> None:
+        self.snapshot_store.prune(self._all_shed_power_entities())
 
     # ------------------------------------------------------------- lifecycle --
     async def setup(self) -> None:
@@ -254,6 +272,7 @@ class Orchestrator:
             self.collector.set_temp_entity(self.cfg.forecast.temperature.ha_entity or None)
             self.forecast.update_config(self.cfg)
             self._build_engine_components()
+            self._prune_shed_snapshots()
             self._reschedule_jobs()
             if self._resolve_ha() != old_ha:
                 await self._reconnect_ha()
@@ -269,7 +288,7 @@ class Orchestrator:
             self.collector.set_temp_entity(self.cfg.forecast.temperature.ha_entity or None)
             self.forecast.update_config(self.cfg)
             self._build_engine_components()
-            self._reschedule_jobs()
+            self._prune_shed_snapshots()
             self.override = Override()
             self.paused = False
             self.shadow_mode = self.settings.shadow_mode
@@ -352,7 +371,9 @@ class Orchestrator:
         if not self.paused and decision.shed_actions:
             try:
                 self.latest_shed_results = await self.executor.apply_shed_actions(
-                    decision.shed_actions, self.shadow_mode
+                    decision.shed_actions,
+                    self.shadow_mode,
+                    tiers=self.cfg.load_shedding.tiers,
                 )
             except Exception as e:  # noqa: BLE001
                 log.error("Shedding executor failed: %s", e)

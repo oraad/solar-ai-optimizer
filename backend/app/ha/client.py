@@ -188,6 +188,27 @@ class HAClient:
         if not result.get("success", False):
             raise HAError(f"subscribe_events failed: {result}")
 
+    async def call_ws(self, msg_type: str, **kwargs: Any) -> Any:
+        """One-shot WebSocket request/response (e.g. entity registry)."""
+        url = self._ws_url()
+        async with websockets.connect(
+            url, ssl=self._ssl_context(), max_size=8 * 1024 * 1024
+        ) as ws:
+            await self._ws_authenticate(ws)
+            self._ws_id += 1
+            msg_id = self._ws_id
+            payload: dict[str, Any] = {"id": msg_id, "type": msg_type, **kwargs}
+            await ws.send(json.dumps(payload))
+            while True:
+                raw = await ws.recv()
+                msg = json.loads(raw)
+                if msg.get("id") != msg_id:
+                    continue
+                if not msg.get("success", True):
+                    raise HAError(f"WS {msg_type} failed: {msg}")
+                self._mark_seen()
+                return msg.get("result")
+
     # --------------------------------------------------------------- health --
     def _mark_seen(self) -> None:
         self.last_seen = utcnow()

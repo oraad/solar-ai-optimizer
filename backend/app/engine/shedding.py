@@ -37,6 +37,8 @@ class LoadSheddingController:
             if not entities:
                 continue
             if grid and self._cfg.restore_all_when_grid_present:
+                if not tier.restore_on_grid:
+                    continue
                 for entity in entities:
                     actions.append(
                         ShedAction(
@@ -75,6 +77,8 @@ class LoadSheddingController:
                         )
                     )
             elif soc >= tier.restore_above_soc:
+                if not tier.restore_enabled:
+                    continue
                 for entity in entities:
                     actions.append(
                         ShedAction(

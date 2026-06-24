@@ -71,6 +71,9 @@ class ShedResult(BaseModel):
     verified: bool
     skipped_reason: str | None = None
     error: str | None = None
+    companions_captured: list[str] = Field(default_factory=list)
+    companions_restored: list[str] = Field(default_factory=list)
+    companion_errors: dict[str, str] = Field(default_factory=dict)
     ts: datetime = Field(default_factory=utcnow)
 
 

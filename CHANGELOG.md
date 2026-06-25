@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.16] - 2026-06-25
+
+### Fixed
+
+- **Entity inputs:** restore shadow-root datalists with theme styling; disable browser autocomplete; select `entity_id` on focus so typing replaces the value
+
+### Changed
+
+- Remove unused shared entity-datalist rendering helpers (each `solar-entity-input` owns its datalist)
+- Dependency updates: Vite 8.1.0, pytest 9.1.1, Playwright 1.61.1, aiosqlite 0.22.1, PyYAML 6.0.3, python-dateutil 2.9.0.post0
+
 ## [0.5.15] - 2026-06-25
 
 ### Fixed

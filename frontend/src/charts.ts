@@ -1,7 +1,12 @@
 import { css } from "lit";
 import uPlot from "uplot";
 
-import { formatChartAxis, formatChartCursor, getDateFormat } from "./date-format.js";
+import {
+  formatChartAxisLabels,
+  formatChartCursor,
+  getDateFormat,
+  type DateDisplayFormat,
+} from "./date-format.js";
 
 export interface SeriesDef {
   label: string;
@@ -20,6 +25,8 @@ export interface ChartHandle {
 export type ChartOptions = Partial<uPlot.Options> & {
   showLegend?: boolean;
   cursorLegendEl?: HTMLElement | null;
+  cursorDateFormat?: DateDisplayFormat;
+  axisDateFormat?: DateDisplayFormat;
 };
 
 export const CHART_HEIGHT_DESKTOP = 280;
@@ -208,8 +215,12 @@ function formatCursorValue(val: number | null | undefined, label: string): strin
   return `${short} ${rounded}${unit === " W" ? "" : unit}`;
 }
 
-function cursorLegendHooks(el: HTMLElement | null | undefined): uPlot.Hooks.Arrays {
+function cursorLegendHooks(
+  el: HTMLElement | null | undefined,
+  cursorDateFormat?: DateDisplayFormat,
+): uPlot.Hooks.Arrays {
   if (!el) return {};
+  const cursorFmt = cursorDateFormat ?? getDateFormat();
   return {
     setCursor: [
       (u: uPlot) => {
@@ -221,7 +232,7 @@ function cursorLegendHooks(el: HTMLElement | null | undefined): uPlot.Hooks.Arra
         const parts: string[] = [];
         const xVal = u.data[0]?.[idx] as number | null | undefined;
         if (xVal != null && !Number.isNaN(xVal)) {
-          parts.push(formatChartCursor(xVal, getDateFormat()));
+          parts.push(formatChartCursor(xVal, cursorFmt));
         }
         for (let i = 1; i < u.series.length; i++) {
           const label = String(u.series[i]?.label ?? "");
@@ -235,18 +246,17 @@ function cursorLegendHooks(el: HTMLElement | null | undefined): uPlot.Hooks.Arra
   };
 }
 
-function applyDateAxisValues(axes: uPlot.Axis[]): uPlot.Axis[] {
+function applyDateAxisValues(
+  axes: uPlot.Axis[],
+  axisDateFormat?: DateDisplayFormat,
+): uPlot.Axis[] {
   if (!axes.length) return axes;
+  const axisFmt = axisDateFormat ?? getDateFormat();
   return axes.map((ax, i) => {
     if (i !== 0) return ax;
     return {
       ...ax,
-      values: (_u, ticks) => {
-        const span =
-          ticks.length >= 2 ? Math.max(...ticks) - Math.min(...ticks) : 86400 * 2;
-        const fmt = getDateFormat();
-        return ticks.map((t) => formatChartAxis(t, fmt, span));
-      },
+      values: (_u, ticks) => formatChartAxisLabels(ticks, axisFmt),
     };
   });
 }
@@ -269,6 +279,8 @@ export function makeChart(
   const {
     showLegend = false,
     cursorLegendEl,
+    cursorDateFormat,
+    axisDateFormat,
     series: optsSeries,
     axes: optsAxes,
     scales: optsScales,
@@ -294,7 +306,7 @@ export function makeChart(
         scale: s.scale,
       })),
     ];
-  const cursorHooks = cursorLegendHooks(cursorLegendEl);
+  const cursorHooks = cursorLegendHooks(cursorLegendEl, cursorDateFormat);
 
   let chart: uPlot | null = null;
   let lastObservedWidth = 0;
@@ -342,7 +354,7 @@ export function makeChart(
       setCursor: [...(optsHooks?.setCursor ?? []), ...(cursorHooks.setCursor ?? [])],
     },
     scales: optsScales ?? { x: { time: true } },
-    axes: applyDateAxisValues(optsAxes ?? [axis, axis]),
+    axes: applyDateAxisValues(optsAxes ?? [axis, axis], axisDateFormat),
     series: builtSeries,
   });
 

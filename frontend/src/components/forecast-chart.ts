@@ -164,6 +164,7 @@ export class ForecastChart extends LitElement {
       ...opts,
       showLegend: false,
       cursorLegendEl: this.cursorLegendEl,
+      cursorDateFormat: "iso",
     });
     this.chartHasTemp = hasTemp;
   }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  formatChartAxis,
+  formatChartAxisLabels,
   formatChartCursor,
   formatDateTime,
   getDateFormat,
@@ -11,6 +11,10 @@ import {
 
 const SAMPLE_ISO = "2026-06-24T15:30:00Z";
 const SAMPLE_UNIX = Math.floor(new Date(SAMPLE_ISO).getTime() / 1000);
+
+function localUnix(y: number, m: number, d: number, h: number, min = 0): number {
+  return Math.floor(new Date(y, m, d, h, min).getTime() / 1000);
+}
 
 describe("formatDateTime", () => {
   afterEach(() => {
@@ -32,15 +36,26 @@ describe("formatDateTime", () => {
   });
 });
 
-describe("formatChartAxis", () => {
-  it("shows date only when span exceeds one day", () => {
-    expect(formatChartAxis(SAMPLE_UNIX, "ddmmyy", 86400 * 2)).toBe("24/06/26");
-    expect(formatChartAxis(SAMPLE_UNIX, "iso", 86400 * 2)).toBe("2026-06-24");
+describe("formatChartAxisLabels", () => {
+  it("shows date only on first tick", () => {
+    const labels = formatChartAxisLabels([SAMPLE_UNIX, SAMPLE_UNIX + 3600], "iso");
+    expect(labels[0]).toBe("2026-06-24");
+    expect(labels[1]).toMatch(/^\d{2}:\d{2}$/);
   });
 
-  it("includes time when span is one day or less", () => {
-    expect(formatChartAxis(SAMPLE_UNIX, "ddmmyy", 3600)).toBe("24/06/26 15:30");
-    expect(formatChartAxis(SAMPLE_UNIX, "iso", 3600)).toBe("2026-06-24 15:30");
+  it("shows date on day boundary and hours elsewhere", () => {
+    const day1 = localUnix(2026, 5, 24, 8);
+    const day1Later = localUnix(2026, 5, 24, 14);
+    const day2 = localUnix(2026, 5, 25, 8);
+    const labels = formatChartAxisLabels([day1, day1Later, day2], "iso");
+    expect(labels[0]).toBe("2026-06-24");
+    expect(labels[1]).toBe("14:00");
+    expect(labels[2]).toBe("2026-06-25");
+  });
+
+  it("uses ddmmyy date style when requested", () => {
+    const labels = formatChartAxisLabels([SAMPLE_UNIX], "ddmmyy");
+    expect(labels[0]).toBe("24/06/26");
   });
 });
 

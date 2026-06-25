@@ -667,7 +667,7 @@ export class SolarApp extends LitElement {
             ></solar-grid-stats>
           </div>`;
       case "history":
-        return html`<div class="layout"><solar-history-view class="span-12"></solar-history-view></div>`;
+        return html`<div class="layout"><solar-history-view class="span-12" .entities=${this.entities}></solar-history-view></div>`;
       case "assistant":
         return html`<div class="layout"><solar-assistant-panel class="span-12 center"></solar-assistant-panel></div>`;
       case "settings":

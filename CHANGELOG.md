@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.17] - 2026-06-25
+
+### Added
+
+- **Load shedding** tier blocks are collapsible; collapsed summary shows tier name, shed SOC, priority, and device count
+
+### Changed
+
+- **Load shedding** tiers and companion-entity sections default to collapsed
+- **History** chart axis labels show date at day boundaries and `HH:mm` elsewhere; history tables and chart cursor use ISO dates
+- **History** shed-write rows show entity friendly names (from the HA entity list) instead of raw IDs where available
+
+### Fixed
+
+- Chart x-axis no longer repeats the date on every tick when the visible range spans multiple days
+
 ## [0.5.16] - 2026-06-25
 
 ### Fixed

@@ -96,13 +96,28 @@ export function formatChartCursor(unixSec: number, fmt?: DateDisplayFormat): str
   return formatWithMode(d, fmt ?? getDateFormat(), true);
 }
 
-export function formatChartAxis(
-  unixSec: number,
+function formatTimeHm(date: Date): string {
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+function localDayKey(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+/** X-axis tick labels: date at axis start or day boundary; HH:mm elsewhere. */
+export function formatChartAxisLabels(
+  ticksSec: number[],
   fmt?: DateDisplayFormat,
-  spanSec?: number,
-): string {
-  const d = toDate(unixSec * 1000);
-  if (!d) return "";
-  const includeTime = spanSec == null ? true : spanSec <= 86400;
-  return formatWithMode(d, fmt ?? getDateFormat(), includeTime);
+): string[] {
+  const mode = fmt ?? getDateFormat();
+  return ticksSec.map((unixSec, i) => {
+    const d = toDate(unixSec * 1000);
+    if (!d) return "";
+    if (i === 0) return formatWithMode(d, mode, false);
+    const prev = toDate(ticksSec[i - 1]! * 1000);
+    if (prev && localDayKey(d) !== localDayKey(prev)) {
+      return formatWithMode(d, mode, false);
+    }
+    return formatTimeHm(d);
+  });
 }

@@ -47,3 +47,5 @@ cd frontend && npm run docs:screenshots
 ```
 
 Mobile captures (390×844) are written to `docs/images/frontend/mobile-*.png`.
+
+![Mobile Overview (390×844)](images/frontend/mobile-overview.png)

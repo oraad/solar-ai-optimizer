@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.14] - 2026-06-25
+
+### Added
+
+- **Load shedding** tier editor: dismiss (×) control per tier, icon buttons for add/remove entities, collapsible companion-entity sections
+- Dashboard user guide screenshots for the dedicated **Load shedding** tab and mobile layouts (`mobile-*.png`)
+
+### Changed
+
+- Docs screenshot workflow captures Load shedding on its own tab (no longer nested under Settings)
+
 ## [0.5.13] - 2026-06-25
 
 ### Fixed

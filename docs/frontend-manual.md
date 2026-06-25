@@ -33,7 +33,7 @@ There is **one dashboard** for all users. Roles control which tabs and controls 
 
 | Role | Typical access | Tabs |
 |------|----------------|------|
-| **Admin** | HA owner, `system-admin` group, local login, or `API_TOKEN` | Overview, Forecast, History, **Assistant**, **Settings** |
+| **Admin** | HA owner, `system-admin` group, local login, or `API_TOKEN` | Overview, Forecast, History, **Assistant**, **Load shedding**, **Settings** |
 | **Viewer** | Other HA users via [ingress](ingress-auth.md) | Overview, Forecast, History only |
 
 Role resolution and API enforcement: [Roles and access](ingress-auth.md).
@@ -58,7 +58,7 @@ Role resolution and API enforcement: [Roles and access](ingress-auth.md).
 
 ## Admin dashboard
 
-Admins see all five tabs and the full **Overrides** panel on Overview.
+Admins see all six tabs and the full **Overrides** panel on Overview.
 
 ![Overview tab with status strip and navigation](images/frontend/overview.png)
 
@@ -229,6 +229,8 @@ Per-tier toggles:
 - **Auto-restore on SOC** — restore when SOC rises above the tier threshold
 - **Restore when grid present** — restore when grid is detected (if the global flag is on)
 
+![Load shedding tab](images/frontend/load-shedding.png)
+
 ![Load-shedding tier editor with multiple entities](images/frontend/settings-load-shedding.png)
 
 **Advanced** sections at the bottom support raw JSON edit, model import/export, and ML retrain.
@@ -306,4 +308,4 @@ npx playwright install chromium
 npm run docs:screenshots
 ```
 
-Commit updated files under `docs/images/frontend/` together with any manual text changes. Mobile captures (`mobile-*.png`, 390×844) are included when the script runs with a narrow viewport.
+Commit updated files under `docs/images/frontend/` together with any manual text changes. Captures include desktop (1280×900) and mobile (`mobile-*.png`, 390×844) viewports — notably `load-shedding.png`, `settings-load-shedding.png`, and `mobile-load-shedding.png`.

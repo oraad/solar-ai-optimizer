@@ -86,17 +86,16 @@ async function captureAdmin(page: Page): Promise<void> {
   await clickMainTab(page, "Assistant");
   await shot(page, "assistant.png");
 
-  await clickMainTab(page, "Settings");
-  await expandDetails(page, "Home Assistant");
-  await expandDetails(page, "Load shedding");
-  await expandDetails(page, "Inverter entity map");
-  await shotFull(page, "settings.png");
-  const tierBlock = app(page)
-    .locator("solar-settings-panel details")
-    .filter({ hasText: "Load-shedding tiers" })
-    .first();
+  await clickMainTab(page, "Load shedding");
+  await shot(page, "load-shedding.png");
+  const tierBlock = app(page).locator("solar-load-shedding-panel .tier-block").first();
   await tierBlock.screenshot({ path: path.join(OUT_DIR, "settings-load-shedding.png") });
   console.log(`wrote ${path.join(OUT_DIR, "settings-load-shedding.png")}`);
+
+  await clickMainTab(page, "Settings");
+  await expandDetails(page, "Home Assistant");
+  await expandDetails(page, "Engine");
+  await shotFull(page, "settings.png");
 
   await clickMainTab(page, "Overview");
   await app(page)
@@ -126,6 +125,9 @@ async function captureMobile(page: Page): Promise<void> {
     .click();
   await page.waitForTimeout(500);
   await shot(page, "mobile-history-decisions.png");
+
+  await clickMainTab(page, "Shedding");
+  await shotFull(page, "mobile-load-shedding.png");
 
   await clickMainTab(page, "Settings");
   await expandDetails(page, "Home Assistant");

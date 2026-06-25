@@ -35,7 +35,7 @@ function mountPanelInShadow(entities = ENTITIES): { host: HTMLElement; panel: Lo
   const host = document.createElement("div");
   host.attachShadow({ mode: "open" });
   const panel = document.createElement("solar-load-shedding-panel") as LoadSheddingPanel;
-  panel.config = { load_shedding: TIER_CONFIG } as AppConfigView;
+  panel.config = { load_shedding: TIER_CONFIG } as unknown as AppConfigView;
   panel.entities = entities;
   panel.entitiesConnected = true;
   host.shadowRoot!.appendChild(panel);

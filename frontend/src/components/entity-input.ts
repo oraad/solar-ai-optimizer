@@ -8,14 +8,9 @@ import type { EntityInfo } from "../types.js";
 
 let datalistSeq = 0;
 
-/** Entity picker: stores entity_id, displays HA friendly name; owns a light-DOM datalist. */
+/** Entity picker: stores entity_id, displays HA friendly name; datalist lives in shadow root. */
 @customElement("solar-entity-input")
 export class EntityInput extends LitElement {
-  /** Light DOM so `list` can reference the co-located datalist. */
-  createRenderRoot() {
-    return this;
-  }
-
   static styles = css`
     :host {
       display: block;
@@ -25,6 +20,18 @@ export class EntityInput extends LitElement {
     input {
       width: 100%;
       box-sizing: border-box;
+      font: inherit;
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    input:focus-visible {
+      outline: none;
+      border-color: var(--accent-2);
+      box-shadow: var(--ring);
     }
   `;
 
@@ -51,9 +58,12 @@ export class EntityInput extends LitElement {
     return entityDisplayName(this.entityId, this.entities);
   }
 
-  private onFocus(): void {
+  private onFocus(e: FocusEvent): void {
+    const input = e.target as HTMLInputElement;
     this.editing = true;
     this.editText = this.entityId;
+    // After Lit applies entity_id for editing, select so typing replaces the value.
+    void this.updateComplete.then(() => input.select());
   }
 
   private commit(raw: string): void {
@@ -100,6 +110,7 @@ export class EntityInput extends LitElement {
     return html`
       <input
         type="text"
+        autocomplete="off"
         placeholder=${this.placeholder}
         list=${ifDefined(listAttr)}
         .value=${this.displayValue()}

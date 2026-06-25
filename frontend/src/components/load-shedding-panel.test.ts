@@ -53,8 +53,8 @@ describe("LoadSheddingPanel entity autocomplete", () => {
     expect(entityInput).toBeTruthy();
     await (entityInput as HTMLElement & { updateComplete: Promise<unknown> }).updateComplete;
 
-    const input = entityInput.querySelector("input")!;
-    const datalist = entityInput.querySelector("datalist")!;
+    const input = entityInput.shadowRoot!.querySelector("input")!;
+    const datalist = entityInput.shadowRoot!.querySelector("datalist")!;
     expect(input.getAttribute("list")).toBe(datalist.id);
 
     const values = [...datalist.querySelectorAll("option")].map((o) => o.value);

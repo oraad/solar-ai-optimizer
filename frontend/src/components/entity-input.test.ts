@@ -13,6 +13,10 @@ beforeAll(async () => {
   await import("./entity-input.js");
 });
 
+function root(el: EntityInput): ShadowRoot {
+  return el.shadowRoot!;
+}
+
 function mountInput(domains: string[], entities = ENTITIES): EntityInput {
   const el = document.createElement("solar-entity-input") as EntityInput;
   el.entities = entities;
@@ -26,10 +30,11 @@ describe("EntityInput datalist", () => {
     const el = mountInput(["switch", "input_boolean"]);
     await el.updateComplete;
 
-    const input = el.querySelector("input")!;
-    const datalist = el.querySelector("datalist")!;
+    const input = root(el).querySelector("input")!;
+    const datalist = root(el).querySelector("datalist")!;
     expect(input.getAttribute("list")).toBe(datalist.id);
     expect(datalist.id).toMatch(/^dl-ei-/);
+    expect(input.getAttribute("autocomplete")).toBe("off");
 
     const values = [...datalist.querySelectorAll("option")].map((o) => o.value);
     expect(values).toEqual(["switch.pool", "input_boolean.guest"]);
@@ -41,9 +46,9 @@ describe("EntityInput datalist", () => {
     const el = mountInput(["climate"]);
     await el.updateComplete;
 
-    const input = el.querySelector("input")!;
+    const input = root(el).querySelector("input")!;
     expect(input.hasAttribute("list")).toBe(false);
-    expect(el.querySelector("datalist")).toBeNull();
+    expect(root(el).querySelector("datalist")).toBeNull();
 
     el.remove();
   });
@@ -54,8 +59,8 @@ describe("EntityInput datalist", () => {
     await a.updateComplete;
     await b.updateComplete;
 
-    const idA = a.querySelector("datalist")!.id;
-    const idB = b.querySelector("datalist")!.id;
+    const idA = root(a).querySelector("datalist")!.id;
+    const idB = root(b).querySelector("datalist")!.id;
     expect(idA).not.toBe(idB);
 
     a.remove();
@@ -72,8 +77,8 @@ describe("EntityInput datalist", () => {
     document.body.appendChild(host);
     await el.updateComplete;
 
-    const input = el.querySelector("input")!;
-    const datalist = el.querySelector("datalist")!;
+    const input = root(el).querySelector("input")!;
+    const datalist = root(el).querySelector("datalist")!;
     expect(input.getAttribute("list")).toBe(datalist.id);
     const values = [...datalist.querySelectorAll("option")].map((o) => o.value);
     expect(values).toEqual(["switch.pool", "input_boolean.guest"]);

@@ -1,11 +1,6 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_LOCALE, LOCALES, LOCALE_LOADERS } from "./manifest.js";
-
-const root = dirname(fileURLToPath(import.meta.url));
 
 function leafKeys(obj: unknown, prefix = ""): string[] {
   if (obj == null || typeof obj !== "object") return [];
@@ -23,21 +18,21 @@ function leafKeys(obj: unknown, prefix = ""): string[] {
 }
 
 describe("locale catalogs", () => {
-  const en = JSON.parse(readFileSync(join(root, "en.json"), "utf8"));
-  const enKeys = new Set(leafKeys(en));
-
   it("every manifest locale has a loader", () => {
     for (const loc of LOCALES) {
       expect(LOCALE_LOADERS[loc.id as keyof typeof LOCALE_LOADERS]).toBeTypeOf("function");
     }
   });
 
-  for (const loc of LOCALES) {
-    if (loc.id === DEFAULT_LOCALE) continue;
-    it(`${loc.id}.json has same keys as en.json`, () => {
-      const data = JSON.parse(readFileSync(join(root, `${loc.id}.json`), "utf8"));
+  it("non-en locales have same keys as en.json", async () => {
+    const en = (await LOCALE_LOADERS.en()).default;
+    const enKeys = new Set(leafKeys(en));
+
+    for (const loc of LOCALES) {
+      if (loc.id === DEFAULT_LOCALE) continue;
+      const data = (await LOCALE_LOADERS[loc.id as keyof typeof LOCALE_LOADERS]()).default;
       const keys = new Set(leafKeys(data));
-      expect(keys).toEqual(enKeys);
-    });
-  }
+      expect(keys, loc.id).toEqual(enKeys);
+    }
+  });
 });

@@ -1,5 +1,6 @@
 // REST + WebSocket client for the Solar AI Optimizer backend.
 
+import { getLocale } from "./i18n.js";
 import type {
   AppConfigView,
   Decision,
@@ -58,7 +59,11 @@ function fetchInit(init: RequestInit = {}): RequestInit {
   return {
     credentials: "include",
     ...init,
-    headers: { ...authHeaders(), ...(init.headers as Record<string, string> | undefined) },
+    headers: {
+      "X-Solar-Locale": getLocale(),
+      ...authHeaders(),
+      ...(init.headers as Record<string, string> | undefined),
+    },
   };
 }
 
@@ -250,7 +255,11 @@ export class LiveSocket {
     if (!this.enabled) return;
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const token = getApiToken();
-    const qs = token ? `?token=${encodeURIComponent(token)}` : "";
+    const locale = getLocale();
+    const params = new URLSearchParams();
+    if (token) params.set("token", token);
+    params.set("locale", locale);
+    const qs = `?${params.toString()}`;
     const url = `${proto}://${location.host}${getBase()}/ws${qs}`;
     this.ws = new WebSocket(url);
     this.ws.onopen = () => {

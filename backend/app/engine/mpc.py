@@ -32,6 +32,7 @@ from ..models import (
     Decision,
     ForecastBundle,
     GridStats,
+    Msg,
     Override,
     Telemetry,
     utcnow,
@@ -109,16 +110,17 @@ class MPCEngine:
         if not feasible or unserved_wh > 1.0:
             decision.blackout_risk = BlackoutRisk.CRITICAL
             decision.blackout_risk_score = max(decision.blackout_risk_score, 0.9)
-        note = (
-            f"MPC[{self._engine_cfg.mpc_horizon_hours}h]: "
-            f"reserve={mpc_reserve:.0f}% " if mpc_reserve is not None else "MPC: "
+        decision.summary = Msg(
+            key=decision.summary.key,
+            params={
+                **decision.summary.params,
+                "has_mpc": "yes",
+                "horizon": self._engine_cfg.mpc_horizon_hours,
+                "reserve": int(mpc_reserve) if mpc_reserve is not None else "",
+                "survivable": "yes" if feasible and unserved_wh <= 1.0 else "no",
+                "kwh": f"{unserved_wh/1000:.1f}",
+            },
         )
-        note += (
-            "survivable (grid-absent)."
-            if feasible and unserved_wh <= 1.0
-            else f"NOT survivable grid-absent: ~{unserved_wh/1000:.1f} kWh unserved."
-        )
-        decision.summary = f"{note} {decision.summary}"
         decision.ts = utcnow()
         return decision
 

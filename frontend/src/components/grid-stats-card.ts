@@ -2,11 +2,18 @@ import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
 import { formatDateTime } from "../date-format.js";
+import { t } from "../i18n.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import type { GridStats } from "../types.js";
 
 @customElement("solar-grid-stats")
 export class GridStatsCard extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = [
     sharedStyles,
     css`
@@ -39,14 +46,17 @@ export class GridStatsCard extends LitElement {
   @property({ attribute: false }) livePresent: boolean | null = null;
 
   private onDateFormat = () => this.requestUpdate();
+  private onLocale = () => this.requestUpdate();
 
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("solar-date-format-change", this.onDateFormat);
+    window.addEventListener("solar-locale-change", this.onLocale);
   }
 
   disconnectedCallback(): void {
     window.removeEventListener("solar-date-format-change", this.onDateFormat);
+    window.removeEventListener("solar-locale-change", this.onLocale);
     super.disconnectedCallback();
   }
 
@@ -59,7 +69,7 @@ export class GridStatsCard extends LitElement {
 
   private fmtLastSeen(): string {
     const ls = this.stats?.last_seen;
-    if (!ls) return "never";
+    if (!ls) return t("common.never");
     return formatDateTime(ls);
   }
 
@@ -80,28 +90,25 @@ export class GridStatsCard extends LitElement {
     const hasStats = s != null;
     return html`
       <div class="card">
-        <h3>Grid (reactive &mdash; not predicted)</h3>
+        <h3>${t("ui.grid.title")}</h3>
         <div class="now">
-          <span class="lbl">Currently</span>
+          <span class="lbl">${t("ui.grid.currently")}</span>
           <span class="pill ${present ? "good" : present === false ? "muted" : ""}">
             <span class="dot ${present ? "on" : "off"}"></span>
-            ${present === null ? "unknown" : present ? "present" : "absent"}
+            ${present === null ? t("common.unknown") : present ? t("common.present") : t("common.absent")}
           </span>
         </div>
         ${hasStats
           ? null
-          : html`<div class="stats-loading">Stats unavailable</div>`}
+          : html`<div class="stats-loading">${t("ui.grid.statsUnavailable")}</div>`}
         <div class="bars">
-          ${this.bar("Uptime (24h)", hasStats ? s.uptime_pct_24h : null)}
-          ${this.bar("Uptime (7d)", hasStats ? s.uptime_pct_7d : null)}
+          ${this.bar(t("ui.grid.uptime24h"), hasStats ? s.uptime_pct_24h : null)}
+          ${this.bar(t("ui.grid.uptime7d"), hasStats ? s.uptime_pct_7d : null)}
         </div>
-        <div class="stat"><span>Avg window</span><span class="v">${hasStats ? s.avg_window_minutes.toFixed(0) : "--"} min</span></div>
-        <div class="stat"><span>Transitions (24h)</span><span class="v">${hasStats ? s.transitions_24h : "--"}</span></div>
-        <div class="stat"><span>Last seen</span><span class="v">${this.fmtLastSeen()}</span></div>
-        <div class="note">
-          These figures are display-only. The optimizer never predicts the grid;
-          it grabs it opportunistically whenever it appears.
-        </div>
+        <div class="stat"><span>${t("ui.grid.avgWindow")}</span><span class="v">${hasStats ? t("ui.grid.minutes", { n: s.avg_window_minutes.toFixed(0) }) : "--"}</span></div>
+        <div class="stat"><span>${t("ui.grid.transitions24h")}</span><span class="v">${hasStats ? s.transitions_24h : "--"}</span></div>
+        <div class="stat"><span>${t("ui.grid.lastSeen")}</span><span class="v">${this.fmtLastSeen()}</span></div>
+        <div class="note">${t("ui.grid.note")}</div>
       </div>
     `;
   }

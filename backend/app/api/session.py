@@ -16,6 +16,8 @@ import bcrypt
 from fastapi import HTTPException, Request
 from starlette.requests import HTTPConnection
 
+from ..i18n import api_error
+
 from .. import __version__
 from ..config import Settings, get_settings
 from ..models import Override
@@ -289,14 +291,14 @@ def requires_auth_gate(path: str, settings: Settings) -> bool:
 def require_authenticated(request: Request) -> SessionUser:
     session = get_session(request)
     if not session.authenticated:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        raise api_error("api.auth.unauthorized", 401)
     return session
 
 
 def require_admin(request: Request) -> SessionUser:
     session = require_authenticated(request)
     if not session.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise api_error("api.session.admin_required", 403)
     return session
 
 
@@ -313,7 +315,4 @@ def assert_override_allowed(session: SessionUser, ov: Override) -> None:
         if v is not None
     }
     if touched - VIEWER_OVERRIDE_FIELDS:
-        raise HTTPException(
-            status_code=403,
-            detail="Admin access required for this override",
-        )
+        raise api_error("api.session.admin_required_override", 403)

@@ -2,11 +2,18 @@ import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
 import { capabilityLabel } from "../field-labels.js";
+import { t } from "../i18n.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import type { Decision, ExecutionResult, GridChargePlan, ShedResult } from "../types.js";
 
 @customElement("solar-decision-panel")
 export class DecisionPanel extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = [
     sharedStyles,
     css`
@@ -58,7 +65,7 @@ export class DecisionPanel extends LitElement {
   private gridChargeLabel(gc: GridChargePlan | null | undefined): string {
     if (!gc) return "--";
     if (gc.enabled && gc.target_amps > 0) return `${gc.target_amps.toFixed(0)} A`;
-    return "OFF";
+    return t("common.off");
   }
 
   private appliedGridChargeAmps(): number | null {
@@ -69,39 +76,43 @@ export class DecisionPanel extends LitElement {
     return null;
   }
 
+  private skipLabel(r: ExecutionResult | ShedResult): string {
+    return r.skipped_reason_text ?? r.skipped_reason ?? t("ui.decision.skipped");
+  }
+
   render() {
     const d = this.decision;
-    if (!d) return html`<div class="card"><h3>Decision &amp; rationale</h3><p class="label">Waiting for first decision...</p></div>`;
+    if (!d) return html`<div class="card"><h3>${t("ui.decision.title")}</h3><p class="label">${t("ui.decision.waiting")}</p></div>`;
     const gc = d.grid_charge ?? null;
     const applied = this.appliedGridChargeAmps();
     return html`
       <div class="card">
-        <h3>Decision &amp; rationale</h3>
+        <h3>${t("ui.decision.title")}</h3>
         <div class="summary">${d.summary}</div>
         <div class="stats">
-          <div class="stat"><div class="label">Target SOC</div><div class="v">${d.reserve.target_soc.toFixed(0)}%</div></div>
-          <div class="stat"><div class="label">Solar-bridge</div><div class="v">${d.reserve.solar_bridge_soc.toFixed(0)}%</div></div>
-          <div class="stat"><div class="label">Autonomy floor</div><div class="v">${d.reserve.autonomy_floor_soc.toFixed(0)}%</div></div>
+          <div class="stat"><div class="label">${t("ui.decision.targetSoc")}</div><div class="v">${d.reserve.target_soc.toFixed(0)}%</div></div>
+          <div class="stat"><div class="label">${t("ui.decision.solarBridge")}</div><div class="v">${d.reserve.solar_bridge_soc.toFixed(0)}%</div></div>
+          <div class="stat"><div class="label">${t("ui.decision.autonomyFloor")}</div><div class="v">${d.reserve.autonomy_floor_soc.toFixed(0)}%</div></div>
           <div class="stat ${gc?.enabled ? "risk-low" : ""}">
-            <div class="label">Grid charge</div>
+            <div class="label">${t("ui.decision.gridCharge")}</div>
             <div class="v">${this.gridChargeLabel(gc)}</div>
             ${applied != null && gc?.enabled
-              ? html`<div class="label" style="margin-top:4px">Applied: ${applied.toFixed(0)} A</div>`
+              ? html`<div class="label" style="margin-top:4px">${t("ui.decision.applied", { amps: applied.toFixed(0) })}</div>`
               : null}
           </div>
-          <div class="stat ${this.riskClass(d.blackout_risk_score)}"><div class="label">Risk score</div><div class="v">${(d.blackout_risk_score * 100).toFixed(0)}%</div></div>
+          <div class="stat ${this.riskClass(d.blackout_risk_score)}"><div class="label">${t("ui.decision.riskScore")}</div><div class="v">${(d.blackout_risk_score * 100).toFixed(0)}%</div></div>
         </div>
         <div class="rationale">${d.reserve.rationale}</div>
         ${gc?.rationale
           ? html`
-              <div class="subhead">Grid charge rationale</div>
+              <div class="subhead">${t("ui.decision.gridChargeRationale")}</div>
               <div class="rationale">${gc.rationale}</div>
             `
           : null}
-        <div class="subhead">Actions</div>
+        <div class="subhead">${t("ui.decision.actions")}</div>
         <div class="chips">
           ${d.actions.length === 0
-            ? html`<span class="label">No actions this cycle.</span>`
+            ? html`<span class="label">${t("ui.decision.noActions")}</span>`
             : d.actions.map(
                 (a) => html`
                   <span class="chip" title=${a.reason}>
@@ -114,13 +125,13 @@ export class DecisionPanel extends LitElement {
         </div>
         ${d.shed_actions && d.shed_actions.length
           ? html`
-              <div class="subhead">Load shedding</div>
+              <div class="subhead">${t("ui.decision.loadShedding")}</div>
               <div class="chips">
                 ${d.shed_actions.map(
                   (s) => html`
                     <span class="chip" title=${s.reason}>
                       <span class="cap">${s.tier}</span>
-                      <span class="val ${s.desired_on ? "on" : "off"}">${s.desired_on ? "ON" : "SHED"}</span>
+                      <span class="val ${s.desired_on ? "on" : "off"}">${s.desired_on ? t("common.on") : t("ui.decision.shed")}</span>
                       <span class="why">${s.reason}</span>
                     </span>
                   `,
@@ -130,14 +141,14 @@ export class DecisionPanel extends LitElement {
           : null}
         ${this.results.length
           ? html`
-              <div class="subhead">Execution results</div>
+              <div class="subhead">${t("ui.decision.executionResults")}</div>
               <div class="chips">
                 ${this.results.map(
                   (r) => html`
-                    <span class="chip" title=${r.skipped_reason || r.error || ""}>
+                    <span class="chip" title=${this.skipLabel(r) || r.error || ""}>
                       <span class="cap">${r.capability}</span>
                       <span class="val ${r.verified ? "on" : "off"}">
-                        ${r.applied ? (r.verified ? "verified" : "applied") : r.skipped_reason || "skipped"}
+                        ${r.applied ? (r.verified ? t("ui.decision.verified") : t("ui.decision.appliedShort")) : this.skipLabel(r)}
                       </span>
                     </span>
                   `,
@@ -147,22 +158,22 @@ export class DecisionPanel extends LitElement {
           : null}
         ${this.shedResults.length
           ? html`
-              <div class="subhead">Shed execution</div>
+              <div class="subhead">${t("ui.decision.shedExecution")}</div>
               <div class="chips">
                 ${this.shedResults.map(
                   (r) => {
                     const extra =
-                      r.skipped_reason === "was off before shed"
-                        ? "was off before shed"
+                      r.skipped_reason === "engine.skip.was_off_before_shed"
+                        ? t("ui.decision.wasOffBeforeShed")
                         : (r.companions_restored?.length ?? 0) > 0
-                          ? `companions: ${r.companions_restored!.join(", ")}`
+                          ? t("ui.decision.companions", { list: r.companions_restored!.join(", ") })
                           : "";
-                    const title = [r.skipped_reason, extra].filter(Boolean).join(" · ");
+                    const title = [this.skipLabel(r), extra].filter(Boolean).join(" · ");
                     return html`
                     <span class="chip" title=${title}>
                       <span class="cap">${r.tier}</span>
                       <span class="val ${r.verified ? "on" : "off"}">
-                        ${r.desired_on ? "ON" : "OFF"} ${r.verified ? "ok" : r.skipped_reason || "pending"}
+                        ${r.desired_on ? t("common.on") : t("common.off")} ${r.verified ? t("ui.decision.ok") : this.skipLabel(r) || t("ui.decision.pending")}
                       </span>
                       ${extra ? html`<span class="why">${extra}</span>` : null}
                     </span>
@@ -173,7 +184,7 @@ export class DecisionPanel extends LitElement {
             `
           : null}
         ${d.shadow_mode
-          ? html`<p class="label" style="margin-top:12px">Shadow mode: actions are logged but NOT written to the inverter.</p>`
+          ? html`<p class="label" style="margin-top:12px">${t("ui.decision.shadowMode")}</p>`
           : null}
       </div>
     `;

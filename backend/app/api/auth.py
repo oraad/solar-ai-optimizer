@@ -7,6 +7,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from ..config import get_settings
+from ..i18n import t
 from .session import (
     ANONYMOUS,
     get_session,
@@ -40,4 +41,4 @@ class AuthGateMiddleware(BaseHTTPMiddleware):
         if session.authenticated:
             return await call_next(request)
 
-        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+        return JSONResponse({"detail": t("api.auth.unauthorized")}, status_code=401)

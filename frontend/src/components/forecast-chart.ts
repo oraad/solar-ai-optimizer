@@ -11,11 +11,18 @@ import {
   type ChartHandle,
   type SeriesDef,
 } from "../charts.js";
+import { t } from "../i18n.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import type { ForecastBundle } from "../types.js";
 
 @customElement("solar-forecast-chart")
 export class ForecastChart extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = [
     sharedStyles,
     chartContainerStyles,
@@ -60,10 +67,17 @@ export class ForecastChart extends LitElement {
     this.queueRenderChart();
   };
 
+  private onLocale = () => {
+    this.forceChartRecreate = true;
+    this.queueRenderChart();
+    this.requestUpdate();
+  };
+
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("solar-theme-change", this.onTheme);
     window.addEventListener("solar-date-format-change", this.onDateFormat);
+    window.addEventListener("solar-locale-change", this.onLocale);
   }
 
   updated(changed: PropertyValues<this>): void {
@@ -76,6 +90,7 @@ export class ForecastChart extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener("solar-theme-change", this.onTheme);
     window.removeEventListener("solar-date-format-change", this.onDateFormat);
+    window.removeEventListener("solar-locale-change", this.onLocale);
     this.chartHandle?.destroy();
     this.chartHandle = undefined;
     this.chartHasTemp = null;
@@ -138,14 +153,14 @@ export class ForecastChart extends LitElement {
     const accent2 = cssVar(this.chartEl, "--accent-2", "#4cc2ff");
     const muted = cssVar(this.chartEl, "--muted", "#9aa4b2");
     const series: SeriesDef[] = [
-      { label: "Solar (W)", stroke: accent, fill: "rgba(255,176,32,0.12)" },
-      { label: "Load (W)", stroke: accent2, fill: "rgba(76,194,255,0.10)" },
+      { label: t("ui.forecast.seriesSolar"), stroke: accent, fill: "rgba(255,176,32,0.12)" },
+      { label: t("ui.forecast.seriesLoad"), stroke: accent2, fill: "rgba(76,194,255,0.10)" },
     ];
     const axisStroke = cssVar(this.chartEl, "--muted", "#9aa4b2");
     const gridStroke = cssVar(this.chartEl, "--border", "rgba(255,255,255,0.06)");
     const opts: Partial<uPlot.Options> = { padding: [8, hasTemp ? 56 : 16, 14, 0] };
     if (hasTemp) {
-      series.push({ label: "Temp (\u00b0C)", stroke: muted, dash: [4, 3], scale: "temp" });
+      series.push({ label: t("ui.forecast.seriesTemp"), stroke: muted, dash: [4, 3], scale: "temp" });
       opts.scales = { x: { time: true }, temp: {} };
       opts.axes = [
         { stroke: axisStroke, grid: { stroke: gridStroke }, ticks: { stroke: gridStroke } },
@@ -175,23 +190,28 @@ export class ForecastChart extends LitElement {
     return html`
       <div class="card chart-card">
         <div class="head">
-          <h3 style="margin:0">Forecast &amp; plan (48h)</h3>
+          <h3 style="margin:0">${t("ui.forecast.title")}</h3>
           <div class="totals">
             <div class="legend">
-              <span class="swatch"><i style="background:var(--accent)"></i>Solar</span>
-              <span class="swatch"><i style="background:var(--accent-2)"></i>Load</span>
+              <span class="swatch"><i style="background:var(--accent)"></i>${t("ui.forecast.solar")}</span>
+              <span class="swatch"><i style="background:var(--accent-2)"></i>${t("ui.forecast.load")}</span>
               ${f && f.temperature && f.temperature.length > 0
-                ? html`<span class="swatch"><i style="background:var(--muted)"></i>Temp</span>`
+                ? html`<span class="swatch"><i style="background:var(--muted)"></i>${t("ui.forecast.temp")}</span>`
                 : null}
             </div>
-            <div><span class="label">Today</span> <span class="v">${f ? f.solar_today_kwh.toFixed(1) : "--"} kWh</span></div>
-            <div><span class="label">Tomorrow</span> <span class="v">${f ? f.solar_tomorrow_kwh.toFixed(1) : "--"} kWh</span></div>
+            <div><span class="label">${t("ui.forecast.today")}</span> <span class="v">${f ? f.solar_today_kwh.toFixed(1) : "--"} kWh</span></div>
+            <div><span class="label">${t("ui.forecast.tomorrow")}</span> <span class="v">${f ? f.solar_tomorrow_kwh.toFixed(1) : "--"} kWh</span></div>
             ${f && (f.heating_degree_hours_24h > 0 || f.cooling_degree_hours_24h > 0)
-              ? html`<div><span class="label">Degree-hrs 24h</span> <span class="v">${f.heating_degree_hours_24h.toFixed(0)}H / ${f.cooling_degree_hours_24h.toFixed(0)}C</span></div>`
+              ? html`<div><span class="label">${t("ui.forecast.degreeHrs")}</span> <span class="v">${f.heating_degree_hours_24h.toFixed(0)}H / ${f.cooling_degree_hours_24h.toFixed(0)}C</span></div>`
               : null}
-            ${f?.cloudy_tomorrow ? html`<span class="pill warn">Cloudy tomorrow</span>` : null}
+            ${f?.cloudy_tomorrow ? html`<span class="pill warn">${t("ui.forecast.cloudyTomorrow")}</span>` : null}
             ${f?.degraded
-              ? html`<span class="pill warn" title=${(f.degraded_reasons ?? []).join("; ")}>Degraded forecast</span>`
+              ? html`<div class="degraded-wrap">
+                  <span class="pill warn">${t("ui.forecast.degraded")}</span>
+                  ${(f.degraded_reasons ?? []).length > 0
+                    ? html`<p class="label degraded-reasons">${(f.degraded_reasons ?? []).join("; ")}</p>`
+                    : null}
+                </div>`
               : null}
           </div>
         </div>
@@ -203,8 +223,8 @@ export class ForecastChart extends LitElement {
         </div>
         ${!f || f.solar.length === 0
           ? html`<p class="label">${this.role === "viewer"
-              ? "No forecast yet. Ask an admin to configure forecast location and PV arrays in Settings."
-              : "No forecast yet. Set your latitude/longitude and panels in the Settings tab."}</p>`
+              ? t("ui.forecast.noForecastViewer")
+              : t("ui.forecast.noForecastAdmin")}</p>`
           : null}
       </div>
     `;

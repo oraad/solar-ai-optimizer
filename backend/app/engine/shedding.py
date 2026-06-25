@@ -1,16 +1,11 @@
-"""Multi-tier load shedding.
-
-Sheds lower-priority loads as battery SOC falls and restores them as it
-recovers, using per-tier hysteresis. When the grid is physically present, all
-tiers are restored (the battery no longer needs protecting). This protects the
-critical reserve by cutting discretionary draw before the battery is endangered.
-"""
+"""Multi-tier load shedding."""
 
 from __future__ import annotations
 
 import logging
 
 from ..config import LoadSheddingConfig
+from ..i18n import msg
 from ..models import ShedAction, Telemetry
 
 log = logging.getLogger("engine.shedding")
@@ -31,7 +26,6 @@ class LoadSheddingController:
         soc = telemetry.battery_soc
         conservative = soc is None or telemetry_stale
 
-        # Shed lowest-priority tiers first for clear, ordered rationale.
         for tier in sorted(self._cfg.tiers, key=lambda t: t.priority):
             entities = tier.entity_ids()
             if not entities:
@@ -45,7 +39,7 @@ class LoadSheddingController:
                             tier=tier.name,
                             entity=entity,
                             desired_on=True,
-                            reason="Grid present: restore tier (battery not at risk).",
+                            reason=msg("engine.shed.restore_grid"),
                         )
                     )
                 continue
@@ -56,10 +50,7 @@ class LoadSheddingController:
                             tier=tier.name,
                             entity=entity,
                             desired_on=False,
-                            reason=(
-                                "SOC unknown or telemetry stale: shed "
-                                f"'{tier.name}' conservatively."
-                            ),
+                            reason=msg("engine.shed.conservative", tier=tier.name),
                         )
                     )
                 continue
@@ -70,9 +61,11 @@ class LoadSheddingController:
                             tier=tier.name,
                             entity=entity,
                             desired_on=False,
-                            reason=(
-                                f"SOC {soc:.0f}% < {tier.shed_below_soc:.0f}%: "
-                                f"shed '{tier.name}' to defend reserve."
+                            reason=msg(
+                                "engine.shed.shed_tier",
+                                soc=round(soc, 0),
+                                threshold=round(tier.shed_below_soc, 0),
+                                tier=tier.name,
                             ),
                         )
                     )
@@ -85,11 +78,12 @@ class LoadSheddingController:
                             tier=tier.name,
                             entity=entity,
                             desired_on=True,
-                            reason=(
-                                f"SOC {soc:.0f}% >= {tier.restore_above_soc:.0f}%: "
-                                f"restore '{tier.name}'."
+                            reason=msg(
+                                "engine.shed.restore_tier",
+                                soc=round(soc, 0),
+                                threshold=round(tier.restore_above_soc, 0),
+                                tier=tier.name,
                             ),
                         )
                     )
-            # Otherwise within the hysteresis band: leave the tier unchanged.
         return actions

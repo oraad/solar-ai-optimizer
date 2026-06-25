@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from app.i18n.skip_keys import SKIP_ALREADY_SET
 from app.models import (
     Capability,
     ExecutionResult,
@@ -39,7 +40,7 @@ def test_update_last_amps_on_already_set_skip() -> None:
                 requested=30.0,
                 applied=False,
                 verified=False,
-                skipped_reason="already set",
+                skipped_reason=SKIP_ALREADY_SET,
             )
         ]
     )

@@ -29,6 +29,17 @@
         if (t) document.documentElement.setAttribute("data-theme", t);
       } catch (e) {}
     </script>
+    <!-- Apply saved locale direction before first paint (en/ar/fr; extend LOCALE_DIR_INLINE in manifest). -->
+    <script>
+      try {
+        var loc = localStorage.getItem("solar-locale");
+        var dirs = { en: "ltr", ar: "rtl", fr: "ltr" };
+        if (loc && dirs[loc]) {
+          document.documentElement.lang = loc;
+          document.documentElement.dir = dirs[loc];
+        }
+      } catch (e) {}
+    </script>
     <style>
       /* Design tokens live on :root (light DOM) so they inherit into every
          web component's shadow tree and can be switched by [data-theme]. */

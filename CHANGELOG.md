@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.18] - 2026-06-25
+
+### Added
+
+- **Internationalization (i18n):** dashboard UI in English, العربية (Arabic, RTL), and Français; **Display preferences** in Settings for language and date format (locale default, DD/MM/YY, or ISO)
+- Backend locale middleware (`X-Solar-Locale` / `Accept-Language`) for API errors, decision rationales, engine skip/reject reasons, system-update messages, and assistant heuristic fallbacks
+- Shared locale catalogs (`frontend/src/locales/`, `backend/app/i18n/`) with parity tests and translation helper scripts
+- Legacy English skip text in stored history rows normalized to catalog keys when re-fetched
+
+### Changed
+
+- Field labels and help text moved from inline TypeScript maps into locale JSON catalogs
+- Changing language reconnects the live WebSocket and refetches history; chart axes and tables follow the selected date format
+
 ## [0.5.17] - 2026-06-25
 
 ### Added

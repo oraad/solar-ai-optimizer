@@ -10,6 +10,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
 
 from ..config import get_settings
+from ..i18n import reset_locale, resolve_request_locale, set_locale, t
+from ..i18n.serialize import localize_model, localize_payload
 from ..orchestrator import Orchestrator
 from .session import get_session, resolve_session
 
@@ -37,28 +39,34 @@ async def _ws_authorized(websocket: WebSocket) -> bool:
 
 @ws_router.websocket("/ws")
 async def ws_status(websocket: WebSocket) -> None:
-    if not await _ws_authorized(websocket):
-        await websocket.close(code=4401, reason="Unauthorized")
-        return
-    orch: Orchestrator = websocket.app.state.orchestrator
-    await websocket.accept()
-    queue = orch.subscribe()
-    # Send an immediate snapshot on connect.
-    with contextlib.suppress(Exception):
-        await websocket.send_json(orch.build_status().model_dump(mode="json"))
+    loc = resolve_request_locale(
+        websocket.query_params.get("locale"),
+        websocket.headers.get("accept-language"),
+    )
+    token = set_locale(loc)
     try:
-        while True:
-            try:
-                status = await asyncio.wait_for(queue.get(), timeout=30.0)
-                await websocket.send_json(status)
-            except asyncio.TimeoutError:
-                # Heartbeat keepalive.
-                await websocket.send_json({"type": "ping"})
-    except WebSocketDisconnect:
-        pass
-    except (ConnectionClosed, ConnectionClosedOK, ConnectionClosedError):
-        log.debug("WebSocket client disconnected (keepalive or close)")
-    except Exception as e:  # noqa: BLE001
-        log.debug("WebSocket closed: %s", e)
+        if not await _ws_authorized(websocket):
+            await websocket.close(code=4401, reason=t("api.auth.unauthorized"))
+            return
+        orch: Orchestrator = websocket.app.state.orchestrator
+        await websocket.accept()
+        queue = orch.subscribe()
+        with contextlib.suppress(Exception):
+            await websocket.send_json(localize_model(orch.build_status(), locale=loc))
+        try:
+            while True:
+                try:
+                    status = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    await websocket.send_json(localize_payload(status, locale=loc))
+                except asyncio.TimeoutError:
+                    await websocket.send_json({"type": "ping"})
+        except WebSocketDisconnect:
+            pass
+        except (ConnectionClosed, ConnectionClosedOK, ConnectionClosedError):
+            log.debug("WebSocket client disconnected (keepalive or close)")
+        except Exception as e:  # noqa: BLE001
+            log.debug("WebSocket closed: %s", e)
+        finally:
+            orch.unsubscribe(queue)
     finally:
-        orch.unsubscribe(queue)
+        reset_locale(token)

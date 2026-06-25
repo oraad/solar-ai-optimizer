@@ -1,3 +1,5 @@
+import { getLocale } from "./i18n.js";
+
 export type DateDisplayFormat = "locale" | "ddmmyy" | "iso";
 
 const STORAGE_KEY = "solar-date-format";
@@ -57,13 +59,14 @@ function formatIso(date: Date, includeTime: boolean): string {
 }
 
 function formatLocale(date: Date, includeTime: boolean): string {
+  const locale = getLocale();
   if (includeTime) {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale, {
       dateStyle: "short",
       timeStyle: "short",
     }).format(date);
   }
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "short" }).format(date);
+  return new Intl.DateTimeFormat(locale, { dateStyle: "short" }).format(date);
 }
 
 function formatWithMode(

@@ -2,6 +2,8 @@ import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 
 import { api, AuthRequiredError, live } from "../api.js";
+import { LOCALE_CHANGE_EVENT, t } from "../i18n.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import type {
   AppConfigView,
@@ -30,23 +32,27 @@ import "./toast-host.js";
 
 type Tab = "overview" | "forecast" | "history" | "assistant" | "settings" | "load_shedding";
 
-const ALL_TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "overview", label: "Overview", icon: "\u25A0" },
-  { id: "forecast", label: "Forecast", icon: "\u2600" },
-  { id: "history", label: "History", icon: "\u29D6" },
-  { id: "assistant", label: "Assistant", icon: "\u2709" },
-  { id: "load_shedding", label: "Load shedding", icon: "\u26A1" },
-  { id: "settings", label: "Settings", icon: "\u2699" },
+const TAB_IDS: Tab[] = [
+  "overview",
+  "forecast",
+  "history",
+  "assistant",
+  "load_shedding",
+  "settings",
 ];
 
-const VIEWER_TABS = ALL_TABS.filter(
-  (t) => t.id !== "settings" && t.id !== "assistant" && t.id !== "load_shedding",
-);
-
-const MOBILE_TAB_LABELS: Partial<Record<Tab, string>> = {
-  load_shedding: "Shedding",
-  assistant: "Chat",
+const TAB_ICONS: Record<Tab, string> = {
+  overview: "\u25A0",
+  forecast: "\u2600",
+  history: "\u29D6",
+  assistant: "\u2709",
+  load_shedding: "\u26A1",
+  settings: "\u2699",
 };
+
+const VIEWER_TAB_IDS: Tab[] = TAB_IDS.filter(
+  (id) => id !== "settings" && id !== "assistant" && id !== "load_shedding",
+);
 
 type StatusAlert = { label: string; className: string; title?: string; onClick?: () => void };
 
@@ -54,6 +60,11 @@ const UPDATE_FORCE_INTERVAL_MS = 15 * 60 * 1000;
 
 @customElement("solar-app")
 export class SolarApp extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = [
     sharedStyles,
     css`
@@ -276,9 +287,10 @@ export class SolarApp extends LitElement {
     this.theme =
       (document.documentElement.getAttribute("data-theme") as "light" | "dark") || "dark";
     const savedTab = localStorage.getItem("solar-tab") as Tab | null;
-    if (savedTab && ALL_TABS.some((t) => t.id === savedTab)) this.tab = savedTab;
+    if (savedTab && TAB_IDS.includes(savedTab)) this.tab = savedTab;
 
     window.addEventListener("solar-plan-refresh", this.onPlanRefresh);
+    window.addEventListener(LOCALE_CHANGE_EVENT, this.onLocaleChange);
     window.addEventListener("solar-login-success", this.onLoginSuccess);
     window.addEventListener("solar-logout", this.onLogout);
     window.addEventListener("solar-update-info", this.onUpdateInfo as EventListener);
@@ -295,6 +307,7 @@ export class SolarApp extends LitElement {
     live.disconnect();
     this.unsub?.();
     window.removeEventListener("solar-plan-refresh", this.onPlanRefresh);
+    window.removeEventListener(LOCALE_CHANGE_EVENT, this.onLocaleChange);
     window.removeEventListener("solar-login-success", this.onLoginSuccess);
     window.removeEventListener("solar-logout", this.onLogout);
     window.removeEventListener("solar-update-info", this.onUpdateInfo as EventListener);
@@ -305,6 +318,13 @@ export class SolarApp extends LitElement {
 
   private onPlanRefresh = (): void => {
     void this.refreshPlan();
+  };
+
+  private onLocaleChange = (): void => {
+    if (!this.authReady || this.needsLogin) return;
+    live.disconnect();
+    live.connect();
+    void this.refreshSlow();
   };
 
   private onLoginSuccess = (): void => {
@@ -423,8 +443,8 @@ export class SolarApp extends LitElement {
   }
 
   private normalizeTabForRole(): void {
-    const tabs = this.visibleTabs;
-    if (!tabs.some((t) => t.id === this.tab)) {
+    const tabs = this.visibleTabIds;
+    if (!tabs.includes(this.tab)) {
       this.tab = "overview";
       localStorage.setItem("solar-tab", this.tab);
     }
@@ -436,7 +456,9 @@ export class SolarApp extends LitElement {
 
   private get viewerTooltip(): string {
     const name = this.session?.display_name || this.session?.username;
-    return name ? `Signed in as ${name} (viewer)` : "Viewer access — limited operator controls";
+    return name
+      ? t("ui.app.viewerTooltip", { name })
+      : t("ui.app.viewerTooltipGeneric");
   }
 
   private get dashboardRole(): "admin" | "viewer" {
@@ -447,18 +469,30 @@ export class SolarApp extends LitElement {
     const version = this.session?.version ? `v${this.session.version}` : "";
     const updateHint =
       this.isAdmin && this.updateInfo?.update_available && this.updateInfo.latest_version
-        ? ` · v${this.updateInfo.latest_version} available`
+        ? t("ui.app.versionAvailable", { version: this.updateInfo.latest_version })
         : "";
     const withVersion = (text: string) =>
       version ? `${text} · ${version}${updateHint}` : text;
     if (!this.isAdmin && this.session?.display_name) {
       return withVersion(this.session.display_name);
     }
-    return withVersion("Resilience-first energy control");
+    return withVersion(t("ui.app.brandSubtitle"));
   }
 
-  private get visibleTabs() {
-    return this.isAdmin ? ALL_TABS : VIEWER_TABS;
+  private tabLabel(id: Tab): string {
+    return t(`nav.${id}`);
+  }
+
+  private tabDisplayLabel(id: Tab): string {
+    if (this.navNarrow) {
+      if (id === "load_shedding") return t("nav.shedding");
+      if (id === "assistant") return t("nav.chat");
+    }
+    return this.tabLabel(id);
+  }
+
+  private get visibleTabIds(): Tab[] {
+    return this.isAdmin ? TAB_IDS : VIEWER_TAB_IDS;
   }
 
   private noteApiError(e: unknown): void {
@@ -545,24 +579,21 @@ export class SolarApp extends LitElement {
   }
 
   private updatedLabel(): string {
-    if (!this.lastUpdate) return "waiting for data";
+    if (!this.lastUpdate) return t("ui.app.waitingForData");
     const s = Math.max(0, Math.round((this.now - this.lastUpdate) / 1000));
-    if (s < 5) return "live";
-    if (s < 60) return `updated ${s}s ago`;
+    if (s < 5) return t("ui.app.live");
+    if (s < 60) return t("ui.app.updatedSeconds", { s: String(s) });
     const m = Math.floor(s / 60);
-    return `updated ${m}m ago`;
-  }
-
-  private tabDisplayLabel(t: { id: Tab; label: string }): string {
-    if (this.navNarrow && MOBILE_TAB_LABELS[t.id]) return MOBILE_TAB_LABELS[t.id]!;
-    return t.label;
+    return t("ui.app.updatedMinutes", { m: String(m) });
   }
 
   private get secondaryAlerts(): StatusAlert[] {
     const alerts: StatusAlert[] = [];
     if (this.status?.engine_mode) {
       const suffix =
-        this.status.engine_mode === "mpc" && this.status.engine_active !== "mpc" ? " (rules)" : "";
+        this.status.engine_mode === "mpc" && this.status.engine_active !== "mpc"
+          ? t("ui.app.engineMpcFallback")
+          : "";
       alerts.push({
         label: `${this.status.engine_mode.toUpperCase()}${suffix}`,
         className: this.status.engine_active === "mpc" ? "good" : "warn",
@@ -573,32 +604,32 @@ export class SolarApp extends LitElement {
       alerts.push({
         label: chip,
         className: "warn",
-        title: "Software update in progress — open Settings",
+        title: t("ui.app.updateInProgressTitle"),
         onClick: () => this.setTab("settings"),
       });
     } else if (this.isAdmin && this.updateInfo?.update_available) {
       alerts.push({
-        label: "UPDATE",
+        label: t("ui.app.update"),
         className: "warn",
-        title: "A newer release is available — open Settings",
+        title: t("ui.app.updateAvailableTitle"),
         onClick: () => this.setTab("settings"),
       });
     }
     if (this.isAdmin && this.status?.forecast_misconfigured) {
-      alerts.push({ label: "SET LOCATION", className: "bad" });
+      alerts.push({ label: t("ui.app.setLocation"), className: "bad" });
     }
     if (this.status?.forecast_degraded) {
-      alerts.push({ label: "FORECAST DEGRADED", className: "warn" });
+      alerts.push({ label: t("ui.app.forecastDegraded"), className: "warn" });
     }
     if (
       this.isAdmin &&
       this.status?.forecast_provider === "solcast" &&
       this.status?.solcast_configured === false
     ) {
-      alerts.push({ label: "SOLCAST MISCONFIGURED", className: "bad" });
+      alerts.push({ label: t("ui.app.solcastMisconfigured"), className: "bad" });
     }
     if (this.status?.telemetry_stale) {
-      alerts.push({ label: "STALE DATA", className: "warn" });
+      alerts.push({ label: t("ui.app.staleData"), className: "warn" });
     }
     return alerts;
   }
@@ -628,7 +659,7 @@ export class SolarApp extends LitElement {
             this.statusMenuOpen = !this.statusMenuOpen;
           }}
         >
-          ${alerts.length} alert${alerts.length === 1 ? "" : "s"}
+          ${alerts.length === 1 ? t("ui.app.alertCount", { count: String(alerts.length) }) : t("ui.app.alertCountPlural", { count: String(alerts.length) })}
         </button>
         <div class="status-menu-panel" role="menu">
           ${alerts.map(
@@ -718,31 +749,31 @@ export class SolarApp extends LitElement {
           <div class="brand">
             <span class="sun">&#9728;</span>
             <div>
-              <h1>Solar AI Optimizer</h1>
+              <h1>${t("app.title")}</h1>
               <div class="sub">${this.brandSubtitle}</div>
             </div>
           </div>
           <div class="status-strip">
             <span class="updated"><span class="dot ${this.haConnected ? "on" : "off"}"></span>${this.updatedLabel()}</span>
             ${!this.isAdmin
-              ? html`<span class="pill warn" title=${this.viewerTooltip}>VIEWER</span>`
+              ? html`<span class="pill warn" title=${this.viewerTooltip}>${t("ui.app.viewer")}</span>`
               : null}
             <span class="pill ${this.haConnected ? "good" : "bad"} ${this.compactTopbar ? "short-text" : ""}">
               <span class="dot ${this.haConnected ? "on" : "off"}"></span>
-              <span class="pill-long">${this.haConnected ? "HA connected" : "HA offline"}</span>
-              <span class="pill-short">${this.haConnected ? "HA" : "Offline"}</span>
+              <span class="pill-long">${this.haConnected ? t("ui.app.haConnected") : t("ui.app.haOffline")}</span>
+              <span class="pill-short">${this.haConnected ? t("ui.app.haShort") : t("ui.app.offlineShort")}</span>
             </span>
             <span class="pill ${this.shadow ? "warn" : "good"}">
-              ${this.shadow ? "SHADOW" : "LIVE"}
+              ${this.shadow ? t("ui.app.shadow") : t("ui.app.liveMode")}
             </span>
             ${this.paused
-              ? html`<span class="pill bad">PAUSED</span>`
+              ? html`<span class="pill bad">${t("ui.app.paused")}</span>`
               : null}
             ${this.secondaryAlerts.map((a) => this.renderStatusPill(a))}
             ${this.renderStatusMenu()}
             <button
               class="icon-btn"
-              title=${this.theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              title=${this.theme === "dark" ? t("ui.app.themeDark") : t("ui.app.themeLight")}
               @click=${() => this.toggleTheme()}
             >
               ${this.theme === "dark" ? html`&#9790;` : html`&#9728;`}
@@ -750,15 +781,15 @@ export class SolarApp extends LitElement {
           </div>
         </div>
         <nav role="tablist">
-          ${this.visibleTabs.map(
-            (t) => html`
+          ${this.visibleTabIds.map(
+            (id) => html`
               <button
                 role="tab"
-                class=${this.tab === t.id ? "active" : ""}
-                aria-selected=${this.tab === t.id}
-                @click=${() => this.setTab(t.id)}
+                class=${this.tab === id ? "active" : ""}
+                aria-selected=${this.tab === id}
+                @click=${() => this.setTab(id)}
               >
-                <span class="ic">${t.icon}</span><span class="tab-label">${this.tabDisplayLabel(t)}</span>
+                <span class="ic">${TAB_ICONS[id]}</span><span class="tab-label">${this.tabDisplayLabel(id)}</span>
               </button>
             `,
           )}

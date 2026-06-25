@@ -6,6 +6,7 @@ from datetime import timedelta
 
 from app.config import BatteryConfig, ControlConfig, GridChargeConfig
 from app.control.safety import SafetyGuard
+from app.i18n.skip_keys import SKIP_ALREADY_SET
 from app.models import Capability, utcnow
 
 
@@ -27,7 +28,7 @@ def test_idempotency_skip_when_already_set():
     g = _guard()
     assert (
         g.should_skip(Capability.MAX_GRID_CHARGE_CURRENT, 40.0, current=40.0)
-        == "already set"
+        == SKIP_ALREADY_SET
     )
 
 

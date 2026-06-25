@@ -16,6 +16,8 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .i18n import t
+
 ForecastProvider = Literal["open-meteo", "solcast"]
 
 DEFAULT_HEARTBEAT_ENTITY = "input_datetime.solar_optimizer_heartbeat"
@@ -213,7 +215,7 @@ class ForecastConfig(BaseModel):
             return "open-meteo"
         s = str(v).strip().lower()
         if s not in ("open-meteo", "solcast"):
-            raise ValueError("forecast.provider must be 'open-meteo' or 'solcast'")
+            raise ValueError("api.config.forecast_provider")
         return s
 
     @property
@@ -279,9 +281,12 @@ class LoadTier(BaseModel):
     def _hysteresis_order(self) -> "LoadTier":
         if self.restore_above_soc <= self.shed_below_soc:
             raise ValueError(
-                f"load_shedding tier '{self.name}': restore_above_soc "
-                f"({self.restore_above_soc}) must be > shed_below_soc "
-                f"({self.shed_below_soc})"
+                t(
+                    "api.config.tier_hysteresis",
+                    name=self.name,
+                    restore=self.restore_above_soc,
+                    shed=self.shed_below_soc,
+                )
             )
         known = set(self.entity_ids())
         cleaned: dict[str, list[str]] = {}
@@ -377,7 +382,7 @@ class EngineConfig(BaseModel):
     @classmethod
     def _valid_mode(cls, v: str) -> str:
         if v not in {"rules", "mpc"}:
-            raise ValueError("engine.mode must be 'rules' or 'mpc'")
+            raise ValueError("api.config.engine_mode")
         return v
 
     @field_validator("priority_order", mode="before")
@@ -402,10 +407,7 @@ class EngineConfig(BaseModel):
             seen.add(key)
             out.append(priority)
         if len(out) != len(_DEFAULT_PRIORITY_ORDER):
-            raise ValueError(
-                "engine.priority_order must list each of "
-                "resilience, savings, self_sufficiency exactly once"
-            )
+            raise ValueError("api.config.priority_order")
         return out
 
 

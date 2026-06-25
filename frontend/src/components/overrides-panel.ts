@@ -3,7 +3,9 @@ import { customElement, property, state } from "lit/decorators.js";
 
 import { api } from "../api.js";
 import { overrideHelp } from "../field-help.js";
+import { t } from "../i18n.js";
 import { labelWithTip } from "../label-tip.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import { runWithToast } from "../toast.js";
 import "./info-tip.js";
@@ -11,6 +13,11 @@ import type { AppConfigView, SystemStatus } from "../types.js";
 
 @customElement("solar-overrides-panel")
 export class OverridesPanel extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = [
     sharedStyles,
     css`
@@ -98,56 +105,77 @@ export class OverridesPanel extends LitElement {
   private toggleShadow = () =>
     this.run(
       () => api.override({ shadow_mode: !(this.status?.shadow_mode ?? true) }),
-      "Updating mode…",
-      "Shadow mode toggled.",
+      t("ui.overrides.toastModeLoading"),
+      t("ui.overrides.toastModeSuccess"),
     );
 
   private togglePause = () =>
-    this.run(() => api.override({ pause_engine: true }), "Updating engine…", "Engine paused.");
+    this.run(
+      () => api.override({ pause_engine: true }),
+      t("ui.overrides.toastEngineLoading"),
+      t("ui.overrides.toastEnginePaused"),
+    );
 
   private resume = () =>
-    this.run(() => api.override({ pause_engine: false }), "Updating engine…", "Engine resumed.");
+    this.run(
+      () => api.override({ pause_engine: false }),
+      t("ui.overrides.toastEngineLoading"),
+      t("ui.overrides.toastEngineResumed"),
+    );
 
   private forceCharge = () =>
     this.run(
       () => api.override({ force_grid_charge: true }),
-      "Updating grid charge…",
-      "Forcing grid charge.",
+      t("ui.overrides.toastGridLoading"),
+      t("ui.overrides.toastGridForced"),
     );
 
   private stopForceCharge = () =>
     this.run(
       () => api.override({ force_grid_charge: false }),
-      "Updating grid charge…",
-      "Released grid charge override.",
+      t("ui.overrides.toastGridLoading"),
+      t("ui.overrides.toastGridReleased"),
     );
 
   private applyReserve = () => {
     if (this.reserveInput == null) return;
+    const soc = this.reserveInput;
     return this.run(
-      () => api.override({ reserve_soc: this.reserveInput }),
-      "Pinning reserve…",
-      `Reserve pinned at ${this.reserveInput}%.`,
+      () => api.override({ reserve_soc: soc }),
+      t("ui.overrides.toastReserveLoading"),
+      t("ui.overrides.toastReserveSuccess", { soc: String(soc) }),
     );
   };
 
   private clearAll = () =>
-    this.run(() => api.clearOverride(), "Clearing overrides…", "Overrides cleared (auto mode).");
+    this.run(
+      () => api.clearOverride(),
+      t("ui.overrides.toastClearLoading"),
+      t("ui.overrides.toastClearSuccess"),
+    );
 
   private killSwitch = () => {
-    if (!confirm("Engage KILL SWITCH? This enables grid charge at max current, pauses the engine, and restores shed tiers.")) return;
+    if (!confirm(t("ui.overrides.killConfirm"))) return;
     return this.run(
       () => api.override({ kill_switch: true, confirm: true }),
-      "Engaging kill switch…",
-      "Kill switch engaged; grid charge at max current.",
+      t("ui.overrides.toastKillLoading"),
+      t("ui.overrides.toastKillSuccess"),
     );
   };
 
   private forceCycle = () =>
-    this.run(() => api.forceCycle(), "Running control cycle…", "Control cycle executed.");
+    this.run(
+      () => api.forceCycle(),
+      t("ui.overrides.toastCycleLoading"),
+      t("ui.overrides.toastCycleSuccess"),
+    );
 
   private refreshForecast = () =>
-    this.run(() => api.refreshForecast(), "Refreshing forecast…", "Forecast refreshed.");
+    this.run(
+      () => api.refreshForecast(),
+      t("ui.overrides.toastForecastLoading"),
+      t("ui.overrides.toastForecastSuccess"),
+    );
 
   render() {
     const shadow = this.status?.shadow_mode ?? true;
@@ -155,37 +183,37 @@ export class OverridesPanel extends LitElement {
     const viewer = this.role === "viewer";
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
-        <h3>${viewer ? "Operator controls" : "Controls &amp; overrides"}</h3>
+        <h3>${viewer ? t("ui.overrides.titleViewer") : t("ui.overrides.title")}</h3>
         ${viewer
-          ? html`<p class="viewer-note">Reserve pin and grid-charge overrides require an admin.</p>`
+          ? html`<p class="viewer-note">${t("ui.overrides.viewerNote")}</p>`
           : null}
 
         ${paused
-          ? html`<div class="banner warn">Engine paused — no inverter or shed writes until resumed.</div>`
+          ? html`<div class="banner warn">${t("ui.overrides.enginePaused")}</div>`
           : null}
         ${this.status?.reserve_soc_override != null
-          ? html`<div class="banner warn">Reserve pinned at ${this.status.reserve_soc_override}%.</div>`
+          ? html`<div class="banner warn">${t("ui.overrides.reservePinned", { soc: String(this.status.reserve_soc_override) })}</div>`
           : null}
         ${this.status?.force_grid_charge_override === true
-          ? html`<div class="banner warn">Grid charge forced on.</div>`
+          ? html`<div class="banner warn">${t("ui.overrides.gridChargeForced")}</div>`
           : null}
         ${!viewer && this.status?.force_grid_charge_override === false
-          ? html`<div class="banner warn">Grid charge override: auto.</div>`
+          ? html`<div class="banner warn">${t("ui.overrides.gridChargeAuto")}</div>`
           : null}
 
         <div class="ctrl">
-          <span>${labelWithTip("Mode", overrideHelp("mode"))}</span>
+          <span>${labelWithTip(t("ui.overrides.mode"), overrideHelp("mode"))}</span>
           <span class="seg">
-            <button class=${shadow ? "active warn" : ""} @click=${() => shadow || this.toggleShadow()}>Shadow</button>
-            <button class=${shadow ? "" : "active good"} @click=${() => shadow && this.toggleShadow()}>Live</button>
+            <button class=${shadow ? "active warn" : ""} @click=${() => shadow || this.toggleShadow()}>${t("ui.overrides.shadow")}</button>
+            <button class=${shadow ? "" : "active good"} @click=${() => shadow && this.toggleShadow()}>${t("ui.overrides.live")}</button>
           </span>
         </div>
 
         <div class="ctrl">
-          <span>${labelWithTip("Engine", overrideHelp("engine"))}</span>
+          <span>${labelWithTip(t("ui.overrides.engine"), overrideHelp("engine"))}</span>
           <span class="seg">
-            <button class=${paused ? "active warn" : ""} ?disabled=${paused || this.busy} @click=${this.togglePause}>&#10073;&#10073; Pause</button>
-            <button class=${paused ? "active good" : ""} ?disabled=${!paused || this.busy} @click=${this.resume}>&#9654; Resume</button>
+            <button class=${paused ? "active warn" : ""} ?disabled=${paused || this.busy} @click=${this.togglePause}>&#10073;&#10073; ${t("ui.overrides.pause")}</button>
+            <button class=${paused ? "active good" : ""} ?disabled=${!paused || this.busy} @click=${this.resume}>&#9654; ${t("ui.overrides.resume")}</button>
           </span>
         </div>
 
@@ -193,52 +221,52 @@ export class OverridesPanel extends LitElement {
           ? html`
               <div class="buttons">
                 <span class="action-with-tip">
-                  <button class="danger" @click=${this.killSwitch}>&#9760; Kill switch</button>
+                  <button class="danger" @click=${this.killSwitch}>&#9760; ${t("ui.overrides.killSwitch")}</button>
                   <solar-info-tip .text=${overrideHelp("kill_switch")!}></solar-info-tip>
                 </span>
               </div>
             `
           : html`
               <div class="ctrl">
-                <span>${labelWithTip("Grid charge", overrideHelp("grid_charge"))}</span>
+                <span>${labelWithTip(t("ui.overrides.gridCharge"), overrideHelp("grid_charge"))}</span>
                 <span class="seg">
-                  <button @click=${this.forceCharge}>&#9889; Force on</button>
-                  <button @click=${this.stopForceCharge}>Auto</button>
+                  <button @click=${this.forceCharge}>&#9889; ${t("ui.overrides.forceOn")}</button>
+                  <button @click=${this.stopForceCharge}>${t("common.auto")}</button>
                 </span>
               </div>
 
               <div class="ctrl">
-                <span>${labelWithTip("Pin reserve", overrideHelp("pin_reserve"))}</span>
+                <span>${labelWithTip(t("ui.overrides.pinReserve"), overrideHelp("pin_reserve"))}</span>
                 <span class="reserve-input">
                   <input
                     type="number"
                     min="0"
                     max="100"
-                    placeholder="auto"
+                    placeholder=${t("common.auto")}
                     @input=${(e: Event) => {
                       const v = (e.target as HTMLInputElement).value;
                       this.reserveInput = v === "" ? null : Number(v);
                     }}
                   />
-                  <button @click=${this.applyReserve}>Set</button>
+                  <button @click=${this.applyReserve}>${t("ui.overrides.set")}</button>
                 </span>
               </div>
 
               <div class="buttons">
                 <span class="action-with-tip">
-                  <button @click=${this.forceCycle}>&#8635; Run cycle now</button>
+                  <button @click=${this.forceCycle}>&#8635; ${t("ui.overrides.runCycle")}</button>
                   <solar-info-tip .text=${overrideHelp("run_cycle")!}></solar-info-tip>
                 </span>
                 <span class="action-with-tip">
-                  <button @click=${this.refreshForecast}>&#9728; Refresh forecast</button>
+                  <button @click=${this.refreshForecast}>&#9728; ${t("ui.overrides.refreshForecast")}</button>
                   <solar-info-tip .text=${overrideHelp("refresh_forecast")!}></solar-info-tip>
                 </span>
                 <span class="action-with-tip">
-                  <button @click=${this.clearAll}>Clear overrides</button>
+                  <button @click=${this.clearAll}>${t("ui.overrides.clearOverrides")}</button>
                   <solar-info-tip .text=${overrideHelp("clear_overrides")!}></solar-info-tip>
                 </span>
                 <span class="action-with-tip">
-                  <button class="danger" @click=${this.killSwitch}>&#9760; Kill switch</button>
+                  <button class="danger" @click=${this.killSwitch}>&#9760; ${t("ui.overrides.killSwitch")}</button>
                   <solar-info-tip .text=${overrideHelp("kill_switch")!}></solar-info-tip>
                 </span>
               </div>

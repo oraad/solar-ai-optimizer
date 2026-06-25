@@ -1,11 +1,4 @@
-"""Local LLM assistant (Ollama) for natural-language explanations + control.
-
-Safety design: the LLM NEVER directly issues inverter writes. Control intents
-are extracted by a deterministic keyword parser and returned as a structured
-`Override`; the caller decides whether to apply it. The LLM only generates the
-prose explanation. If Ollama is disabled/unreachable, a heuristic explanation is
-produced from the current decision context so the feature degrades gracefully.
-"""
+"""Local LLM assistant (Ollama) for natural-language explanations + control."""
 
 from __future__ import annotations
 
@@ -16,14 +9,11 @@ import httpx
 
 from ..config import Settings
 from ..engine.priorities import system_prompt_priorities
+from ..i18n import LOCALE_NAMES, get_locale, t
+from ..i18n.serialize import msg_text
 from ..models import Override
 
-log = logging.getLogger("llm.assistant")
-
-SYSTEM_PROMPT_BASE = (
-    "You are the assistant for a home solar/battery optimizer running on Home "
-    "Assistant. "
-)
+SYSTEM_PROMPT_BASE_KEY = "assistant.system.base"
 
 
 class Assistant:
@@ -34,7 +24,6 @@ class Assistant:
     def enabled(self) -> bool:
         return self._settings.llm_enabled
 
-    # --------------------------------------------------------- intent parser --
     def parse_intent(self, question: str) -> Override | None:
         """Deterministically map common control phrases to an Override."""
         q = question.lower().strip()
@@ -75,7 +64,6 @@ class Assistant:
             re.search(r"\b(confirm|yes|proceed|engage)\b", question.lower().strip())
         )
 
-    # ------------------------------------------------------------- generate --
     async def answer(self, question: str, context: dict) -> str:
         if self.enabled:
             try:
@@ -94,11 +82,13 @@ class Assistant:
                 order = [OptimizationPriority(str(x)) for x in order_raw]
             except ValueError:
                 order = None
+        locale = get_locale()
+        language = LOCALE_NAMES.get(locale, "English")
         system = (
-            f"{SYSTEM_PROMPT_BASE}{system_prompt_priorities(order)} "
-            "Answer concisely and concretely using the provided live context. "
-            "If asked to explain a decision, reference the reserve target, SOC, "
-            "solar forecast, and grid state."
+            f"{t(SYSTEM_PROMPT_BASE_KEY, locale=locale)}"
+            f"{system_prompt_priorities(order, locale=locale)} "
+            f"{t('assistant.system.answer', locale=locale)} "
+            f"{t('assistant.prompt.respond_in', {'language': language}, locale=locale)}"
         )
         prompt = (
             f"{system}\n\nLive context (JSON):\n{context}\n\n"
@@ -121,23 +111,37 @@ class Assistant:
 
     @staticmethod
     def _heuristic(question: str, context: dict) -> str:
-        d = context.get("decision") or {}
-        t = context.get("telemetry") or {}
-        reserve = (d.get("reserve") or {}).get("target_soc")
-        soc = t.get("battery_soc")
-        grid = t.get("grid_present")
-        risk = d.get("blackout_risk")
-        parts = []
+        decision = context.get("decision") or {}
+        telemetry = context.get("telemetry") or {}
+        reserve = (decision.get("reserve") or {}).get("target_soc")
+        soc = telemetry.get("battery_soc")
+        grid = telemetry.get("grid_present")
+        risk = decision.get("blackout_risk")
+        parts: list[str] = []
         if soc is not None and reserve is not None:
-            parts.append(f"Battery is at {soc:.0f}% versus a reserve target of {reserve:.0f}%.")
-        parts.append(f"Grid is {'present' if grid else 'absent'}.")
+            parts.append(
+                t(
+                    "assistant.heuristic.soc_vs_reserve",
+                    {"soc": f"{soc:.0f}", "reserve": f"{reserve:.0f}"},
+                )
+            )
+        parts.append(
+            t(
+                "assistant.heuristic.grid_present"
+                if grid
+                else "assistant.heuristic.grid_absent"
+            )
+        )
         if risk:
-            parts.append(f"Blackout risk is {risk}.")
-        rationale = (d.get("reserve") or {}).get("rationale")
+            parts.append(
+                t("assistant.heuristic.blackout_risk", {"risk": str(risk)})
+            )
+        rationale = (decision.get("reserve") or {}).get("rationale")
         if rationale:
-            parts.append(rationale)
-        if d.get("summary"):
-            parts.append(d["summary"])
+            parts.append(msg_text(rationale))
+        summary = decision.get("summary")
+        if summary:
+            parts.append(msg_text(summary))
         if not parts:
-            return "No decision context is available yet."
+            return t("assistant.heuristic.no_context")
         return " ".join(parts)

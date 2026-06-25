@@ -6,6 +6,9 @@ import { entityLabel, fieldLabel, gridChargeFactorLabel, INVERTER_READ_ENTITY_KE
 import { entityHelp, fieldHelp, priorityEffectHelp, priorityRankBlurb, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
 import { formatDateTime, getDateFormat, setDateFormat, type DateDisplayFormat } from "../date-format.js";
+import { getLocale, setLocale, t, type AppLocale } from "../i18n.js";
+import { LOCALES } from "../locales/manifest.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import { dismissToast, runWithToast, showToast, updateToast } from "../toast.js";
 import "./entity-input.js";
@@ -17,7 +20,7 @@ import {
   flowStages,
   progressHeaderTitle,
   stageLabel,
-  UPDATE_LOG_HINT,
+  updateLogHint,
 } from "../update-progress.js";
 
 type Section = Record<string, unknown>;
@@ -75,6 +78,11 @@ function isScalar(v: unknown): v is number | string | boolean {
 
 @customElement("solar-settings-panel")
 export class SettingsPanel extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = [
     sharedStyles,
     css`
@@ -106,7 +114,7 @@ export class SettingsPanel extends LitElement {
         word-break: break-word;
       }
       .release-notes :is(h1, h2, h3, h4) { margin: 0.6em 0 0.35em; font-size: 0.95rem; }
-      .release-notes :is(ul, ol) { margin: 0.35em 0; padding-left: 1.25em; }
+      .release-notes :is(ul, ol) { margin: 0.35em 0; padding-inline-start: 1.25em; }
       .release-notes p { margin: 0.35em 0; }
       .release-notes a { color: var(--accent, #6ad); }
       .release-notes code {
@@ -125,7 +133,7 @@ export class SettingsPanel extends LitElement {
       }
       .release-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.8rem; }
       .release-table th, .release-table td {
-        text-align: left;
+        text-align: start;
         padding: 6px 8px;
         border-bottom: 1px solid var(--border);
         vertical-align: top;
@@ -133,7 +141,7 @@ export class SettingsPanel extends LitElement {
       .release-table th { color: var(--muted); font-weight: 600; }
       .release-badge {
         display: inline-block;
-        margin-left: 6px;
+        margin-inline-start: 6px;
         padding: 1px 6px;
         border-radius: 999px;
         font-size: 0.65rem;
@@ -169,7 +177,7 @@ export class SettingsPanel extends LitElement {
       }
       .badge-update {
         display: inline-block;
-        margin-left: 8px;
+        margin-inline-start: 8px;
         padding: 2px 8px;
         border-radius: 999px;
         font-size: 0.68rem;
@@ -269,17 +277,24 @@ export class SettingsPanel extends LitElement {
   @state() private updateHealthWait = false;
   @state() private updateWatchActive = false;
   @state() private dateFormat: DateDisplayFormat = "locale";
+  @state() private locale: AppLocale = "en";
 
   private updateWatchToken = 0;
   private onDateFormatChange = () => {
     this.dateFormat = getDateFormat();
     this.requestUpdate();
   };
+  private onLocaleChange = () => {
+    this.locale = getLocale();
+    this.requestUpdate();
+  };
 
   connectedCallback(): void {
     super.connectedCallback();
     this.dateFormat = getDateFormat();
+    this.locale = getLocale();
     window.addEventListener("solar-date-format-change", this.onDateFormatChange);
+    window.addEventListener("solar-locale-change", this.onLocaleChange);
     this.apiToken = getApiToken();
     if (this.config) this.setDraft(this.config);
     void this.loadConfig();
@@ -289,6 +304,7 @@ export class SettingsPanel extends LitElement {
 
   disconnectedCallback(): void {
     window.removeEventListener("solar-date-format-change", this.onDateFormatChange);
+    window.removeEventListener("solar-locale-change", this.onLocaleChange);
     super.disconnectedCallback();
   }
 
@@ -733,13 +749,26 @@ export class SettingsPanel extends LitElement {
   private renderDisplayPreferencesSection() {
     return html`
       <details>
-        <summary>Display preferences</summary>
-        <p class="label">
-          How dates and times appear in history tables and charts on this browser.
-        </p>
+        <summary>${t("display.preferences")}</summary>
+        <p class="label">${t("display.preferencesIntro")}</p>
         <div class="fields">
           <div class="field">
-            <label>Date format</label>
+            <label>${t("display.language")}</label>
+            <select
+              .value=${this.locale}
+              @change=${async (e: Event) => {
+                const v = (e.target as HTMLSelectElement).value as AppLocale;
+                this.locale = v;
+                await setLocale(v);
+              }}
+            >
+              ${LOCALES.map(
+                (loc) => html`<option value=${loc.id}>${loc.nativeName}</option>`,
+              )}
+            </select>
+          </div>
+          <div class="field">
+            <label>${t("display.dateFormat")}</label>
             <select
               .value=${this.dateFormat}
               @change=${(e: Event) => {
@@ -748,9 +777,9 @@ export class SettingsPanel extends LitElement {
                 setDateFormat(v);
               }}
             >
-              <option value="locale">Locale (browser default)</option>
-              <option value="ddmmyy">DD/MM/YY</option>
-              <option value="iso">YYYY-MM-DD (ISO)</option>
+              <option value="locale">${t("display.dateLocale")}</option>
+              <option value="ddmmyy">${t("display.dateDdmmyy")}</option>
+              <option value="iso">${t("display.dateIso")}</option>
             </select>
           </div>
         </div>
@@ -1197,7 +1226,7 @@ export class SettingsPanel extends LitElement {
     return html`
       <div class="recovery-banner">
         <p>${message}</p>
-        <p class="label">${UPDATE_LOG_HINT}</p>
+        <p class="label">${updateLogHint()}</p>
         ${backup
           ? html`
               <div class="buttons">
@@ -1827,7 +1856,7 @@ export class SettingsPanel extends LitElement {
 
   render() {
     if (!this.draft) {
-      return html`<div class="card"><h3>Settings</h3><p class="label">Loading config...</p></div>`;
+      return html`<div class="card"><h3>${t("ui.settings.title")}</h3><p class="label">${t("ui.settings.loading")}</p></div>`;
     }
     return html`
       <div class="card ${this.busy ? "busy" : ""}">

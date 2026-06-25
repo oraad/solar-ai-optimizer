@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -32,6 +33,8 @@ from .api.auth import AuthGateMiddleware, UserContextMiddleware
 from .config import get_settings
 from .config_store import ConfigStore
 from .ha.users import HAAdminResolver
+from .i18n import format_validation_errors
+from .i18n.middleware import LocaleMiddleware
 from .logging_setup import configure_logging, request_id_var
 from .orchestrator import Orchestrator
 from .scheduler import build_scheduler
@@ -150,7 +153,18 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(SecurityHeadersMiddleware, allow_frames=settings.ingress_trusted)
     app.add_middleware(AuthGateMiddleware)
+    app.add_middleware(LocaleMiddleware)
     app.add_middleware(UserContextMiddleware)
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_handler(request: Request, exc: RequestValidationError):  # noqa: ANN001
+        from starlette.responses import JSONResponse
+
+        return JSONResponse(
+            status_code=422,
+            content={"detail": format_validation_errors(exc.errors())},
+        )
+
     app.include_router(auth_router)
     app.include_router(metrics_router)
     app.include_router(api_router)

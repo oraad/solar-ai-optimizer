@@ -5,6 +5,7 @@ from __future__ import annotations
 from enum import Enum
 
 from ..config import OptimizationPriority
+from ..i18n import get_locale, t
 
 RANK_WEIGHTS = (1.0, 0.4, 0.15)
 
@@ -113,20 +114,31 @@ def blend_ceiling(
     return max_a - (max_a - raw) * t
 
 
-def format_priority_order(order: list[OptimizationPriority] | None = None) -> str:
+def format_priority_order(
+    order: list[OptimizationPriority] | None = None,
+    *,
+    locale: str | None = None,
+) -> str:
     seq = order or DEFAULT_PRIORITY_ORDER
-    return " > ".join(p.value.replace("_", "-") for p in seq)
+    loc = locale or get_locale()
+    return " > ".join(
+        t(f"engine.priority.{p.value}", locale=loc) for p in seq
+    )
 
 
-def system_prompt_priorities(order: list[OptimizationPriority] | None = None) -> str:
+def system_prompt_priorities(
+    order: list[OptimizationPriority] | None = None,
+    *,
+    locale: str | None = None,
+) -> str:
     seq = order or DEFAULT_PRIORITY_ORDER
+    loc = locale or get_locale()
     lines = [
-        f"{i + 1}) {p.value.replace('_', ' ')}"
+        t("assistant.priorities.line", {"index": i + 1, "name": t(f"engine.priority.{p.value}", locale=loc)}, locale=loc)
         for i, p in enumerate(seq)
     ]
     return (
-        "User-configured optimization priorities (highest first): "
+        t("assistant.priorities.header", locale=loc)
         + "; ".join(lines)
-        + ". The grid is unpredictable and is treated as a reactive, "
-        "opportunistic resource only (never predicted)."
+        + t("assistant.priorities.footer", locale=loc)
     )

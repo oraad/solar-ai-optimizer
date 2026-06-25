@@ -14,6 +14,8 @@ import {
 } from "../charts.js";
 import { formatDateTime } from "../date-format.js";
 import { entityDisplayName } from "../entity-resolve.js";
+import { t } from "../i18n.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import type {
   DecisionHistoryRow,
@@ -30,6 +32,11 @@ const HISTORY_DATE_FMT = "iso" as const;
 
 @customElement("solar-history-view")
 export class HistoryView extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = [
     sharedStyles,
     chartContainerStyles,
@@ -62,10 +69,10 @@ export class HistoryView extends LitElement {
       .swatch { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); }
       .swatch i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
       .cursor-values { min-height: 1.2em; font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-      select { margin-left: 8px; }
+      select { margin-inline-start: 8px; }
       .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
       .table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 480px; }
-      .table th, .table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+      .table th, .table td { text-align: start; padding: 6px 8px; border-bottom: 1px solid var(--border); }
       .table tr:hover { background: var(--panel-2); }
       .scroll { max-height: 320px; overflow: auto; }
       .load-error {
@@ -117,12 +124,19 @@ export class HistoryView extends LitElement {
     this.queueRenderChart();
     this.requestUpdate();
   };
+  private onLocale = () => {
+    this.forceChartRecreate = true;
+    this.queueRenderChart();
+    this.requestUpdate();
+    void this.loadAll();
+  };
   private pollTimer?: number;
 
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("solar-theme-change", this.onTheme);
     window.addEventListener("solar-date-format-change", this.onDateFormat);
+    window.addEventListener("solar-locale-change", this.onLocale);
     void this.loadAll();
     this.pollTimer = window.setInterval(() => void this.loadAll(), 60_000);
   }
@@ -131,6 +145,7 @@ export class HistoryView extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener("solar-theme-change", this.onTheme);
     window.removeEventListener("solar-date-format-change", this.onDateFormat);
+    window.removeEventListener("solar-locale-change", this.onLocale);
     if (this.pollTimer) window.clearInterval(this.pollTimer);
     this.chartHandle?.destroy();
     this.chartHandle = undefined;
@@ -242,13 +257,13 @@ export class HistoryView extends LitElement {
     const gridStroke = cssVar(this.chartEl, "--border", "rgba(255,255,255,0.06)");
     const series = [
       {},
-      { label: "PV (W)", stroke: accent, width: 1, scale: "power" },
-      { label: "Load (W)", stroke: accent2, width: 1, scale: "power" },
-      { label: "SOC (%)", stroke: good, width: 2, scale: "%" },
+      { label: t("ui.history.seriesPv"), stroke: accent, width: 1, scale: "power" },
+      { label: t("ui.history.seriesLoad"), stroke: accent2, width: 1, scale: "power" },
+      { label: t("ui.history.seriesSoc"), stroke: good, width: 2, scale: "%" },
       ...(hasTemp
         ? [
-            { label: "Batt °C", stroke: muted, width: 1, scale: "temp" },
-            { label: "Outdoor °C", stroke: good, width: 1, scale: "temp" },
+            { label: t("ui.history.seriesBattTemp"), stroke: muted, width: 1, scale: "temp" },
+            { label: t("ui.history.seriesOutdoorTemp"), stroke: good, width: 1, scale: "temp" },
           ]
         : []),
     ];
@@ -307,16 +322,23 @@ export class HistoryView extends LitElement {
     this.chartHasTemp = hasTemp;
   }
 
+  private skipLabel(
+    row: { skipped_reason: string | null; skipped_reason_text?: string | null },
+    fallback: string,
+  ): string {
+    return row.skipped_reason_text ?? row.skipped_reason ?? fallback;
+  }
+
   private renderDecisions() {
     if (!this.decisions.length) {
-      return html`<p class="label">No decisions recorded yet.</p>`;
+      return html`<p class="label">${t("ui.history.noDecisions")}</p>`;
     }
     return html`
       <div class="scroll table-scroll">
         <table class="table">
           <thead>
             <tr>
-              <th>Time</th><th>Target</th><th>Risk</th><th>Summary</th><th>Shed</th>
+              <th>${t("ui.history.colTime")}</th><th>${t("ui.history.colTarget")}</th><th>${t("ui.history.colRisk")}</th><th>${t("ui.history.colSummary")}</th><th>${t("ui.history.colShed")}</th>
             </tr>
           </thead>
           <tbody>
@@ -339,27 +361,27 @@ export class HistoryView extends LitElement {
 
   private renderExecutions() {
     if (!this.executions.length) {
-      return html`<p class="label">No inverter writes recorded yet.</p>`;
+      return html`<p class="label">${t("ui.history.noExecutions")}</p>`;
     }
     return html`
       <div class="scroll table-scroll">
         <table class="table">
           <thead>
-            <tr><th>Time</th><th>Capability</th><th>Requested</th><th>Result</th></tr>
+            <tr><th>${t("ui.history.colTime")}</th><th>${t("ui.history.colCapability")}</th><th>${t("ui.history.colRequested")}</th><th>${t("ui.history.colResult")}</th></tr>
           </thead>
           <tbody>
             ${this.executions.map(
               (e) => html`
-                <tr title=${e.skipped_reason || e.error || ""}>
+                <tr title=${this.skipLabel(e, "") || e.error || ""}>
                   <td>${formatDateTime(e.ts, HISTORY_DATE_FMT)}</td>
                   <td>${e.capability}</td>
                   <td>${e.requested}</td>
                   <td>
                     ${e.applied
                       ? e.verified
-                        ? "verified"
-                        : "applied"
-                      : e.skipped_reason || e.error || "skipped"}
+                        ? t("ui.decision.verified")
+                        : t("ui.decision.appliedShort")
+                      : this.skipLabel(e, t("ui.decision.skipped")) || e.error || t("ui.decision.skipped")}
                   </td>
                 </tr>
               `,
@@ -372,13 +394,13 @@ export class HistoryView extends LitElement {
 
   private renderShedExecutions() {
     if (!this.shedExecs.length) {
-      return html`<p class="label">No shed switch writes recorded yet.</p>`;
+      return html`<p class="label">${t("ui.history.noShed")}</p>`;
     }
     return html`
       <div class="scroll table-scroll">
         <table class="table">
           <thead>
-            <tr><th>Time</th><th>Tier</th><th>Entity</th><th>Desired</th><th>Result</th><th>Companions</th></tr>
+            <tr><th>${t("ui.history.colTime")}</th><th>${t("ui.history.colTier")}</th><th>${t("ui.history.colEntity")}</th><th>${t("ui.history.colDesired")}</th><th>${t("ui.history.colResult")}</th><th>${t("ui.history.colCompanions")}</th></tr>
           </thead>
           <tbody>
             ${this.shedExecs.map(
@@ -386,11 +408,11 @@ export class HistoryView extends LitElement {
                 const entityName = this.entityLabel(e.entity);
                 const comp =
                   (e.companions_restored?.length ?? 0) > 0
-                    ? `restored: ${this.entityLabels(e.companions_restored!)}`
+                    ? t("ui.history.restored", { list: this.entityLabels(e.companions_restored!) })
                     : (e.companions_captured?.length ?? 0) > 0
-                      ? `captured: ${this.entityLabels(e.companions_captured!)}`
+                      ? t("ui.history.captured", { list: this.entityLabels(e.companions_captured!) })
                       : "";
-                const titleParts = [e.skipped_reason, e.error, comp];
+                const titleParts = [this.skipLabel(e, ""), e.error, comp];
                 if (entityName !== e.entity) titleParts.push(e.entity);
                 const title = titleParts.filter(Boolean).join(" · ");
                 return html`
@@ -398,15 +420,15 @@ export class HistoryView extends LitElement {
                   <td>${formatDateTime(e.ts, HISTORY_DATE_FMT)}</td>
                   <td>${e.tier}</td>
                   <td>${entityName}</td>
-                  <td>${e.desired_on ? "ON" : "OFF"}</td>
+                  <td>${e.desired_on ? t("common.on") : t("common.off")}</td>
                   <td>
                     ${e.applied
                       ? e.verified
-                        ? "ok"
-                        : "applied"
-                      : e.skipped_reason || "skipped"}
+                        ? t("ui.decision.ok")
+                        : t("ui.decision.appliedShort")
+                      : this.skipLabel(e, t("ui.decision.skipped"))}
                   </td>
-                  <td>${comp || "—"}</td>
+                  <td>${comp || t("ui.history.dash")}</td>
                 </tr>
               `;
               },
@@ -419,18 +441,18 @@ export class HistoryView extends LitElement {
 
   private renderGridEvents() {
     if (!this.gridEvents.length) {
-      return html`<p class="label">No grid transitions in this window.</p>`;
+      return html`<p class="label">${t("ui.history.noGrid")}</p>`;
     }
     return html`
       <div class="scroll table-scroll">
         <table class="table">
-          <thead><tr><th>Time</th><th>Grid</th></tr></thead>
+          <thead><tr><th>${t("ui.history.colTime")}</th><th>${t("ui.history.colGrid")}</th></tr></thead>
           <tbody>
             ${this.gridEvents.map(
               (e) => html`
                 <tr>
                   <td>${formatDateTime(e.ts, HISTORY_DATE_FMT)}</td>
-                  <td>${e.grid_present ? "ON" : "OFF"}</td>
+                  <td>${e.grid_present ? t("common.on") : t("common.off")}</td>
                 </tr>
               `,
             )}
@@ -448,9 +470,9 @@ export class HistoryView extends LitElement {
     return html`
       <div class="card chart-card">
         <div class="head">
-          <h3 style="margin:0">History</h3>
+          <h3 style="margin:0">${t("ui.history.title")}</h3>
           <label class="label">
-            Window
+            ${t("ui.history.window")}
             <select .value=${String(this.hours)} @change=${this.onHours}>
               <option value="6">6h</option>
               <option value="24">24h</option>
@@ -460,11 +482,11 @@ export class HistoryView extends LitElement {
           </label>
         </div>
         <div class="tabs">
-          <button class=${this.tab === "chart" ? "active" : ""} @click=${() => this.setTab("chart")}>Chart</button>
-          <button class=${this.tab === "decisions" ? "active" : ""} @click=${() => this.setTab("decisions")}>Decisions</button>
-          <button class=${this.tab === "grid" ? "active" : ""} @click=${() => this.setTab("grid")}>Grid events</button>
-          <button class=${this.tab === "executions" ? "active" : ""} @click=${() => this.setTab("executions")}>Writes</button>
-          <button class=${this.tab === "shed" ? "active" : ""} @click=${() => this.setTab("shed")}>Shed writes</button>
+          <button class=${this.tab === "chart" ? "active" : ""} @click=${() => this.setTab("chart")}>${t("ui.history.tabChart")}</button>
+          <button class=${this.tab === "decisions" ? "active" : ""} @click=${() => this.setTab("decisions")}>${t("ui.history.tabDecisions")}</button>
+          <button class=${this.tab === "grid" ? "active" : ""} @click=${() => this.setTab("grid")}>${t("ui.history.tabGrid")}</button>
+          <button class=${this.tab === "executions" ? "active" : ""} @click=${() => this.setTab("executions")}>${t("ui.history.tabExecutions")}</button>
+          <button class=${this.tab === "shed" ? "active" : ""} @click=${() => this.setTab("shed")}>${t("ui.history.tabShed")}</button>
         </div>
         ${this.loadError
           ? html`<div class="load-error">${this.loadError}</div>`
@@ -473,13 +495,13 @@ export class HistoryView extends LitElement {
           ? html`
               <div class="chart-panel">
                 <div class="legend">
-                  <span class="swatch"><i style="background:var(--accent)"></i>PV</span>
-                  <span class="swatch"><i style="background:var(--accent-2)"></i>Load</span>
-                  <span class="swatch"><i style="background:var(--good)"></i>SOC</span>
+                  <span class="swatch"><i style="background:var(--accent)"></i>${t("ui.history.legendPv")}</span>
+                  <span class="swatch"><i style="background:var(--accent-2)"></i>${t("ui.history.legendLoad")}</span>
+                  <span class="swatch"><i style="background:var(--good)"></i>${t("ui.history.legendSoc")}</span>
                   ${hasTemp
                     ? html`
-                        <span class="swatch"><i style="background:var(--muted)"></i>Batt °C</span>
-                        <span class="swatch"><i style="background:var(--good);opacity:0.65"></i>Outdoor °C</span>
+                        <span class="swatch"><i style="background:var(--muted)"></i>${t("ui.history.legendBattTemp")}</span>
+                        <span class="swatch"><i style="background:var(--good);opacity:0.65"></i>${t("ui.history.legendOutdoorTemp")}</span>
                       `
                     : null}
                 </div>
@@ -489,7 +511,7 @@ export class HistoryView extends LitElement {
                 </div>
               </div>
               ${this.rows.length === 0
-                ? html`<p class="label">No telemetry yet.</p>`
+                ? html`<p class="label">${t("ui.history.noTelemetry")}</p>`
                 : null}
             `
           : this.tab === "decisions"

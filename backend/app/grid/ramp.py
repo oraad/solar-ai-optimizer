@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..config import BatteryConfig, GridChargeConfig, GridChargeFactor
 from ..engine.priorities import FACTOR_BLEND, RANK_WEIGHTS, blend_ceiling, resolve_weights
+from ..i18n import msg
 from ..models import (
     BlackoutRisk,
     ForecastBundle,
     GridChargePlan,
     GridStats,
+    Msg,
     ReserveTarget,
     Telemetry,
     utcnow,
@@ -38,7 +41,7 @@ class RampContext:
 @dataclass(frozen=True)
 class FactorResult:
     ceiling_a: float
-    note: str
+    note: Msg
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -81,7 +84,12 @@ def _eval_soc_gap(ctx: RampContext) -> FactorResult:
     ceiling = max_a * urgency
     return FactorResult(
         ceiling,
-        f"SOC {soc:.0f}% vs target {ctx.target_soc:.0f}% (urgency {urgency:.0%})",
+        msg(
+            "engine.ramp.soc_gap",
+            soc=int(round(soc)),
+            target=int(round(ctx.target_soc)),
+            urgency=int(round(urgency * 100)),
+        ),
     )
 
 
@@ -89,12 +97,12 @@ def _eval_remaining_solar_today(ctx: RampContext) -> FactorResult:
     max_a = _max_amps(ctx)
     soc = ctx.telemetry.battery_soc if ctx.telemetry.battery_soc is not None else 0.0
     if soc >= ctx.target_soc:
-        return FactorResult(max_a, "SOC at/above target — no trim")
+        return FactorResult(max_a, msg("engine.ramp.remaining_solar.at_target"))
 
     needed_wh = (ctx.target_soc - soc) * ctx.battery.usable_wh_per_soc
     remaining_wh = _remaining_solar_wh(ctx, utcnow())
     if remaining_wh <= 0:
-        return FactorResult(max_a, "no remaining solar forecast")
+        return FactorResult(max_a, msg("engine.ramp.remaining_solar.no_forecast"))
 
     cover = remaining_wh / max(needed_wh, 1.0)
     if cover >= 1.2:
@@ -102,15 +110,22 @@ def _eval_remaining_solar_today(ctx: RampContext) -> FactorResult:
         ceiling = max_a * scale
         return FactorResult(
             ceiling,
-            f"remaining solar {remaining_wh/1000:.1f} kWh covers need ({cover:.0%})",
+            msg(
+                "engine.ramp.remaining_solar.covers",
+                kwh=f"{remaining_wh/1000:.1f}",
+                cover=int(round(cover * 100)),
+            ),
         )
-    return FactorResult(max_a, f"remaining solar {remaining_wh/1000:.1f} kWh insufficient")
+    return FactorResult(
+        max_a,
+        msg("engine.ramp.remaining_solar.insufficient", kwh=f"{remaining_wh/1000:.1f}"),
+    )
 
 
 def _eval_next_solar_power(ctx: RampContext) -> FactorResult:
     max_a = _max_amps(ctx)
     if not ctx.forecast or not ctx.forecast.solar:
-        return FactorResult(max_a, "no solar forecast")
+        return FactorResult(max_a, msg("engine.ramp.next_solar.no_forecast"))
 
     now = utcnow().replace(minute=0, second=0, microsecond=0)
     horizon = ctx.grid_charge.next_solar_horizon_hours
@@ -122,7 +137,7 @@ def _eval_next_solar_power(ctx: RampContext) -> FactorResult:
             peak_w = max(peak_w, p.pv_power_w)
 
     if peak_w <= 0:
-        return FactorResult(max_a, f"no solar in next {horizon}h")
+        return FactorResult(max_a, msg("engine.ramp.next_solar.none", horizon=horizon))
 
     max_charge_w = max_a * ctx.battery.nominal_voltage
     if peak_w >= max_charge_w * 0.5:
@@ -130,9 +145,16 @@ def _eval_next_solar_power(ctx: RampContext) -> FactorResult:
         ceiling = max_a * scale
         return FactorResult(
             ceiling,
-            f"peak {peak_w/1000:.1f} kW solar in next {horizon}h",
+            msg(
+                "engine.ramp.next_solar.peak",
+                kw=f"{peak_w/1000:.1f}",
+                horizon=horizon,
+            ),
         )
-    return FactorResult(max_a, f"modest solar ({peak_w/1000:.1f} kW) in next {horizon}h")
+    return FactorResult(
+        max_a,
+        msg("engine.ramp.next_solar.modest", kw=f"{peak_w/1000:.1f}", horizon=horizon),
+    )
 
 
 def _eval_load_power(ctx: RampContext) -> FactorResult:
@@ -140,57 +162,61 @@ def _eval_load_power(ctx: RampContext) -> FactorResult:
     load = ctx.telemetry.load_power
     pv = ctx.telemetry.pv_power
     if load is None or pv is None:
-        return FactorResult(max_a, "load/PV unknown")
+        return FactorResult(max_a, msg("engine.ramp.load.unknown"))
 
     deficit_w = load - pv
     if deficit_w <= 0:
         ceiling = max_a * 0.25
-        return FactorResult(ceiling, f"surplus PV ({-deficit_w:.0f} W net)")
+        return FactorResult(ceiling, msg("engine.ramp.load.surplus", watts=int(-deficit_w)))
 
     max_charge_w = max_a * ctx.battery.nominal_voltage
     ratio = _clamp(deficit_w / max(max_charge_w, 1.0), 0.0, 1.0)
     ceiling = max_a * max(0.3, ratio)
-    return FactorResult(ceiling, f"net import need {deficit_w:.0f} W")
+    return FactorResult(ceiling, msg("engine.ramp.load.import_need", watts=int(deficit_w)))
 
 
 def _eval_battery_power(ctx: RampContext) -> FactorResult:
     max_a = _max_amps(ctx)
     bp = ctx.telemetry.battery_power
     if bp is None:
-        return FactorResult(max_a, "battery power unknown")
+        return FactorResult(max_a, msg("engine.ramp.battery.unknown"))
 
     if bp <= 0:
-        return FactorResult(max_a, "not charging from PV")
+        return FactorResult(max_a, msg("engine.ramp.battery.not_charging"))
 
     charge_a = bp / max(ctx.battery.nominal_voltage, 1.0)
     ceiling = max(0.0, max_a - charge_a)
     return FactorResult(
         ceiling,
-        f"already charging {charge_a:.0f} A from PV ({bp:.0f} W)",
+        msg(
+            "engine.ramp.battery.charging",
+            amps=int(round(charge_a)),
+            watts=int(bp),
+        ),
     )
 
 
 def _eval_grid_window(ctx: RampContext) -> FactorResult:
     max_a = _max_amps(ctx)
     if ctx.grid_stats is None:
-        return FactorResult(max_a, "grid stats unknown")
+        return FactorResult(max_a, msg("engine.ramp.grid_window.unknown"))
 
     window = ctx.grid_stats.avg_window_minutes
     if window <= 0:
-        return FactorResult(max_a, "no historical grid windows")
+        return FactorResult(max_a, msg("engine.ramp.grid_window.none"))
 
     if window <= 20:
-        return FactorResult(max_a, f"short grid window ({window:.0f} min avg)")
+        return FactorResult(max_a, msg("engine.ramp.grid_window.short", minutes=int(window)))
 
     if window >= 180:
         ceiling = max_a * 0.4
-        return FactorResult(ceiling, f"long grid window ({window:.0f} min avg)")
+        return FactorResult(ceiling, msg("engine.ramp.grid_window.long", minutes=int(window)))
 
     # 20–180 min: linear scale from max to 40% of max
     t = (window - 20) / 160.0
     scale = 1.0 - t * 0.6
     ceiling = max_a * scale
-    return FactorResult(ceiling, f"grid window {window:.0f} min avg")
+    return FactorResult(ceiling, msg("engine.ramp.grid_window.mid", minutes=int(window)))
 
 
 def _eval_blackout_risk(ctx: RampContext) -> FactorResult:
@@ -200,7 +226,11 @@ def _eval_blackout_risk(ctx: RampContext) -> FactorResult:
     ceiling = max_a * scale
     return FactorResult(
         ceiling,
-        f"risk {ctx.blackout_risk.value} (score {score:.0%})",
+        msg(
+            "engine.ramp.blackout_risk",
+            risk=ctx.blackout_risk.value,
+            score=int(round(score * 100)),
+        ),
     )
 
 
@@ -209,14 +239,18 @@ def _eval_solar_bridge(ctx: RampContext) -> FactorResult:
     soc = ctx.telemetry.battery_soc if ctx.telemetry.battery_soc is not None else 0.0
     bridge = ctx.reserve.solar_bridge_soc
     if soc >= bridge:
-        return FactorResult(max_a, "at/above bridge — no trim")
+        return FactorResult(max_a, msg("engine.ramp.solar_bridge.at_target"))
     gap = max(0.0, bridge - soc)
     span = max(bridge - ctx.battery.min_soc_floor, 1.0)
     urgency = _clamp(gap / span, 0.0, 1.0)
     ceiling = max_a * max(0.25, urgency)
     return FactorResult(
         ceiling,
-        f"bridge gap {gap:.0f}% (bridge target {bridge:.0f}%)",
+        msg(
+            "engine.ramp.solar_bridge.gap",
+            gap=int(round(gap)),
+            bridge=int(round(bridge)),
+        ),
     )
 
 
@@ -242,7 +276,7 @@ def compute_ramp_plan(ctx: RampContext) -> GridChargePlan:
             enabled=False,
             target_amps=0.0,
             max_amps=max_a,
-            rationale="Grid absent; disable grid charge.",
+            rationale=msg("engine.grid.absent"),
         )
 
     soc = ctx.telemetry.battery_soc if ctx.telemetry.battery_soc is not None else 0.0
@@ -251,14 +285,15 @@ def compute_ramp_plan(ctx: RampContext) -> GridChargePlan:
             enabled=False,
             target_amps=0.0,
             max_amps=max_a,
-            rationale=(
-                f"Reserve target {ctx.target_soc:.0f}% met "
-                f"(SOC {soc:.0f}%); stop grid charge."
+            rationale=msg(
+                "engine.grid.reserve_met",
+                target=round(ctx.target_soc, 0),
+                soc=round(soc, 0),
             ),
         )
 
     target = max_a
-    notes: list[str] = []
+    note_entries: list[dict[str, object]] = []
     weights = ctx.priority_weights or {
         k.value: v for k, v in resolve_weights().items()
     }
@@ -276,14 +311,25 @@ def compute_ramp_plan(ctx: RampContext) -> GridChargePlan:
                 blend_ceiling(ceiling, max_a, weight, mode, priority), 0.0, max_a
             )
         target = min(target, ceiling)
-        notes.append(f"{factor.value}: {result.note} -> {ceiling:.0f} A")
+        note_entries.append(
+            {
+                "factor": factor.value,
+                "k": result.note.key,
+                "p": result.note.params,
+                "ceiling": int(round(ceiling)),
+            }
+        )
 
+    notes_json = json.dumps(note_entries, ensure_ascii=False, separators=(",", ":"))
     if target < cfg.off_threshold_a:
         return GridChargePlan(
             enabled=False,
             target_amps=0.0,
             max_amps=max_a,
-            rationale="Cap chain: " + "; ".join(notes) + "; below off threshold.",
+            rationale=msg(
+                "engine.grid.cap_chain_below_threshold",
+                note_entries=notes_json,
+            ),
         )
 
     if target > 0 and target < cfg.min_grid_charge_a:
@@ -294,7 +340,11 @@ def compute_ramp_plan(ctx: RampContext) -> GridChargePlan:
         delta = _clamp(delta, -cfg.ramp_step_a, cfg.ramp_step_a)
         target = _clamp(ctx.last_amps + delta, 0.0, max_a)
 
-    rationale = "Cap chain: " + "; ".join(notes) if notes else "Cap chain: no factors applied."
+    rationale = (
+        msg("engine.grid.cap_chain", note_entries=notes_json)
+        if note_entries
+        else msg("engine.grid.cap_chain_no_factors")
+    )
     return GridChargePlan(
         enabled=True,
         target_amps=round(target, 1),
@@ -308,7 +358,7 @@ def legacy_plan(
     enabled: bool,
     target_amps: float,
     max_amps: float,
-    rationale: str,
+    rationale: Msg,
 ) -> GridChargePlan:
     return GridChargePlan(
         enabled=enabled,

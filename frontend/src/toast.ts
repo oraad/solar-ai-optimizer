@@ -1,3 +1,5 @@
+import { t } from "./i18n.js";
+
 export type ToastVariant = "loading" | "info" | "success" | "error";
 
 export interface ToastShowDetail {
@@ -99,7 +101,7 @@ export async function runWithToast(
     dismissToast(toastId);
     const msg = e instanceof Error ? e.message : String(e);
     showToast({
-      message: msg.startsWith("Error:") ? msg : `Error: ${msg}`,
+      message: msg.startsWith("Error:") ? msg : t("toast.errorPrefix", { message: msg }),
       variant: "error",
     });
     return false;

@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ..i18n import t
 from ..models import utcnow
 from .client import HAClient
 
@@ -82,7 +83,7 @@ async def discover_device_companions(
         log.warning("entity_registry/get(%s) failed: %s", power_entity, e)
         return DeviceDiscoveryResult(
             power_entity=power_entity,
-            warning=f"Entity not in registry: {e}",
+            warning=t("discovery.entity_not_in_registry", entity=power_entity),
         )
 
     device_id = (entry or {}).get("device_id")
@@ -90,7 +91,7 @@ async def discover_device_companions(
         out = DeviceDiscoveryResult(
             power_entity=power_entity,
             device_id=None,
-            warning="Entity has no device_id; configure state_entities manually.",
+            warning=t("discovery.no_device_id"),
         )
         return out
 

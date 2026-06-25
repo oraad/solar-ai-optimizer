@@ -7,10 +7,12 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import delete, select
 
+from ..i18n.serialize import decode_msg, encode_msg
 from ..models import (
     Decision,
     ExecutionResult,
     GridEvent,
+    Msg,
     ShedResult,
     Telemetry,
     as_utc,
@@ -139,8 +141,8 @@ async def save_decision(d: Decision) -> None:
                 blackout_risk=d.blackout_risk.value,
                 blackout_risk_score=d.blackout_risk_score,
                 shadow_mode=d.shadow_mode,
-                summary=d.summary,
-                reserve_rationale=d.reserve.rationale,
+                summary=encode_msg(d.summary) if isinstance(d.summary, Msg) else str(d.summary),
+                reserve_rationale=encode_msg(d.reserve.rationale),
                 actions_json=json.dumps([a.model_dump(mode="json") for a in d.actions]),
                 shed_actions_json=json.dumps(
                     [a.model_dump(mode="json") for a in d.shed_actions]

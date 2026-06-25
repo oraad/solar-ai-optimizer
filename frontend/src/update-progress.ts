@@ -1,16 +1,5 @@
 import type { UpdateProgress, UpdateStage } from "./types.js";
-
-export const UPDATE_STAGE_LABELS: Record<UpdateStage, string> = {
-  starting: "Preparing update…",
-  backing_up: "Backing up data…",
-  pulling: "Pulling container image…",
-  stopping: "Stopping current container…",
-  restoring_data: "Restoring backup data…",
-  recreating: "Starting updated container…",
-  verifying: "Verifying service health…",
-  finishing: "Finalizing…",
-  failed: "Update failed",
-};
+import { t } from "./i18n.js";
 
 export const UPDATE_FLOW_STAGES: UpdateStage[] = [
   "starting",
@@ -47,11 +36,13 @@ export function stageLabel(stage: UpdateStage, progress?: UpdateProgress | null)
   if (progress?.message && progress.stage === stage) {
     return progress.message;
   }
-  return UPDATE_STAGE_LABELS[stage] ?? stage;
+  const key = `update.stages.${stage}`;
+  const label = t(key);
+  return label === key ? stage : label;
 }
 
 export function pullProgressLabel(progress: UpdateProgress): string {
-  const base = UPDATE_STAGE_LABELS.pulling;
+  const base = t("update.stages.pulling");
   if (progress.pull_percent != null && progress.pull_percent >= 0) {
     return `${base.replace("…", "")}… ${progress.pull_percent}%`;
   }
@@ -79,14 +70,14 @@ export function activeStageIndex(
 
 export function updateChipLabel(progress: UpdateProgress | null | undefined): string {
   if (!progress) {
-    return "UPDATING…";
+    return t("update.chipUpdating");
   }
   if (progress.stage === "pulling") {
     const label = pullProgressLabel(progress);
-    return `UPDATING: ${label.replace("…", "").trim()}`;
+    return t("update.chipPrefix", { label: label.replace("…", "").trim() });
   }
   const msg = stageLabel(progress.stage, progress);
-  return `UPDATING: ${msg.replace("…", "").trim()}`;
+  return t("update.chipPrefix", { label: msg.replace("…", "").trim() });
 }
 
 export function progressHeaderTitle(
@@ -94,12 +85,19 @@ export function progressHeaderTitle(
   healthWait: boolean,
 ): string {
   if (healthWait) {
-    return "Restarting service…";
+    return t("update.restarting");
   }
   if (progress?.from_version && progress?.to_version) {
-    return `Updating v${progress.from_version} → v${progress.to_version}`;
+    return t("update.updatingVersion", {
+      from: progress.from_version,
+      to: progress.to_version,
+    });
   }
-  return progress?.operation === "restore" ? "Restore in progress" : "Update in progress";
+  return progress?.operation === "restore"
+    ? t("update.restoreInProgress")
+    : t("update.updateInProgress");
 }
 
-export const UPDATE_LOG_HINT = "Details: data volume `.update-logs/latest.log`";
+export function updateLogHint(): string {
+  return t("update.logHint");
+}

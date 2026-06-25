@@ -1,0 +1,206 @@
+{
+  "api": {
+    "auth": {
+      "local_login_disabled": "La connexion locale n'est pas activée",
+      "invalid_credentials": "Identifiants invalides",
+      "unauthorized": "Non autorisé"
+    },
+    "session": {
+      "admin_required": "Accès administrateur requis",
+      "admin_required_override": "Accès administrateur requis pour cette surcharge"
+    },
+    "override": {
+      "kill_switch_confirm": "kill_switch nécessite confirm=true",
+      "no_fields": "Aucun champ de surcharge fourni",
+      "assistant_kill_switch": "L'arrêt d'urgence nécessite une confirmation explicite dans votre question (par ex. inclure « confirm »)."
+    },
+    "validation": {
+      "field": "{loc} : {msg}"
+    },
+    "config": {
+      "forecast_provider": "forecast.provider doit être 'open-meteo' ou 'solcast'",
+      "engine_mode": "engine.mode doit être 'rules' ou 'mpc'",
+      "priority_order": "engine.priority_order doit lister resilience, savings et self_sufficiency exactement une fois",
+      "tier_hysteresis": "Niveau load_shedding '{name}' : restore_above_soc ({restore}) doit être > shed_below_soc ({shed})"
+    },
+    "update": {
+      "invalid_version": "Format de version invalide.",
+      "unknown_release": "Version inconnue ou indisponible.",
+      "release_unavailable": "Impossible de résoudre la dernière version.",
+      "docker_cli_missing": "Docker CLI n'est pas disponible dans ce conteneur. Tirez ghcr.io/oraad/solar-ai-optimizer:latest (v{min_version}+) et recréez le conteneur une fois manuellement ; voir docs/installation.md.",
+      "self_update_disabled": "L'auto-mise à jour n'est pas activée pour ce déploiement.",
+      "already_in_progress": "Mise à jour déjà en cours.",
+      "already_running_version": "Cette version est déjà en cours d'exécution.",
+      "version_below_minimum": "La version {version} est inférieure au minimum {min_version} pour l'auto-mise à jour.",
+      "start_failed": "Échec du démarrage de la mise à jour : {error}",
+      "restore_disabled": "La restauration de sauvegarde n'est pas activée pour ce déploiement.",
+      "no_backups": "Aucune sauvegarde disponible.",
+      "backup_not_found": "Sauvegarde introuvable.",
+      "restore_image_unknown": "Impossible de déterminer l'image pour la restauration.",
+      "restore_start_failed": "Échec du démarrage de la restauration : {error}",
+      "downgrade_warning": "L'installation d'une version plus ancienne redémarrera le service. Une sauvegarde de /app/data est créée automatiquement avant chaque installation. Le retour en arrière peut être incompatible si la configuration ou le schéma de base de données a changé depuis cette version.",
+      "preparing_update": "Préparation de la mise à jour",
+      "update_started": "Mise à jour démarrée ; le service va redémarrer.",
+      "preparing_restore": "Préparation de la restauration",
+      "restore_started": "Restauration démarrée ; le service va redémarrer.",
+      "instructions": {
+        "addon": "Mettez à jour via le Supervisor Home Assistant : Paramètres → Modules complémentaires → Solar AI Optimizer → Mettre à jour.",
+        "compose": "Depuis le répertoire du projet :\n  docker compose pull\n  docker compose up -d --build\n\nOu activez l'auto-mise à jour avec docker-compose.self-update.yml (voir docs/installation.md).",
+        "compose_versioned": "Depuis le répertoire du projet :\n  docker pull {image}\n  docker compose up -d --build\n\nOu définissez SELF_UPDATE_IMAGE={image} et activez l'auto-mise à jour (voir docs/installation.md).",
+        "proxmox": "Sur Proxmox LXC, exécutez : update\n\nOu manuellement :\n  docker pull ghcr.io/oraad/solar-ai-optimizer:latest\n  docker stop solar-optimizer && docker rm solar-optimizer\n  docker run -d --name solar-optimizer --restart unless-stopped \\\n    --env-file /opt/solar-ai-optimizer/solar.env \\\n    -v solar-data:/app/data -p 8000:8000 \\\n    ghcr.io/oraad/solar-ai-optimizer:latest",
+        "proxmox_versioned": "Sur Proxmox LXC, exécutez : update\n\nOu manuellement :\n  docker pull {image}\n  docker stop solar-optimizer && docker rm solar-optimizer\n  docker run -d --name solar-optimizer --restart unless-stopped \\\n    --env-file /opt/solar-ai-optimizer/solar.env \\\n    -v solar-data:/app/data -p 8000:8000 \\\n    {image}"
+      }
+    }
+  },
+  "engine": {
+    "reserve": {
+      "main": "Réserve cible {target}% (pilote : {driver}). Plancher d'autonomie {autonomy}% ({hours}h @ {load}W) ; pont solaire {bridge}% (pont {bridge_kwh} kWh incl. tampon {buffer}%).{extra_cold}{extra_heat}{extra_degraded}",
+      "cold_snap": " Vague de froid : {hdh} degrés-heures de chauffage (24h) augmentant la charge prévue.",
+      "heat_wave": " Vague de chaleur : {cdh} degrés-heures de refroidissement (24h) augmentant la charge prévue.",
+      "degraded_buffer": " Prévision dégradée/obsolète — tampon supplémentaire conservateur appliqué.",
+      "driver_solar_bridge": "pont-solaire",
+      "driver_autonomy_floor": "plancher-autonomie"
+    },
+    "summary": {
+      "with_priorities_present": "{prefix}Priorités : {order}. SOC {soc} vs réserve {target}% | réseau PRÉSENT | risque de coupure : {risk}.{advisory_suffix}{extra}",
+      "with_priorities_absent": "{prefix}Priorités : {order}. SOC {soc} vs réserve {target}% | réseau absent | risque de coupure : {risk}.{advisory_suffix}{extra}",
+      "priorities_prefix": "Priorités : {order}. ",
+      "grid_present": "réseau PRÉSENT",
+      "grid_absent": "réseau absent",
+      "soc_unknown": "?"
+    },
+    "advisory": {
+      "surplus": "Surplus disponible ({kw} kW) avec batterie pleine : orienter vers les charges différables (chauffe-eau/VE/pompes) au lieu de limiter."
+    },
+    "override": {
+      "force_grid_charge_plan": "Surcharge opérateur : forcer la charge réseau au courant max sûr.",
+      "force_grid_charge": "Surcharge opérateur : forcer la charge réseau.",
+      "disable_grid_charge_plan": "Surcharge opérateur : désactiver la charge réseau.",
+      "disable_grid_charge": "Surcharge opérateur : désactiver la charge réseau.",
+      "grid_charge_zero": "Surcharge opérateur : courant de charge réseau à 0."
+    },
+    "grid": {
+      "absent": "Réseau absent ; désactiver la charge réseau.",
+      "reserve_met": "Réserve cible {target}% atteinte (SOC {soc}%) ; arrêter la charge réseau.",
+      "cap_chain_below_threshold": "Chaîne de plafonds : {notes} ; sous le seuil d'arrêt.",
+      "cap_chain": "Chaîne de plafonds : {notes}",
+      "cap_chain_no_factors": "Chaîne de plafonds : aucun facteur appliqué.",
+      "legacy_top_up": "Réseau présent et SOC {soc}% < réserve cible {target}% : recharge opportuniste au max.",
+      "charge_hard": "Charger fort tant que le réseau est disponible ({amps} A).",
+      "ramp_to": "Réseau présent, SOC {soc}% < cible {target}% : rampe à {amps} A.",
+      "telemetry_stale": "Télémétrie obsolète ; désactiver la charge réseau (conservateur).",
+      "grid_charge_zero_conservative": "Courant de charge réseau à 0 (conservateur)."
+    },
+    "shed": {
+      "restore_grid": "Réseau présent : restaurer le niveau (batterie non en danger).",
+      "conservative": "SOC inconnu ou télémétrie obsolète : couper '{tier}' de façon conservatrice.",
+      "shed_tier": "SOC {soc}% < {threshold}% : couper '{tier}' pour défendre la réserve.",
+      "restore_tier": "SOC {soc}% >= {threshold}% : restaurer '{tier}'.",
+      "emergency_restore": "Restaurer le niveau après urgence / arrêt d'urgence."
+    },
+    "skip": {
+      "capability_not_mapped": "capacité non mappée",
+      "hard_bound_reject": "rejet limite stricte : {detail}",
+      "ha_stale": "HA obsolète ; écriture bloquée par le watchdog",
+      "shadow_mode": "mode shadow",
+      "no_shed_snapshot": "pas d'instantané de coupure ; pas de restauration",
+      "was_off_before_shed": "était éteint avant la coupure",
+      "recently_written": "écrit récemment (inchangé)",
+      "already_set": "déjà défini",
+      "rate_limited": "limité en débit ({elapsed}s < {min}s)"
+    },
+    "reject": {
+      "negative_grid_charge": "courant de charge réseau négatif",
+      "exceeds_max_grid_charge": "dépasse max_grid_charge_a ({max} A)"
+    },
+    "mpc": {
+      "prefix": "MPC : ",
+      "prefix_with_reserve": "MPC[{horizon}h] : réserve={reserve}% ",
+      "survivable": "survivable (réseau absent).",
+      "not_survivable": "NON survivable réseau absent : ~{kwh} kWh non servis."
+    },
+    "priority": {
+      "resilience": "résilience",
+      "savings": "économies",
+      "self_sufficiency": "autosuffisance"
+    },
+    "risk": {
+      "low": "faible",
+      "moderate": "modéré",
+      "high": "élevé",
+      "critical": "critique"
+    },
+    "ramp": {
+      "cap_chain_line": "{factor} : {note} -> {ceiling} A",
+      "soc_gap": "SOC {soc}% vs cible {target}% (urgence {urgency}%)",
+      "remaining_solar": {
+        "at_target": "SOC à/au-dessus de la cible — pas de réduction",
+        "no_forecast": "pas de prévision solaire restante",
+        "covers": "solaire restant {kwh} kWh couvre le besoin ({cover}%)",
+        "insufficient": "solaire restant {kwh} kWh insuffisant"
+      },
+      "next_solar": {
+        "no_forecast": "pas de prévision solaire",
+        "none": "pas de solaire dans les {horizon}h",
+        "peak": "pic {kw} kW solaire dans les {horizon}h",
+        "modest": "solaire modeste ({kw} kW) dans les {horizon}h"
+      },
+      "load": {
+        "unknown": "charge/PV inconnus",
+        "surplus": "excédent PV ({watts} W net)",
+        "import_need": "besoin d'import net {watts} W"
+      },
+      "battery": {
+        "unknown": "puissance batterie inconnue",
+        "not_charging": "pas de charge depuis le PV",
+        "charging": "déjà en charge {amps} A depuis le PV ({watts} W)"
+      },
+      "grid_window": {
+        "unknown": "statistiques réseau inconnues",
+        "none": "pas de fenêtres réseau historiques",
+        "short": "fenêtre réseau courte ({minutes} min moy.)",
+        "long": "fenêtre réseau longue ({minutes} min moy.)",
+        "mid": "fenêtre réseau {minutes} min moy."
+      },
+      "blackout_risk": "risque {risk} (score {score}%)",
+      "solar_bridge": {
+        "at_target": "à/au-dessus du pont — pas de réduction",
+        "gap": "écart pont {gap}% (cible pont {bridge}%)"
+      }
+    }
+  },
+  "forecast": {
+    "degraded": {
+      "solcast_misconfigured": "solcast sélectionné mais SOLCAST_API_KEY ou SOLCAST_RESOURCE_ID non défini",
+      "location_missing": "latitude/longitude non configurées (toujours 0,0) ; prévision solaire peu fiable",
+      "temperature_failed": "fournisseur de température en échec : {error}",
+      "solar_failed": "fournisseur solaire en échec : {error}",
+      "stale_solar": "utilisation de la prévision solaire précédente/obsolète"
+    }
+  },
+  "discovery": {
+    "entity_not_in_registry": "Entité absente du registre : {entity}",
+    "no_device_id": "L'entité n'a pas de device_id ; configurez state_entities manuellement."
+  },
+  "assistant": {
+    "system": {
+      "base": "Vous êtes l'assistant d'un optimiseur solaire/batterie domestique sur Home Assistant. ",
+      "answer": "Répondez de façon concise et concrète en utilisant le contexte en direct fourni. Si on vous demande d'expliquer une décision, citez la réserve cible, le SOC, la prévision solaire et l'état du réseau."
+    },
+    "priorities": {
+      "header": "Priorités d'optimisation configurées par l'utilisateur (la plus haute d'abord) : ",
+      "line": "{index}) {name}",
+      "footer": ". Le réseau est imprévisible et est traité comme une ressource réactive et opportuniste uniquement (jamais prédite)."
+    },
+    "heuristic": {
+      "soc_vs_reserve": "La batterie est à {soc}% face à une réserve cible de {reserve}%.",
+      "grid_present": "Le réseau est présent.",
+      "grid_absent": "Le réseau est absent.",
+      "blackout_risk": "Le risque de coupure est {risk}.",
+      "no_context": "Aucun contexte de décision disponible pour l'instant."
+    },
+    "prompt": {
+      "respond_in": "Répondez en {language}."
+    }
+  }
+}

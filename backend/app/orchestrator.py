@@ -21,6 +21,7 @@ from .control.executor import Executor
 from .engine.rules import RuleEngine
 from .forecast.service import ForecastService
 from .grid.reactive import ReactiveGrid
+from .i18n.skip_keys import SKIP_ALREADY_SET
 from .ha.client import HAClient
 from .ha.heartbeat import HAHeartbeat
 from .ha.users import HAAdminResolver
@@ -420,7 +421,7 @@ class Orchestrator:
             if r.applied and isinstance(r.requested, (int, float)):
                 self._set_last_grid_charge_amps(float(r.requested))
                 return
-            if r.skipped_reason == "already set" and isinstance(r.requested, (int, float)):
+            if r.skipped_reason in (SKIP_ALREADY_SET, "already set") and isinstance(r.requested, (int, float)):
                 self._set_last_grid_charge_amps(float(r.requested))
                 return
 

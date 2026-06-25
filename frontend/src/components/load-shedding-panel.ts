@@ -6,7 +6,9 @@ import { api } from "../api.js";
 import { SHED_DOMAINS } from "../entity-datalists.js";
 import { fieldLabel } from "../field-labels.js";
 import { fieldHelp, sectionHelp } from "../field-help.js";
+import { t } from "../i18n.js";
 import { labelWithTip } from "../label-tip.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import { runWithToast, showToast } from "../toast.js";
 import "./entity-input.js";
@@ -40,6 +42,11 @@ function stateEntitiesMap(t: Record<string, unknown>): Record<string, string[]> 
 
 @customElement("solar-load-shedding-panel")
 export class LoadSheddingPanel extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = [
     sharedStyles,
     css`
@@ -137,7 +144,7 @@ export class LoadSheddingPanel extends LitElement {
         width: 28px;
         height: 28px;
         font-size: 1rem;
-        margin-left: auto;
+        margin-inline-start: auto;
       }
       .domain-badge {
         font-size: 0.7rem;
@@ -236,14 +243,14 @@ export class LoadSheddingPanel extends LitElement {
         const res = await api.putConfig({ load_shedding: this.draft });
         if (!res.ok) throw new Error(res.error || "validation failed");
       },
-      { loading: "Saving load shedding…", success: "Load shedding saved." },
+      { loading: t("ui.loadShedding.toastSaveLoading"), success: t("ui.loadShedding.toastSaveSuccess") },
     );
     if (ok) await this.loadConfig();
     this.busy = false;
   }
 
   private async reset(): Promise<void> {
-    if (!confirm("Revert load shedding settings to last saved file?")) return;
+    if (!confirm(t("ui.loadShedding.revertConfirm"))) return;
     await this.loadConfig();
     this.companionMeta = {};
   }
@@ -340,7 +347,7 @@ export class LoadSheddingPanel extends LitElement {
       }
     } catch (e) {
       showToast({
-        message: e instanceof Error ? e.message : "Discovery failed",
+        message: e instanceof Error ? e.message : t("ui.loadShedding.discoveryFailed"),
         variant: "error",
       });
     }
@@ -379,21 +386,17 @@ export class LoadSheddingPanel extends LitElement {
 
   render() {
     if (!this.draft) {
-      return html`<div class="card"><h3>Load shedding</h3><p class="label">Loading…</p></div>`;
+      return html`<div class="card"><h3>${t("ui.loadShedding.title")}</h3><p class="label">${t("common.loading")}</p></div>`;
     }
     const d = this.draft;
     const tiers = (d.tiers ?? []) as Record<string, unknown>[];
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
         <h3>
-          Load shedding
+          ${t("ui.loadShedding.title")}
           <solar-info-tip .text=${sectionHelp("load_shedding")!}></solar-info-tip>
         </h3>
-        <p class="intro">
-          Companions on the same Home Assistant device are discovered automatically (climate,
-          select, etc.), snapshotted when shedding, and reapplied on restore. Devices that were
-          off before shedding are never turned on.
-        </p>
+        <p class="intro">${t("ui.loadShedding.intro")}</p>
         <div class="fields">
           <div class="field checkbox-row">
             <label>${this.lbl("enabled")}</label>
@@ -418,28 +421,26 @@ export class LoadSheddingPanel extends LitElement {
           </div>
         </div>
 
-        <p class="label" style="margin-top:16px">
-          Tiers — lowest priority sheds first. All entities in a tier shed and restore together.
-        </p>
+        <p class="label" style="margin-top:16px">${t("ui.loadShedding.tiersIntro")}</p>
         <p class="label">
           ${this.entitiesConnected
-            ? html`Start typing to pick from your Home Assistant entities.`
-            : html`Home Assistant not connected — set the connection in Settings and
-                <button class="link" @click=${() => this.requestEntityReload()}>reload entities</button>
-                for autocomplete.`}
+            ? html`${t("ui.loadShedding.entitiesConnected")}`
+            : html`${t("ui.loadShedding.entitiesDisconnected")}
+                <button class="link" @click=${() => this.requestEntityReload()}>${t("ui.loadShedding.reloadEntities")}</button>
+                ${t("ui.loadShedding.entitiesDisconnectedSuffix")}`}
         </p>
-        ${tiers.map((t, i) => {
-          const se = stateEntitiesMap(t);
-          const tierName = String(t.name ?? "").trim() || `Tier ${i + 1}`;
-          const deviceCount = tierDeviceCount(t);
-          const deviceLabel = deviceCount === 1 ? "device" : "devices";
+        ${tiers.map((tier, i) => {
+          const se = stateEntitiesMap(tier);
+          const tierName = String(tier.name ?? "").trim() || t("ui.loadShedding.tierDefault", { n: String(i + 1) });
+          const deviceCount = tierDeviceCount(tier);
+          const deviceLabel = deviceCount === 1 ? t("common.device") : t("common.devices");
           return html`
             <details class="tier-block">
               <summary class="tier-summary">
                 <span class="tier-summary-text">
                   ${tierName}
                   <span class="tier-summary-meta">
-                    · Shed ${t.shed_below_soc ?? ""}% · Priority ${t.priority ?? 0} ·
+                    · Shed ${tier.shed_below_soc ?? ""}% · Priority ${tier.priority ?? 0} ·
                     ${deviceCount} ${deviceLabel}
                   </span>
                 </span>
@@ -447,7 +448,7 @@ export class LoadSheddingPanel extends LitElement {
               <button
                 type="button"
                 class="tier-dismiss danger icon-btn"
-                aria-label="Remove tier"
+                aria-label=${t("ui.loadShedding.removeTier")}
                 @click=${(e: Event) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -461,7 +462,7 @@ export class LoadSheddingPanel extends LitElement {
                   <label>${this.lbl("name")}</label>
                   <input
                     type="text"
-                    .value=${String(t.name ?? "")}
+                    .value=${String(tier.name ?? "")}
                     @input=${(e: Event) =>
                       this.setTier(i, "name", (e.target as HTMLInputElement).value)}
                   />
@@ -471,7 +472,7 @@ export class LoadSheddingPanel extends LitElement {
                   <input
                     type="number"
                     step="1"
-                    .value=${String(t.priority ?? 0)}
+                    .value=${String(tier.priority ?? 0)}
                     @input=${(e: Event) =>
                       this.setTier(i, "priority", Number((e.target as HTMLInputElement).value))}
                   />
@@ -481,7 +482,7 @@ export class LoadSheddingPanel extends LitElement {
                   <input
                     type="number"
                     step="any"
-                    .value=${String(t.shed_below_soc ?? "")}
+                    .value=${String(tier.shed_below_soc ?? "")}
                     @input=${(e: Event) =>
                       this.setTier(
                         i,
@@ -495,7 +496,7 @@ export class LoadSheddingPanel extends LitElement {
                   <input
                     type="number"
                     step="any"
-                    .value=${String(t.restore_above_soc ?? "")}
+                    .value=${String(tier.restore_above_soc ?? "")}
                     @input=${(e: Event) =>
                       this.setTier(
                         i,
@@ -508,7 +509,7 @@ export class LoadSheddingPanel extends LitElement {
                   <label>${this.lbl("restore_enabled")}</label>
                   <input
                     type="checkbox"
-                    .checked=${t.restore_enabled !== false}
+                    .checked=${tier.restore_enabled !== false}
                     @change=${(e: Event) =>
                       this.setTier(i, "restore_enabled", (e.target as HTMLInputElement).checked)}
                   />
@@ -517,7 +518,7 @@ export class LoadSheddingPanel extends LitElement {
                   <label>${this.lbl("restore_on_grid")}</label>
                   <input
                     type="checkbox"
-                    .checked=${t.restore_on_grid !== false}
+                    .checked=${tier.restore_on_grid !== false}
                     @change=${(e: Event) =>
                       this.setTier(i, "restore_on_grid", (e.target as HTMLInputElement).checked)}
                   />
@@ -528,14 +529,14 @@ export class LoadSheddingPanel extends LitElement {
                 <button
                   type="button"
                   class="icon-btn"
-                  aria-label="Add entity"
+                  aria-label=${t("ui.loadShedding.addEntity")}
                   @click=${() => this.addTierEntity(i)}
                 >
                   +
                 </button>
               </div>
               ${repeat(
-                tierSwitches(t),
+                tierSwitches(tier),
                 (_entity, j) => `${i}-${j}`,
                 (entity, j) => {
                   const companionIds = se[entity] ?? [];
@@ -546,15 +547,15 @@ export class LoadSheddingPanel extends LitElement {
                           .entityId=${entity}
                           .entities=${this.entities}
                           .domains=${SHED_DOMAINS}
-                          placeholder="switch.… or input_boolean.…"
+                          placeholder=${t("ui.loadShedding.entityPlaceholder")}
                           @entity-id-change=${(e: CustomEvent<string | null>) =>
                             this.setTierSwitch(i, j, e.detail ?? "")}
                         />
                         <button
                           type="button"
                           class="danger icon-btn"
-                          aria-label="Remove entity"
-                          ?disabled=${tierSwitches(t).length <= 1}
+                          aria-label=${t("ui.loadShedding.removeEntity")}
+                          ?disabled=${tierSwitches(tier).length <= 1}
                           @click=${() => this.removeTierEntity(i, j)}
                         >
                           <span aria-hidden="true">🗑</span>
@@ -563,7 +564,7 @@ export class LoadSheddingPanel extends LitElement {
                       ${entity.includes(".")
                         ? html`
                             <details class="companion-details">
-                              <summary>Companion entities (${companionIds.length})</summary>
+                              <summary>${t("ui.loadShedding.companions", { count: String(companionIds.length) })}</summary>
                               ${companionIds.map((cid) => {
                                 const c = this.companionDisplay(entity, cid);
                                 return html`
@@ -573,7 +574,7 @@ export class LoadSheddingPanel extends LitElement {
                                     <button
                                       type="button"
                                       class="danger icon-btn"
-                                      aria-label="Remove companion"
+                                      aria-label=${t("ui.loadShedding.removeCompanion")}
                                       @click=${() => this.removeCompanion(i, entity, cid)}
                                     >
                                       ×
@@ -586,13 +587,13 @@ export class LoadSheddingPanel extends LitElement {
                                   type="button"
                                   @click=${() => this.discoverCompanions(i, entity)}
                                 >
-                                  Rediscover
+                                  ${t("ui.loadShedding.rediscover")}
                                 </button>
                                 <button
                                   type="button"
                                   @click=${() => this.clearCompanions(i, entity)}
                                 >
-                                  Clear all (switch-only)
+                                  ${t("ui.loadShedding.clearCompanions")}
                                 </button>
                               </div>
                             </details>
@@ -605,11 +606,11 @@ export class LoadSheddingPanel extends LitElement {
             </details>
           `;
         })}
-        <button type="button" @click=${() => this.addTier()}>Add tier</button>
+        <button type="button" @click=${() => this.addTier()}>${t("ui.loadShedding.addTier")}</button>
 
         <div class="buttons">
-          <button class="primary" @click=${() => void this.save()}>Save changes</button>
-          <button @click=${() => void this.reset()}>Revert</button>
+          <button class="primary" @click=${() => void this.save()}>${t("common.save")}</button>
+          <button @click=${() => void this.reset()}>${t("ui.loadShedding.revert")}</button>
         </div>
       </div>
     `;

@@ -69,6 +69,7 @@ export interface ExecutionResult {
   applied: boolean;
   verified: boolean;
   skipped_reason: string | null;
+  skipped_reason_text?: string | null;
   error: string | null;
   ts: string;
 }
@@ -80,6 +81,7 @@ export interface ShedResult {
   applied: boolean;
   verified: boolean;
   skipped_reason: string | null;
+  skipped_reason_text?: string | null;
   error: string | null;
   companions_captured?: string[];
   companions_restored?: string[];
@@ -242,6 +244,7 @@ export interface ExecutionHistoryRow {
   applied: boolean;
   verified: boolean;
   skipped_reason: string | null;
+  skipped_reason_text?: string | null;
   error: string | null;
 }
 
@@ -253,6 +256,7 @@ export interface ShedExecutionRow {
   applied: boolean;
   verified: boolean;
   skipped_reason: string | null;
+  skipped_reason_text?: string | null;
   error: string | null;
   companions_captured?: string[];
   companions_restored?: string[];

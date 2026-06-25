@@ -8,6 +8,8 @@ from datetime import timedelta
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ValidationError
 
+from ..i18n import api_error, format_validation_errors, t
+from ..i18n.serialize import localize_model, localize_payload
 from ..llm.assistant import Assistant
 from ..models import GridStats, Override, utcnow
 from ..orchestrator import Orchestrator
@@ -23,6 +25,14 @@ def _orch(request: Request) -> Orchestrator:
     return request.app.state.orchestrator
 
 
+def _loc(model) -> dict:  # noqa: ANN001
+    return localize_model(model)
+
+
+def _loc_data(data: dict | list) -> dict | list:
+    return localize_payload(data)
+
+
 @router.get("/me")
 async def me(request: Request) -> dict:
     from ..config import get_settings
@@ -32,7 +42,7 @@ async def me(request: Request) -> dict:
     if not session.authenticated and (
         settings.local_auth_enabled or settings.api_token
     ):
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        raise api_error("api.auth.unauthorized", 401)
     return session.to_me_dict(settings)
 
 
@@ -70,13 +80,13 @@ async def health(request: Request) -> dict:
 
 @router.get("/status")
 async def status(request: Request) -> dict:
-    return _orch(request).build_status().model_dump(mode="json")
+    return _loc(_orch(request).build_status())
 
 
 @router.get("/forecast")
 async def forecast(request: Request) -> dict:
     cur = _orch(request).forecast.current
-    return cur.model_dump(mode="json") if cur else {}
+    return _loc(cur) if cur else {}
 
 
 @router.post("/forecast/refresh")
@@ -87,20 +97,24 @@ async def forecast_refresh(
     orch = _orch(request)
     await orch.forecast_cycle()
     cur = orch.forecast.current
-    return cur.model_dump(mode="json") if cur else {}
+    return _loc(cur) if cur else {}
 
 
 @router.get("/plan")
 async def plan(request: Request) -> dict:
     orch = _orch(request)
     decision = orch.latest_decision
-    return {
-        "decision": decision.model_dump(mode="json") if decision else None,
-        "results": [r.model_dump(mode="json") for r in orch.latest_results],
-        "shed_results": [r.model_dump(mode="json") for r in orch.latest_shed_results],
-        "shadow_mode": orch.shadow_mode,
-        "paused": orch.paused,
-    }
+    return _loc_data(
+        {
+            "decision": decision.model_dump(mode="json") if decision else None,
+            "results": [r.model_dump(mode="json") for r in orch.latest_results],
+            "shed_results": [
+                r.model_dump(mode="json") for r in orch.latest_shed_results
+            ],
+            "shadow_mode": orch.shadow_mode,
+            "paused": orch.paused,
+        }
+    )
 
 
 @router.post("/cycle")
@@ -109,7 +123,7 @@ async def force_cycle(
     _admin: SessionUser = Depends(require_admin),
 ) -> dict:
     decision = await _orch(request).control_cycle()
-    return decision.model_dump(mode="json") if decision else {}
+    return _loc(decision) if decision else {}
 
 
 @router.get("/grid-stats")
@@ -140,7 +154,8 @@ async def history_telemetry(
 async def history_decisions(
     request: Request, limit: int = Query(default=100, ge=1, le=1000)
 ) -> list[dict]:
-    return await repo.get_recent_decisions(limit=limit)
+    rows = await repo.get_recent_decisions(limit=limit)
+    return localize_payload(rows)  # type: ignore[return-value]
 
 
 @router.get("/history/grid-events")
@@ -225,12 +240,14 @@ async def shed_device_companions(
             "companions": [],
             "warning": str(e),
         }
-    return {
-        "power_entity": result.power_entity,
-        "device_id": result.device_id,
-        "companions": [c.model_dump() for c in result.companions],
-        "warning": result.warning,
-    }
+    return _loc_data(
+        {
+            "power_entity": result.power_entity,
+            "device_id": result.device_id,
+            "companions": [c.model_dump() for c in result.companions],
+            "warning": result.warning,
+        }
+    )
 
 
 @router.get("/shed/snapshots")
@@ -283,9 +300,14 @@ async def put_config(
     try:
         cfg = await orch.reload_config(patch)
     except ValidationError as e:
-        raise HTTPException(status_code=422, detail=e.errors()) from e
+        raise HTTPException(
+            status_code=422, detail=format_validation_errors(e.errors())
+        ) from e
     except Exception as e:  # noqa: BLE001 - surface validation errors to the UI
-        raise HTTPException(status_code=422, detail=str(e)) from e
+        detail = str(e)
+        if detail.startswith("api.config."):
+            raise HTTPException(status_code=422, detail=t(detail)) from e
+        raise HTTPException(status_code=422, detail=detail) from e
     return {"ok": True, "config": _config_view(cfg)}
 
 
@@ -353,13 +375,10 @@ async def post_override(
     session: SessionUser = Depends(require_authenticated),
 ) -> dict:
     if body.kill_switch and not body.confirm:
-        raise HTTPException(
-            status_code=400,
-            detail="kill_switch requires confirm=true",
-        )
+        raise api_error("api.override.kill_switch_confirm", 400)
     ov = Override(**body.model_dump(exclude={"confirm"}))
     if not ov.model_dump(exclude_none=True):
-        raise HTTPException(status_code=400, detail="No override fields provided")
+        raise api_error("api.override.no_fields", 400)
     assert_override_allowed(session, ov)
     touched = list(ov.model_dump(exclude_none=True).keys())
     log.info(
@@ -368,7 +387,7 @@ async def post_override(
         session.auth_mode,
         touched,
     )
-    return await _orch(request).apply_override(ov)
+    return localize_payload(await _orch(request).apply_override(ov))
 
 
 @router.post("/override/clear")
@@ -379,21 +398,23 @@ async def clear_override(
     orch = _orch(request)
     result = orch.clear_overrides()
     await orch.control_cycle()
-    return result
+    return localize_payload(result)
 
 
 @router.get("/history/executions")
 async def history_executions(
     request: Request, limit: int = Query(default=100, ge=1, le=1000)
 ) -> list[dict]:
-    return await repo.get_recent_executions(limit=limit)
+    rows = await repo.get_recent_executions(limit=limit)
+    return localize_payload(rows)  # type: ignore[return-value]
 
 
 @router.get("/history/shed-executions")
 async def history_shed_executions(
     request: Request, limit: int = Query(default=100, ge=1, le=1000)
 ) -> list[dict]:
-    return await repo.get_recent_shed_executions(limit=limit)
+    rows = await repo.get_recent_shed_executions(limit=limit)
+    return localize_payload(rows)  # type: ignore[return-value]
 
 
 class AssistRequest(BaseModel):
@@ -439,21 +460,19 @@ async def assistant_ask(
     block_reason: str | None = None
     if body.apply and intent is not None:
         if intent.kill_switch and not assistant.kill_switch_confirmed(body.question):
-            answer = (
-                f"{answer}\n\n"
-                "Kill switch requires explicit confirmation. "
-                "Re-send with apply and include 'confirm' in your message."
-            ).strip()
+            answer = f"{answer}\n\n{t('api.override.assistant_kill_switch')}".strip()
             blocked = True
             block_reason = "kill_switch_confirm_required"
         else:
             applied = await orch.apply_override(intent)
 
-    return {
-        "answer": answer,
-        "intent": intent.model_dump(mode="json") if intent else None,
-        "applied": applied,
-        "blocked": blocked,
-        "block_reason": block_reason,
-        "llm_enabled": assistant.enabled,
-    }
+    return _loc_data(
+        {
+            "answer": answer,
+            "intent": intent.model_dump(mode="json") if intent else None,
+            "applied": applied,
+            "blocked": blocked,
+            "block_reason": block_reason,
+            "llm_enabled": assistant.enabled,
+        }
+    )

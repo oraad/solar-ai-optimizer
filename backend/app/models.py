@@ -8,6 +8,23 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 
+class Msg(BaseModel):
+    """Localized message stored as a catalog key + interpolation params."""
+
+    key: str
+    params: dict[str, str | int | float] = Field(default_factory=dict)
+
+    def text(self, locale: str | None = None) -> str:
+        if not self.key:
+            return ""
+        from .i18n import t
+
+        return t(self.key, self.params, locale=locale)  # type: ignore[arg-type]
+
+    def __str__(self) -> str:
+        return self.text()
+
+
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -50,7 +67,7 @@ class ControlAction(BaseModel):
 
     capability: Capability
     value: float | bool
-    reason: str
+    reason: Msg
     priority: int = 0  # higher = more important
 
 
@@ -60,7 +77,7 @@ class ShedAction(BaseModel):
     tier: str
     entity: str
     desired_on: bool
-    reason: str
+    reason: Msg
 
 
 class ShedResult(BaseModel):
@@ -122,7 +139,7 @@ class ForecastBundle(BaseModel):
     heating_degree_hours_24h: float = 0.0
     cooling_degree_hours_24h: float = 0.0
     degraded: bool = False
-    degraded_reasons: list[str] = Field(default_factory=list)
+    degraded_reasons: list[Msg] = Field(default_factory=list)
 
 
 class ReserveTarget(BaseModel):
@@ -131,7 +148,7 @@ class ReserveTarget(BaseModel):
     target_soc: float                # % we want to defend
     solar_bridge_soc: float          # % from the solar-bridge calc
     autonomy_floor_soc: float        # % from the hard autonomy floor
-    rationale: str
+    rationale: Msg
 
 
 class GridChargePlan(BaseModel):
@@ -140,7 +157,7 @@ class GridChargePlan(BaseModel):
     enabled: bool
     target_amps: float
     max_amps: float
-    rationale: str = ""
+    rationale: Msg = Field(default_factory=lambda: Msg(key=""))
 
 
 class BlackoutRisk(str, Enum):
@@ -159,7 +176,7 @@ class Decision(BaseModel):
     shed_actions: list[ShedAction] = Field(default_factory=list)
     blackout_risk: BlackoutRisk = BlackoutRisk.LOW
     blackout_risk_score: float = 0.0  # 0..1
-    summary: str = ""
+    summary: Msg = Field(default_factory=lambda: Msg(key=""))
     shadow_mode: bool = True
     grid_charge: GridChargePlan | None = None
 

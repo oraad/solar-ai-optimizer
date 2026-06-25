@@ -44,7 +44,7 @@ export class InfoTip extends LitElement {
     :host {
       display: inline-flex;
       vertical-align: middle;
-      margin-left: 4px;
+      margin-inline-start: 4px;
       flex-shrink: 0;
     }
     .btn {

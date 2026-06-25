@@ -1,6 +1,6 @@
 {
   "name": "solar-ai-optimizer-dashboard",
-  "version": "0.5.17",
+  "version": "0.5.18",
   "description": "Lit dashboard for the Solar AI Optimizer",
   "type": "module",
   "engines": {

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from ..config import AppConfig, Settings
+from ..i18n import msg
 from ..models import ForecastBundle, Telemetry, TemperaturePoint, utcnow
 from ..storage import repo
 from .bias import BiasCorrector
@@ -186,11 +187,11 @@ class ForecastService:
         fc = self._cfg.forecast
         if fc.provider == "solcast" and not self.solcast_configured():
             degraded_reasons.append(
-                "solcast selected but SOLCAST_API_KEY or SOLCAST_RESOURCE_ID not set"
+                msg("forecast.degraded.solcast_misconfigured")
             )
         if not fc.location_configured:
             degraded_reasons.append(
-                "latitude/longitude not configured (still 0,0); solar forecast unreliable"
+                msg("forecast.degraded.location_missing")
             )
             log.warning(
                 "Forecast location is 0,0 — set latitude/longitude in Settings."
@@ -229,12 +230,22 @@ class ForecastService:
                                 "Temperature refresh failed (%s); proceeding without.",
                                 result,
                             )
-                            degraded_reasons.append(f"temperature provider failed: {result}")
+                            degraded_reasons.append(
+                                msg(
+                                    "forecast.degraded.temperature_failed",
+                                    error=str(result),
+                                )
+                            )
                         else:
                             log.warning("Solar forecast failed (%s); keeping previous", result)
                             solar = self._current.solar if self._current else []
                             solar_stale = True
-                            degraded_reasons.append(f"solar provider failed: {result}")
+                            degraded_reasons.append(
+                                msg(
+                                    "forecast.degraded.solar_failed",
+                                    error=str(result),
+                                )
+                            )
                     elif name == "solar":
                         solar = result
                     elif self._temp.available:
@@ -279,7 +290,7 @@ class ForecastService:
             load = self._load.forecast(hours=48)
 
         if solar_stale and solar:
-            degraded_reasons.append("using previous/stale solar forecast")
+            degraded_reasons.append(msg("forecast.degraded.stale_solar"))
 
         temperature, hdh, cdh = self._temperature_points(temp_lookup)
 

@@ -9,7 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from app.config import BatteryConfig, ControlConfig, LoadTier
 from app.control.executor import Executor
 from app.models import ShedAction
-from app.shed_snapshots import EntitySnapshot, ShedSnapshotStore
+from app.i18n.skip_keys import SKIP_ALREADY_SET, SKIP_WAS_OFF_BEFORE_SHED
+from app.shed_snapshots import ShedSnapshotStore
 
 
 def _executor(ha: MagicMock, store: ShedSnapshotStore) -> Executor:
@@ -54,7 +55,7 @@ def test_restore_skips_when_was_off(tmp_path):
             )
 
     res = asyncio.run(run())
-    assert res[0].skipped_reason == "was off before shed"
+    assert res[0].skipped_reason == SKIP_WAS_OFF_BEFORE_SHED
     ha.toggle_entity.assert_not_called()
 
 
@@ -89,7 +90,7 @@ def test_shed_captures_snapshot_when_already_off(tmp_path):
             )
 
     res = asyncio.run(run())
-    assert res[0].skipped_reason == "already set"
+    assert res[0].skipped_reason == SKIP_ALREADY_SET
     snap = store.get("switch.pool")
     assert snap is not None
     assert snap.was_on is False

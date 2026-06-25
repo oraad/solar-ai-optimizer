@@ -1,16 +1,18 @@
 /** Format minutes as a short human duration (e.g. 45m, 2h 15m, >24h). */
 
+import { t } from "./i18n.js";
+
 const MAX_MINUTES = 24 * 60;
 
 export function formatDuration(minutes: number): string {
   if (!Number.isFinite(minutes) || minutes < 0) return "";
-  if (minutes > MAX_MINUTES) return ">24h";
+  if (minutes > MAX_MINUTES) return t("duration.over24h");
   const m = Math.round(minutes);
   if (m < 2) return "";
-  if (m < 60) return `${m}m`;
+  if (m < 60) return t("duration.minutes", { m });
   const h = Math.floor(m / 60);
   const rem = m % 60;
-  return rem ? `${h}h ${rem}m` : `${h}h`;
+  return rem ? t("duration.hoursMinutes", { h, m: rem }) : t("duration.hours", { h });
 }
 
 export interface BatteryEtaInput {
@@ -52,7 +54,7 @@ export function batteryEtaLine(input: BatteryEtaInput): string | null {
     const wh = (delta / 100) * usableWh / eff;
     const minutes = (wh / power) * 60;
     const fmt = formatDuration(minutes);
-    return fmt ? `Full in ~${fmt}` : null;
+    return fmt ? t("duration.fullIn", { duration: fmt }) : null;
   }
 
   if (powerW < -POWER_IDLE_W) {
@@ -62,7 +64,7 @@ export function batteryEtaLine(input: BatteryEtaInput): string | null {
     const wh = (delta / 100) * usableWh;
     const minutes = (wh / power) * 60;
     const fmt = formatDuration(minutes);
-    return fmt ? `Reserve in ~${fmt}` : null;
+    return fmt ? t("duration.reserveIn", { duration: fmt }) : null;
   }
 
   return null;

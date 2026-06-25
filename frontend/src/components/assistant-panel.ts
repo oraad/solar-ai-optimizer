@@ -3,7 +3,9 @@ import { customElement, query, state } from "lit/decorators.js";
 
 import { api } from "../api.js";
 import { assistantHelp } from "../field-help.js";
+import { t } from "../i18n.js";
 import { labelWithTip } from "../label-tip.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import { dismissToast, showToast } from "../toast.js";
 import "./info-tip.js";
@@ -17,12 +19,17 @@ interface Msg {
 
 @customElement("solar-assistant-panel")
 export class AssistantPanel extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = [
     sharedStyles,
     css`
       .log {
         display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;
-        height: 420px; max-height: 55vh; overflow-y: auto; padding-right: 4px;
+        height: 420px; max-height: 55vh; overflow-y: auto; padding-inline-end: 4px;
       }
       @media (max-width: 760px) {
         .log {
@@ -92,7 +99,7 @@ export class AssistantPanel extends LitElement {
     const toastId = "assistant-ask";
     showToast({
       id: toastId,
-      message: "Asking assistant…",
+      message: t("ui.assistant.toastAsking"),
       variant: "loading",
       persistent: true,
     });
@@ -102,7 +109,7 @@ export class AssistantPanel extends LitElement {
       let text = res.answer;
       if (res.applied) {
         text += "  [override applied]";
-        showToast({ message: "Override applied.", variant: "success" });
+        showToast({ message: t("ui.assistant.toastApplied"), variant: "success" });
       } else if (res.intent && !this.apply) {
         text += "  [intent detected; tick 'apply' to execute]";
       }
@@ -131,19 +138,16 @@ export class AssistantPanel extends LitElement {
   render() {
     return html`
       <div class="card">
-        <h3>Assistant</h3>
+        <h3>${t("ui.assistant.title")}</h3>
         <div class="log">
           ${this.msgs.length === 0
-            ? html`<p class="label">Ask things like "why did you grid-charge?", "force charge now", or "set reserve to 60%".</p>`
+            ? html`<p class="label">${t("ui.assistant.emptyHint")}</p>`
             : this.msgs.map(
                 (m) => html`
                   <div class="row ${m.role}">
-                    <span class="badge">${m.role}</span>
+                    <span class="badge">${m.role === "you" ? t("ui.assistant.roleYou") : t("ui.assistant.roleAssistant")}</span>
                     ${m.blocked && m.blockReason === "kill_switch_confirm_required"
-                      ? html`<div class="banner">
-                          Kill switch blocked — include a confirmation word in your message
-                          (e.g. <strong>engage kill switch confirm</strong>) with Apply checked.
-                        </div>`
+                      ? html`<div class="banner">${t("ui.assistant.killBlocked")}</div>`
                       : null}
                     <div class="bubble">${m.text}</div>
                   </div>
@@ -152,7 +156,7 @@ export class AssistantPanel extends LitElement {
           ${this.busy
             ? html`
                 <div class="row assistant">
-                  <span class="badge">assistant</span>
+                  <span class="badge">${t("ui.assistant.roleAssistant")}</span>
                   <div class="bubble typing"><span></span><span></span><span></span></div>
                 </div>
               `
@@ -161,21 +165,18 @@ export class AssistantPanel extends LitElement {
         <div class="inputrow">
           <input
             type="text"
-            placeholder="Ask or command..."
+            placeholder=${t("ui.assistant.placeholder")}
             .value=${this.input}
             @input=${(e: Event) => (this.input = (e.target as HTMLInputElement).value)}
             @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") void this.send(); }}
           />
-          <button class="primary" @click=${() => void this.send()} ?disabled=${this.busy}>Send</button>
+          <button class="primary" @click=${() => void this.send()} ?disabled=${this.busy}>${t("ui.assistant.send")}</button>
         </div>
         <div class="apply-row checkbox-row">
           <input type="checkbox" .checked=${this.apply} @change=${(e: Event) => (this.apply = (e.target as HTMLInputElement).checked)} />
-          <label>${labelWithTip("Allow assistant to apply control commands", assistantHelp("apply"))}</label>
+          <label>${labelWithTip(t("ui.assistant.applyLabel"), assistantHelp("apply"))}</label>
         </div>
-        <div class="hint">
-          The LLM only writes explanations. Commands are parsed deterministically
-          and applied only with the checkbox above.
-        </div>
+        <div class="hint">${t("ui.assistant.hint")}</div>
       </div>
     `;
   }

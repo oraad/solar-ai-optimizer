@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from ..config import BatteryConfig, GridChargeConfig, OptimizationPriority, ReserveConfig
 from ..engine.priorities import resolve_weights
 from ..grid.ramp import RampContext, compute_ramp_plan, legacy_plan
+from ..i18n import msg
 from ..models import (
     BlackoutRisk,
     Capability,
@@ -19,6 +20,7 @@ from ..models import (
     GridStats,
     ReserveTarget,
     Telemetry,
+    Msg,
     utcnow,
 )
 from ..storage import repo
@@ -95,7 +97,7 @@ class ReactiveGrid:
                 target_soc=target_soc,
                 solar_bridge_soc=target_soc,
                 autonomy_floor_soc=self._battery.min_soc_floor,
-                rationale="",
+                rationale=Msg(key=""),
             ),
             target_soc=target_soc,
             blackout_risk=blackout_risk,
@@ -118,7 +120,7 @@ class ReactiveGrid:
                 enabled=False,
                 target_amps=0.0,
                 max_amps=max_a,
-                rationale="Grid absent; disable grid charge.",
+                rationale=msg("engine.grid.absent"),
             )
             actions.append(
                 ControlAction(
@@ -136,9 +138,10 @@ class ReactiveGrid:
                 enabled=True,
                 target_amps=max_a,
                 max_amps=max_a,
-                rationale=(
-                    f"Grid present and SOC {soc:.0f}% < reserve target "
-                    f"{target_soc:.0f}%: opportunistic top-up at max."
+                rationale=msg(
+                    "engine.grid.legacy_top_up",
+                    soc=round(soc, 0),
+                    target=round(target_soc, 0),
                 ),
             )
             actions.append(
@@ -153,7 +156,7 @@ class ReactiveGrid:
                 ControlAction(
                     capability=Capability.MAX_GRID_CHARGE_CURRENT,
                     value=max_a,
-                    reason=f"Charge hard while grid available ({max_a:.0f} A).",
+                    reason=msg("engine.grid.charge_hard", amps=round(max_a, 0)),
                     priority=90,
                 )
             )
@@ -162,9 +165,10 @@ class ReactiveGrid:
                 enabled=False,
                 target_amps=0.0,
                 max_amps=max_a,
-                rationale=(
-                    f"Reserve target {target_soc:.0f}% met "
-                    f"(SOC {soc:.0f}%); stop grid charge."
+                rationale=msg(
+                    "engine.grid.reserve_met",
+                    target=round(target_soc, 0),
+                    soc=round(soc, 0),
                 ),
             )
             actions.append(
@@ -188,9 +192,11 @@ class ReactiveGrid:
                 ControlAction(
                     capability=Capability.GRID_CHARGE_ENABLE,
                     value=True,
-                    reason=(
-                        f"Grid present, SOC {soc:.0f}% < target {target_soc:.0f}%: "
-                        f"ramp to {plan.target_amps:.0f} A."
+                    reason=msg(
+                        "engine.grid.ramp_to",
+                        soc=round(soc, 0),
+                        target=round(target_soc, 0),
+                        amps=round(plan.target_amps, 0),
                     ),
                     priority=100,
                 )

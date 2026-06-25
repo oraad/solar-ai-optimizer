@@ -30,6 +30,16 @@ from ..models import (
     ShedResult,
     utcnow,
 )
+from ..i18n import msg
+from ..i18n.skip_keys import (
+    SKIP_ALREADY_SET,
+    SKIP_CAPABILITY_NOT_MAPPED,
+    SKIP_HA_STALE,
+    SKIP_NO_SHED_SNAPSHOT,
+    SKIP_RECENTLY_WRITTEN,
+    SKIP_SHADOW_MODE,
+    SKIP_WAS_OFF_BEFORE_SHED,
+)
 from ..observability.metrics import metrics
 from ..shed_snapshots import EntitySnapshot, ShedSnapshotStore
 from ..storage import repo
@@ -84,7 +94,7 @@ class Executor:
         if not self._adapter.supports(cap):
             return ExecutionResult(
                 capability=cap, requested=requested, applied=False, verified=False,
-                skipped_reason="capability not mapped",
+                skipped_reason=SKIP_CAPABILITY_NOT_MAPPED,
             )
 
         reject = self._guard.violates_hard_bounds(cap, requested)
@@ -92,7 +102,7 @@ class Executor:
             log.warning("REJECT write %s=%s: %s", cap.value, requested, reject)
             return ExecutionResult(
                 capability=cap, requested=requested, applied=False, verified=False,
-                skipped_reason=f"hard-bound reject: {reject}",
+                skipped_reason=reject,
             )
 
         value, note = self._guard.clamp(cap, requested)
@@ -102,7 +112,7 @@ class Executor:
         if self._ha.is_stale(self._control.ha_stale_after_seconds):
             return ExecutionResult(
                 capability=cap, requested=value, applied=False, verified=False,
-                skipped_reason="HA stale; watchdog blocked write",
+                skipped_reason=SKIP_HA_STALE,
             )
 
         try:
@@ -122,7 +132,7 @@ class Executor:
             log.info("[SHADOW] would write %s=%s (%s)", cap.value, value, action.reason)
             return ExecutionResult(
                 capability=cap, requested=value, applied=False, verified=False,
-                skipped_reason="shadow mode",
+                skipped_reason=SKIP_SHADOW_MODE,
             )
 
         try:
@@ -258,7 +268,7 @@ class Executor:
                 desired_on=a.desired_on,
                 applied=False,
                 verified=False,
-                skipped_reason="shadow mode",
+                skipped_reason=SKIP_SHADOW_MODE,
             )
 
         if self._ha.is_stale(self._control.ha_stale_after_seconds):
@@ -268,7 +278,7 @@ class Executor:
                 desired_on=a.desired_on,
                 applied=False,
                 verified=False,
-                skipped_reason="HA stale; watchdog blocked write",
+                skipped_reason=SKIP_HA_STALE,
             )
 
         # Restore path: check snapshot before shed capture
@@ -281,7 +291,7 @@ class Executor:
                     desired_on=a.desired_on,
                     applied=False,
                     verified=False,
-                    skipped_reason="no shed snapshot; not restoring",
+                    skipped_reason=SKIP_NO_SHED_SNAPSHOT,
                 )
             if not snap.was_on:
                 if self._snapshots:
@@ -292,7 +302,7 @@ class Executor:
                     desired_on=a.desired_on,
                     applied=False,
                     verified=False,
-                    skipped_reason="was off before shed",
+                    skipped_reason=SKIP_WAS_OFF_BEFORE_SHED,
                 )
 
         # Shed path: capture snapshot before idempotency
@@ -327,7 +337,7 @@ class Executor:
                     desired_on=a.desired_on,
                     applied=False,
                     verified=False,
-                    skipped_reason="recently written (unchanged)",
+                    skipped_reason=SKIP_RECENTLY_WRITTEN,
                     companions_captured=companions_captured,
                     companions_restored=companions_restored,
                     companion_errors=companion_errors,
@@ -377,7 +387,7 @@ class Executor:
                     desired_on=a.desired_on,
                     applied=False,
                     verified=True,
-                    skipped_reason="already set",
+                    skipped_reason=SKIP_ALREADY_SET,
                     companions_captured=companions_captured,
                 )
             try:
@@ -448,7 +458,7 @@ class Executor:
                         requested=requested,
                         applied=False,
                         verified=False,
-                        skipped_reason="capability not mapped",
+                        skipped_reason=SKIP_CAPABILITY_NOT_MAPPED,
                     )
                 )
                 continue
@@ -462,7 +472,7 @@ class Executor:
                         requested=requested,
                         applied=False,
                         verified=False,
-                        skipped_reason=f"hard-bound reject: {reject}",
+                        skipped_reason=reject,
                     )
                 )
                 continue
@@ -481,7 +491,7 @@ class Executor:
                         requested=value,
                         applied=False,
                         verified=False,
-                        skipped_reason="HA stale; watchdog blocked write",
+                        skipped_reason=SKIP_HA_STALE,
                     )
                 )
                 continue
@@ -514,7 +524,7 @@ class Executor:
                 tier=t.name,
                 entity=entity,
                 desired_on=True,
-                reason="Restore tier after emergency / kill switch.",
+                reason=msg("engine.shed.emergency_restore"),
             )
             for t in tiers
             for entity in t.entity_ids()

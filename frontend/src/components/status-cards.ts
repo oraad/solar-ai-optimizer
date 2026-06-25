@@ -3,7 +3,9 @@ import { customElement, property } from "lit/decorators.js";
 
 import { batteryEtaLine } from "../duration.js";
 import { statusHelp } from "../field-help.js";
+import { t } from "../i18n.js";
 import { labelWithTip } from "../label-tip.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import "./info-tip.js";
 import type { SystemStatus } from "../types.js";
@@ -34,6 +36,11 @@ const STATUS_ICONS = {
 
 @customElement("solar-status-cards")
 export class StatusCards extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = [
     sharedStyles,
     css`
@@ -87,11 +94,11 @@ export class StatusCards extends LitElement {
   }
 
   render() {
-    const t = this.status?.telemetry ?? null;
+    const telemetry = this.status?.telemetry ?? null;
     const d = this.status?.decision ?? null;
-    const soc = t?.battery_soc ?? null;
+    const soc = telemetry?.battery_soc ?? null;
     const reserve = d?.reserve.target_soc ?? null;
-    const battP = t?.battery_power ?? null;
+    const battP = telemetry?.battery_power ?? null;
     const battState =
       battP == null ? "" : battP > 20 ? "charging" : battP < -20 ? "discharging" : "idle";
 
@@ -118,7 +125,7 @@ export class StatusCards extends LitElement {
     const stale = this.status?.telemetry_stale ?? false;
     const age = this.status?.telemetry_age_seconds;
     const gc = d?.grid_charge ?? null;
-    const gridAbsent = t?.grid_present === false;
+    const gridAbsent = telemetry?.grid_present === false;
     const gcAmps = gc?.target_amps;
     const gcEnabled = gc?.enabled === true && (gcAmps ?? 0) > 0;
     const gcMetric = gridAbsent
@@ -126,83 +133,87 @@ export class StatusCards extends LitElement {
       : gcEnabled
         ? `${gcAmps!.toFixed(0)} A`
         : gc
-          ? "OFF"
+          ? t("common.off")
           : "--";
     const gcSub = gridAbsent
-      ? "Grid absent"
+      ? t("ui.status.gridAbsent")
       : gc
         ? gc.enabled
-          ? `on · max ${gc.max_amps.toFixed(0)} A`
-          : "off"
+          ? t("ui.status.gridChargeOn", { amps: gc.max_amps.toFixed(0) })
+          : t("ui.status.gridChargeOff")
         : "";
 
     return html`
       <div class="card">
-        <h3>Live status</h3>
+        <h3>${t("ui.status.liveStatus")}</h3>
         ${stale
           ? html`<p class="label" style="color:var(--bad)">
-              Telemetry is stale${age != null ? ` (${Math.round(age)}s old)` : ""} —
-              shedding and grid actions use conservative defaults.
+              ${t("ui.status.staleTelemetry", {
+                age:
+                  age != null
+                    ? t("ui.status.staleAge", { s: String(Math.round(age)) })
+                    : "",
+              })}
             </p>`
           : null}
         <div class="tiles">
           <div class="tile">
-            ${this.tileHead(STATUS_ICONS.solar, "Solar PV", "solar")}
-            <div class="metric">${fmtW(t?.pv_power)}</div>
+            ${this.tileHead(STATUS_ICONS.solar, t("ui.status.solarPv"), "solar")}
+            <div class="metric">${fmtW(telemetry?.pv_power)}</div>
           </div>
           <div class="tile">
-            ${this.tileHead(STATUS_ICONS.load, "Home load", "load")}
-            <div class="metric">${fmtW(t?.load_power)}</div>
+            ${this.tileHead(STATUS_ICONS.load, t("ui.status.homeLoad"), "load")}
+            <div class="metric">${fmtW(telemetry?.load_power)}</div>
           </div>
           <div class="tile">
-            ${this.tileHead(STATUS_ICONS.battery, "Battery", "battery")}
+            ${this.tileHead(STATUS_ICONS.battery, t("ui.status.battery"), "battery")}
             <div class="metric">${soc != null ? `${soc.toFixed(0)}%` : "--"}</div>
             <div class="soc-bar">
               <div class="soc-fill" style="width:${soc ?? 0}%"></div>
               ${reserve != null
-                ? html`<div class="reserve-mark" style="left:${reserve}%" title="Reserve target"></div>`
+                ? html`<div class="reserve-mark" style="left:${reserve}%" title=${t("ui.status.reserveMarkTitle")}></div>`
                 : null}
             </div>
             <div class="label" style="margin-top:6px; color:${battColor}">
-              ${battState || "--"} ${battP != null ? `(${fmtW(battP)})` : ""}
+              ${battState ? t(`common.${battState}`) : "--"} ${battP != null ? `(${fmtW(battP)})` : ""}
             </div>
             ${eta ? html`<div class="eta">${eta}</div>` : null}
           </div>
           <div class="tile">
-            ${this.tileHead(STATUS_ICONS.grid, "Grid", "grid")}
+            ${this.tileHead(STATUS_ICONS.grid, t("ui.status.grid"), "grid")}
             <div class="metric">
-              <span class="pill ${t?.grid_present ? "good" : "muted"}">
-                <span class="dot ${t?.grid_present ? "on" : "off"}"></span>
-                ${t?.grid_present ? "present" : "absent"}
+              <span class="pill ${telemetry?.grid_present ? "good" : "muted"}">
+                <span class="dot ${telemetry?.grid_present ? "on" : "off"}"></span>
+                ${telemetry?.grid_present ? t("common.present") : t("common.absent")}
               </span>
             </div>
-            <div class="label" style="margin-top:6px">${fmtW(t?.grid_power)}</div>
+            <div class="label" style="margin-top:6px">${fmtW(telemetry?.grid_power)}</div>
           </div>
           <div class="tile">
-            ${this.tileHead(STATUS_ICONS.gridCharge, "Grid charge", "grid_charge")}
+            ${this.tileHead(STATUS_ICONS.gridCharge, t("ui.status.gridCharge"), "grid_charge")}
             <div class="metric" style="color:${gcEnabled ? "var(--good)" : "var(--muted)"}">
               ${gcMetric}
             </div>
             ${gcSub ? html`<div class="label" style="margin-top:6px">${gcSub}</div>` : null}
           </div>
           <div class="tile">
-            ${this.tileHead(STATUS_ICONS.reserve, "Reserve target", "reserve")}
+            ${this.tileHead(STATUS_ICONS.reserve, t("ui.status.reserveTarget"), "reserve")}
             <div class="metric">${reserve != null ? `${reserve.toFixed(0)}%` : "--"}</div>
           </div>
-          ${t?.outdoor_temp != null
+          ${telemetry?.outdoor_temp != null
             ? html`<div class="tile">
-                ${this.tileHead(STATUS_ICONS.outdoor, "Outdoor", "outdoor")}
-                <div class="metric">${t.outdoor_temp.toFixed(1)}&deg;C</div>
+                ${this.tileHead(STATUS_ICONS.outdoor, t("ui.status.outdoor"), "outdoor")}
+                <div class="metric">${telemetry.outdoor_temp.toFixed(1)}&deg;C</div>
               </div>`
             : null}
-          ${t?.battery_temp != null
+          ${telemetry?.battery_temp != null
             ? html`<div class="tile">
-                <div class="head"><span class="ic">${STATUS_ICONS.outdoor}</span><span class="label">Battery temp</span></div>
-                <div class="metric">${t.battery_temp.toFixed(1)}&deg;C</div>
+                <div class="head"><span class="ic">${STATUS_ICONS.outdoor}</span><span class="label">${t("ui.status.batteryTemp")}</span></div>
+                <div class="metric">${telemetry.battery_temp.toFixed(1)}&deg;C</div>
               </div>`
             : null}
           <div class="tile">
-            ${this.tileHead(STATUS_ICONS.risk, "Blackout risk", "risk")}
+            ${this.tileHead(STATUS_ICONS.risk, t("ui.status.blackoutRisk"), "risk")}
             <div class="metric">
               ${d
                 ? html`<span class="pill ${riskClass(d.blackout_risk)}">${d.blackout_risk}</span>`

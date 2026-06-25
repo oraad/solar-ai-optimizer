@@ -2,14 +2,20 @@ import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 
 import { api } from "../api.js";
+import { t } from "../i18n.js";
+import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import { runWithToast } from "../toast.js";
 
 @customElement("solar-login-page")
 export class LoginPage extends LitElement {
-  /** Light DOM so password managers can discover the login form reliably. */
   createRenderRoot() {
     return this;
+  }
+
+  constructor() {
+    super();
+    new LocaleController(this);
   }
 
   static styles = [
@@ -66,7 +72,7 @@ export class LoginPage extends LitElement {
       async () => {
         await api.login(username, password);
       },
-      { loading: "Signing in…", success: "Signed in." },
+      { loading: t("login.toastLoading"), success: t("login.toastSuccess") },
     );
     if (ok) {
       this.dispatchEvent(new CustomEvent("solar-login-success", { bubbles: true, composed: true }));
@@ -77,21 +83,21 @@ export class LoginPage extends LitElement {
   render() {
     return html`
       <div class="card">
-        <h1>Solar AI Optimizer</h1>
-        <p class="sub">Sign in with your local admin account.</p>
+        <h1>${t("app.title")}</h1>
+        <p class="sub">${t("login.sub")}</p>
         <form method="post" action="#" @submit=${this.submit}>
-          <label for="username">Username</label>
+          <label for="username">${t("login.username")}</label>
           <input
             id="username"
             name="username"
             type="text"
             autocomplete="username"
-            placeholder="admin"
+            placeholder=${t("login.placeholder")}
             spellcheck="false"
             autocapitalize="off"
             required
           />
-          <label for="password">Password</label>
+          <label for="password">${t("login.password")}</label>
           <input
             id="password"
             name="password"
@@ -100,7 +106,7 @@ export class LoginPage extends LitElement {
             required
           />
           <button class="primary" type="submit" ?disabled=${this.busy}>
-            ${this.busy ? "Signing in…" : "Sign in"}
+            ${this.busy ? t("login.signingIn") : t("login.signIn")}
           </button>
         </form>
       </div>

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from ..config import BatteryConfig, EngineConfig, GridChargeConfig, LoadSheddingConfig, OptimizationPriority, ReserveConfig
 from ..grid.reactive import ReactiveGrid
+from ..i18n import msg
 from ..models import (
     BlackoutRisk,
     Capability,
@@ -20,14 +21,15 @@ from ..models import (
     ForecastBundle,
     GridChargePlan,
     GridStats,
+    Msg,
     Override,
     ReserveTarget,
     Telemetry,
     utcnow,
 )
 from .priorities import (
+    DEFAULT_PRIORITY_ORDER,
     buffer_scale,
-    format_priority_order,
     grid_present_risk_multiplier,
     resolve_weights,
     savings_buffer_relief,
@@ -82,7 +84,7 @@ class RuleEngine:
             buffer += self._reserve.cloudy_extra_buffer_pct
         if forecast and forecast.degraded:
             buffer += self._reserve.cloudy_extra_buffer_pct
-            degraded_note = " Degraded/stale forecast — extra conservative buffer applied."
+            degraded_note = "degraded"
         buffer *= buffer_scale(self._weights[OptimizationPriority.resilience])
         buffer *= savings_buffer_relief(self._weights[OptimizationPriority.savings])
         bridge_wh *= 1.0 + buffer / 100.0
@@ -96,28 +98,41 @@ class RuleEngine:
             self._battery.max_soc_ceiling,
             max(autonomy_floor_soc, solar_bridge_soc),
         )
-        driver = (
-            "solar-bridge"
+        driver_label = (
+            "engine.reserve.driver_solar_bridge"
             if solar_bridge_soc >= autonomy_floor_soc
-            else "autonomy-floor"
+            else "engine.reserve.driver_autonomy_floor"
         )
-        rationale = (
-            f"Reserve target {target:.0f}% (driver: {driver}). "
-            f"Autonomy floor {autonomy_floor_soc:.0f}% "
-            f"({self._reserve.min_autonomy_hours:.0f}h @ "
-            f"{self._reserve.critical_load_w:.0f}W); "
-            f"solar-bridge {solar_bridge_soc:.0f}% "
-            f"(bridge {bridge_wh/1000:.1f} kWh incl. {buffer:.0f}% buffer)."
-        )
+        extra_cold = ""
+        extra_heat = ""
+        extra_degraded = ""
+        hdh = 0.0
+        cdh = 0.0
         if forecast:
             hdh = forecast.heating_degree_hours_24h
             cdh = forecast.cooling_degree_hours_24h
             if hdh >= 5.0:
-                rationale += f" Cold snap: {hdh:.0f} heating degree-hrs (24h) raising expected load."
+                extra_cold = "cold"
             elif cdh >= 5.0:
-                rationale += f" Heat wave: {cdh:.0f} cooling degree-hrs (24h) raising expected load."
+                extra_heat = "heat"
         if degraded_note:
-            rationale += degraded_note
+            extra_degraded = "yes"
+        rationale = msg(
+            "engine.reserve.main",
+            target=round(target, 0),
+            driver=driver_label,
+            autonomy=round(autonomy_floor_soc, 0),
+            hours=round(self._reserve.min_autonomy_hours, 0),
+            load=round(self._reserve.critical_load_w, 0),
+            bridge=round(solar_bridge_soc, 0),
+            bridge_kwh=round(bridge_wh / 1000, 1),
+            buffer=round(buffer, 0),
+            extra_cold=extra_cold,
+            extra_heat=extra_heat,
+            extra_degraded=extra_degraded,
+            hdh=round(hdh, 0),
+            cdh=round(cdh, 0),
+        )
         return ReserveTarget(
             target_soc=round(target, 1),
             solar_bridge_soc=round(solar_bridge_soc, 1),
@@ -208,7 +223,7 @@ class RuleEngine:
             )
 
         actions: list[ControlAction] = []
-        advisories: list[str] = []
+        advisories: list[Msg] = []
         grid_charge_plan: GridChargePlan | None = None
         max_a = self._grid_charge.max_grid_charge_a
 
@@ -227,13 +242,13 @@ class RuleEngine:
                 enabled=True,
                 target_amps=max_a,
                 max_amps=max_a,
-                rationale="Operator override: force grid charge at max safe current.",
+                rationale=msg("engine.override.force_grid_charge_plan"),
             )
             actions.append(
                 ControlAction(
                     capability=Capability.GRID_CHARGE_ENABLE,
                     value=True,
-                    reason="Operator override: force grid charge.",
+                    reason=msg("engine.override.force_grid_charge"),
                     priority=120,
                 )
             )
@@ -250,13 +265,13 @@ class RuleEngine:
                 enabled=False,
                 target_amps=0.0,
                 max_amps=max_a,
-                rationale="Operator override: disable grid charge.",
+                rationale=msg("engine.override.disable_grid_charge_plan"),
             )
             actions.append(
                 ControlAction(
                     capability=Capability.GRID_CHARGE_ENABLE,
                     value=False,
-                    reason="Operator override: disable grid charge.",
+                    reason=msg("engine.override.disable_grid_charge"),
                     priority=120,
                 )
             )
@@ -264,14 +279,14 @@ class RuleEngine:
                 ControlAction(
                     capability=Capability.MAX_GRID_CHARGE_CURRENT,
                     value=0.0,
-                    reason="Operator override: grid charge current set to 0.",
+                    reason=msg("engine.override.grid_charge_zero"),
                     priority=110,
                 )
             )
         elif telemetry_stale:
             grid_charge_plan, stale_actions = self._conservative_grid_charge_off(
                 max_a,
-                "Telemetry stale; disable grid charge (conservative).",
+                msg("engine.grid.telemetry_stale"),
             )
             actions.extend(stale_actions)
         else:
@@ -295,17 +310,25 @@ class RuleEngine:
         load = telemetry.load_power or 0.0
         if soc >= min(99.0, self._battery.max_soc_ceiling - 1) and pv > load:
             advisories.append(
-                f"Surplus available ({(pv - load) / 1000:.1f} kW) with battery full: "
-                f"divert to deferrable loads (geyser/EV/pumps) instead of curtailing."
+                msg(
+                    "engine.advisory.surplus",
+                    kw=round((pv - load) / 1000, 1),
+                )
             )
 
-        summary = self._summary(telemetry, reserve, target_soc, risk)
-        summary = (
-            f"Priorities: {format_priority_order(self._engine_cfg.priority_order)}. "
-            + summary
+        summary = self._summary(
+            telemetry, reserve, target_soc, risk, self._engine_cfg.priority_order
         )
         if advisories:
-            summary += " | " + " ".join(advisories)
+            a = advisories[0]
+            summary = Msg(
+                key=summary.key,
+                params={
+                    **summary.params,
+                    "advisory_suffix": "surplus",
+                    "advisory_kw": a.params.get("kw", 0),
+                },
+            )
 
         shed_actions = self._shedding.plan(telemetry, telemetry_stale=telemetry_stale)
 
@@ -328,7 +351,7 @@ class RuleEngine:
 
     @staticmethod
     def _conservative_grid_charge_off(
-        max_a: float, rationale: str
+        max_a: float, rationale: Msg
     ) -> tuple[GridChargePlan, list[ControlAction]]:
         plan = GridChargePlan(
             enabled=False,
@@ -346,7 +369,7 @@ class RuleEngine:
             ControlAction(
                 capability=Capability.MAX_GRID_CHARGE_CURRENT,
                 value=0.0,
-                reason="Grid charge current set to 0 (conservative).",
+                reason=msg("engine.grid.grid_charge_zero_conservative"),
                 priority=110,
             ),
         ]
@@ -405,15 +428,24 @@ class RuleEngine:
         reserve: ReserveTarget,
         target_soc: float,
         risk: BlackoutRisk,
-    ) -> str:
+        priority_order: list,
+    ) -> Msg:
         soc = telemetry.battery_soc
-        grid = (
-            "grid PRESENT"
+        soc_str = f"{soc:.0f}" if soc is not None else "?"
+        key = (
+            "engine.summary.with_priorities_present"
             if telemetry.grid_present
-            else "grid absent"
+            else "engine.summary.with_priorities_absent"
         )
-        soc_str = f"{soc:.0f}%" if soc is not None else "?"
-        return (
-            f"SOC {soc_str} vs reserve {target_soc:.0f}% | {grid} | "
-            f"blackout risk: {risk.value}. {reserve.rationale}"
+        seq = priority_order or DEFAULT_PRIORITY_ORDER
+        return msg(
+            key,
+            order=",".join(p.value for p in seq),
+            soc=soc_str,
+            target=round(target_soc, 0),
+            risk=risk.value,
+            extra="",
+            advisory_suffix="",
+            advisory_kw=0,
+            prefix="",
         )

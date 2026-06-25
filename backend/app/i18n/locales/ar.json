@@ -1,0 +1,206 @@
+{
+  "api": {
+    "auth": {
+      "local_login_disabled": "تسجيل الدخول المحلي غير مفعّل",
+      "invalid_credentials": "بيانات اعتماد غير صالحة",
+      "unauthorized": "غير مصرّح"
+    },
+    "session": {
+      "admin_required": "يتطلب صلاحيات المسؤول",
+      "admin_required_override": "يتطلب صلاحيات المسؤول لهذا التجاوز"
+    },
+    "override": {
+      "kill_switch_confirm": "يتطلب kill_switch تأكيد confirm=true",
+      "no_fields": "لم يتم تقديم حقول تجاوز",
+      "assistant_kill_switch": "يتطلب مفتاح الإيقاف تأكيداً صريحاً في سؤالك (مثلاً تضمين « confirm »)."
+    },
+    "validation": {
+      "field": "{loc}: {msg}"
+    },
+    "config": {
+      "forecast_provider": "يجب أن يكون forecast.provider إما 'open-meteo' أو 'solcast'",
+      "engine_mode": "يجب أن يكون engine.mode إما 'rules' أو 'mpc'",
+      "priority_order": "يجب أن يسرد engine.priority_order كل من resilience و savings و self_sufficiency مرة واحدة بالضبط",
+      "tier_hysteresis": "مستوى load_shedding '{name}': يجب أن يكون restore_above_soc ({restore}) > shed_below_soc ({shed})"
+    },
+    "update": {
+      "invalid_version": "تنسيق إصدار غير صالح.",
+      "unknown_release": "إصدار غير معروف أو غير متاح.",
+      "release_unavailable": "تعذّر تحديد أحدث إصدار.",
+      "docker_cli_missing": "Docker CLI غير متاح في هذا الحاوية. اسحب ghcr.io/oraad/solar-ai-optimizer:latest (v{min_version}+) وأعد إنشاء الحاوية يدوياً مرة واحدة؛ راجع docs/installation.md.",
+      "self_update_disabled": "التحديث الذاتي غير مفعّل لهذا النشر.",
+      "already_in_progress": "التحديث قيد التنفيذ بالفعل.",
+      "already_running_version": "هذا الإصدار يعمل بالفعل.",
+      "version_below_minimum": "الإصدار {version} أقل من الحد الأدنى {min_version} للتحديث الذاتي.",
+      "start_failed": "فشل بدء التحديث: {error}",
+      "restore_disabled": "استعادة النسخ الاحتياطي غير مفعّلة لهذا النشر.",
+      "no_backups": "لا توجد نسخ احتياطية.",
+      "backup_not_found": "النسخة الاحتياطية غير موجودة.",
+      "restore_image_unknown": "تعذّر تحديد الصورة للاستعادة.",
+      "restore_start_failed": "فشل بدء الاستعادة: {error}",
+      "downgrade_warning": "سيؤدي تثبيت إصدار أقدم إلى إعادة تشغيل الخدمة. يتم إنشاء نسخة احتياطية من /app/data تلقائياً قبل كل تثبيت. قد يكون الرجوع لإصدار أقدم غير متوافق إذا تغيّرت الإعدادات أو مخطط قاعدة البيانات منذ ذلك الإصدار.",
+      "preparing_update": "جارٍ تحضير التحديث",
+      "update_started": "بدأ التحديث؛ ستُعاد تشغيل الخدمة.",
+      "preparing_restore": "جارٍ تحضير الاستعادة",
+      "restore_started": "بدأت الاستعادة؛ ستُعاد تشغيل الخدمة.",
+      "instructions": {
+        "addon": "حدّث عبر مشرف Home Assistant: الإعدادات ← الإضافات ← Solar AI Optimizer ← تحديث.",
+        "compose": "من مجلد المشروع:\n  docker compose pull\n  docker compose up -d --build\n\nأو فعّل التحديث الذاتي عبر docker-compose.self-update.yml (راجع docs/installation.md).",
+        "compose_versioned": "من مجلد المشروع:\n  docker pull {image}\n  docker compose up -d --build\n\nأو اضبط SELF_UPDATE_IMAGE={image} وفعّل التحديث الذاتي (راجع docs/installation.md).",
+        "proxmox": "على Proxmox LXC، نفّذ: update\n\nأو يدوياً:\n  docker pull ghcr.io/oraad/solar-ai-optimizer:latest\n  docker stop solar-optimizer && docker rm solar-optimizer\n  docker run -d --name solar-optimizer --restart unless-stopped \\\n    --env-file /opt/solar-ai-optimizer/solar.env \\\n    -v solar-data:/app/data -p 8000:8000 \\\n    ghcr.io/oraad/solar-ai-optimizer:latest",
+        "proxmox_versioned": "على Proxmox LXC، نفّذ: update\n\nأو يدوياً:\n  docker pull {image}\n  docker stop solar-optimizer && docker rm solar-optimizer\n  docker run -d --name solar-optimizer --restart unless-stopped \\\n    --env-file /opt/solar-ai-optimizer/solar.env \\\n    -v solar-data:/app/data -p 8000:8000 \\\n    {image}"
+      }
+    }
+  },
+  "engine": {
+    "reserve": {
+      "main": "هدف الاحتياطي {target}% (المحرّك: {driver}). حد الاكتفاء الذاتي {autonomy}% ({hours}س @ {load}واط)؛ جسر شمسي {bridge}% (جسر {bridge_kwh} كيلوواط·س يشمل هامش {buffer}%).{extra_cold}{extra_heat}{extra_degraded}",
+      "cold_snap": " موجة برد: {hdh} ساعة-درجة تدفئة (24س) ترفع الحمل المتوقع.",
+      "heat_wave": " موجة حر: {cdh} ساعة-درجة تبريد (24س) ترفع الحمل المتوقع.",
+      "degraded_buffer": " توقّع متدهور/قديم — هامش إضافي محافظ.",
+      "driver_solar_bridge": "جسر-شمسي",
+      "driver_autonomy_floor": "حد-اكتفاء"
+    },
+    "summary": {
+      "with_priorities_present": "{prefix}الأولويات: {order}. SOC {soc} مقابل احتياطي {target}% | الشبكة متوفرة | خطر انقطاع: {risk}.{advisory_suffix}{extra}",
+      "with_priorities_absent": "{prefix}الأولويات: {order}. SOC {soc} مقابل احتياطي {target}% | الشبكة غير متوفرة | خطر انقطاع: {risk}.{advisory_suffix}{extra}",
+      "priorities_prefix": "الأولويات: {order}. ",
+      "grid_present": "الشبكة متوفرة",
+      "grid_absent": "الشبكة غير متوفرة",
+      "soc_unknown": "?"
+    },
+    "advisory": {
+      "surplus": "فائض متاح ({kw} كيلوواط) والبطارية ممتلئة: وجّه للأحمال القابلة للتأجيل (سخان/سيارة/مضخات) بدلاً من التقليم."
+    },
+    "override": {
+      "force_grid_charge_plan": "تجاوز المشغّل: فرض شحن الشبكة بأقصى تيار آمن.",
+      "force_grid_charge": "تجاوز المشغّل: فرض شحن الشبكة.",
+      "disable_grid_charge_plan": "تجاوز المشغّل: تعطيل شحن الشبكة.",
+      "disable_grid_charge": "تجاوز المشغّل: تعطيل شحن الشبكة.",
+      "grid_charge_zero": "تجاوز المشغّل: تيار شحن الشبكة إلى 0."
+    },
+    "grid": {
+      "absent": "الشبكة غير متوفرة؛ تعطيل شحن الشبكة.",
+      "reserve_met": "هدف الاحتياطي {target}% محقق (SOC {soc}%); إيقاف شحن الشبكة.",
+      "cap_chain_below_threshold": "سلسلة السقف: {notes}; دون عتبة الإيقاف.",
+      "cap_chain": "سلسلة السقف: {notes}",
+      "cap_chain_no_factors": "سلسلة السقف: لم تُطبَّق عوامل.",
+      "legacy_top_up": "الشبكة متوفرة و SOC {soc}% < هدف الاحتياطي {target}%: تعبئة فرصية بالحد الأقصى.",
+      "charge_hard": "شحن قوي ما دامت الشبكة متاحة ({amps} أمبير).",
+      "ramp_to": "الشبكة متوفرة، SOC {soc}% < الهدف {target}%: تصاعد إلى {amps} أمبير.",
+      "telemetry_stale": "بيانات قديمة؛ تعطيل شحن الشبكة (محافظ).",
+      "grid_charge_zero_conservative": "تيار شحن الشبكة إلى 0 (محافظ)."
+    },
+    "shed": {
+      "restore_grid": "الشبكة متوفرة: استعادة المستوى (البطارية غير معرّضة).",
+      "conservative": "SOC غير معروف أو بيانات قديمة: فصل '{tier}' بحذر.",
+      "shed_tier": "SOC {soc}% < {threshold}%: فصل '{tier}' لحماية الاحتياطي.",
+      "restore_tier": "SOC {soc}% >= {threshold}%: استعادة '{tier}'.",
+      "emergency_restore": "استعادة المستوى بعد الطوارئ / مفتاح الإيقاف."
+    },
+    "skip": {
+      "capability_not_mapped": "القدرة غير مربوطة",
+      "hard_bound_reject": "رفض حد صارم: {detail}",
+      "ha_stale": "HA قديم؛ منع الكتابة بواسطة المراقب",
+      "shadow_mode": "وضع shadow",
+      "no_shed_snapshot": "لا لقطة فصل؛ لا استعادة",
+      "was_off_before_shed": "كان مغلقاً قبل الفصل",
+      "recently_written": "كُتب مؤخراً (دون تغيير)",
+      "already_set": "مضبوط مسبقاً",
+      "rate_limited": "محدّد المعدل ({elapsed}س < {min}س)"
+    },
+    "reject": {
+      "negative_grid_charge": "تيار شحن شبكة سالب",
+      "exceeds_max_grid_charge": "يتجاوز max_grid_charge_a ({max} أمبير)"
+    },
+    "mpc": {
+      "prefix": "MPC: ",
+      "prefix_with_reserve": "MPC[{horizon}س]: احتياطي={reserve}% ",
+      "survivable": "قابل للبقاء (بدون شبكة).",
+      "not_survivable": "غير قابل للبقاء بدون شبكة: ~{kwh} كيلوواط·س غير مُخدمة."
+    },
+    "priority": {
+      "resilience": "المرونة",
+      "savings": "التوفير",
+      "self_sufficiency": "الاكتفاء الذاتي"
+    },
+    "risk": {
+      "low": "منخفض",
+      "moderate": "متوسط",
+      "high": "مرتفع",
+      "critical": "حرج"
+    },
+    "ramp": {
+      "cap_chain_line": "{factor}: {note} -> {ceiling} أمبير",
+      "soc_gap": "SOC {soc}% مقابل الهدف {target}% (إلحاح {urgency}%)",
+      "remaining_solar": {
+        "at_target": "SOC عند/فوق الهدف — لا تقليم",
+        "no_forecast": "لا توقّع شمسي متبقٍ",
+        "covers": "الشمس المتبقية {kwh} كيلوواط·س تغطي الحاجة ({cover}%)",
+        "insufficient": "الشمس المتبقية {kwh} كيلوواط·س غير كافية"
+      },
+      "next_solar": {
+        "no_forecast": "لا توقّع شمسي",
+        "none": "لا شمس خلال {horizon}س",
+        "peak": "ذروة {kw} كيلوواط شمس خلال {horizon}س",
+        "modest": "شمس متواضعة ({kw} كيلوواط) خلال {horizon}س"
+      },
+      "load": {
+        "unknown": "الحمل/الطاقة الشمسية غير معروفين",
+        "surplus": "فائض طاقة شمسية ({watts} واط صافي)",
+        "import_need": "حاجة استيراد صافية {watts} واط"
+      },
+      "battery": {
+        "unknown": "قدرة البطارية غير معروفة",
+        "not_charging": "لا شحن من الطاقة الشمسية",
+        "charging": "يشحن بالفعل {amps} أمبير من الطاقة الشمسية ({watts} واط)"
+      },
+      "grid_window": {
+        "unknown": "إحصاءات الشبكة غير معروفة",
+        "none": "لا نوافذ شبكة تاريخية",
+        "short": "نافذة شبكة قصيرة ({minutes} دقيقة متوسط)",
+        "long": "نافذة شبكة طويلة ({minutes} دقيقة متوسط)",
+        "mid": "نافذة شبكة {minutes} دقيقة متوسط"
+      },
+      "blackout_risk": "خطر {risk} (درجة {score}%)",
+      "solar_bridge": {
+        "at_target": "عند/فوق الجسر — لا تقليم",
+        "gap": "فجوة الجسر {gap}% (هدف الجسر {bridge}%)"
+      }
+    }
+  },
+  "forecast": {
+    "degraded": {
+      "solcast_misconfigured": "solcast محدد لكن SOLCAST_API_KEY أو SOLCAST_RESOURCE_ID غير مضبوط",
+      "location_missing": "خط العرض/الطول غير مضبوطين (لا يزال 0,0)؛ توقّع شمسي غير موثوق",
+      "temperature_failed": "فشل مزوّد الحرارة: {error}",
+      "solar_failed": "فشل مزوّد الشمس: {error}",
+      "stale_solar": "استخدام توقّع شمسي سابق/قديم"
+    }
+  },
+  "discovery": {
+    "entity_not_in_registry": "الكيان غير موجود في السجل: {entity}",
+    "no_device_id": "لا device_id للكيان؛ اضبط state_entities يدوياً."
+  },
+  "assistant": {
+    "system": {
+      "base": "أنت مساعد محسّن طاقة شمسية/بطارية منزلي يعمل على Home Assistant. ",
+      "answer": "أجب بإيجاز ووضوح باستخدام السياق المباشر المقدّم. إذا طُلب منك شرح قرار، اذكر هدف الاحتياطي وSOC والتوقّع الشمسي وحالة الشبكة."
+    },
+    "priorities": {
+      "header": "أولويات التحسين المضبوطة من المستخدم (الأعلى أولاً): ",
+      "line": "{index}) {name}",
+      "footer": ". الشبكة غير متوقعة وتُعامل كمورد تفاعلي وفرصي فقط (لا تُتوقَّع أبداً)."
+    },
+    "heuristic": {
+      "soc_vs_reserve": "البطارية عند {soc}% مقابل هدف احتياطي {reserve}%.",
+      "grid_present": "الشبكة متوفرة.",
+      "grid_absent": "الشبكة غير متوفرة.",
+      "blackout_risk": "خطر الانقطاع {risk}.",
+      "no_context": "لا يوجد سياق قرار بعد."
+    },
+    "prompt": {
+      "respond_in": "أجب باللغة {language}."
+    }
+  }
+}

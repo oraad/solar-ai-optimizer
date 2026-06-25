@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from datetime import datetime, timedelta, timezone
 
+from .i18n import msg
+from .i18n.skip_keys import SKIP_SHADOW_MODE
 from .models import (
     BlackoutRisk,
     Capability,
@@ -29,7 +31,6 @@ def synthetic_telemetry(ts: datetime | None = None) -> Telemetry:
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
     hour = now.hour + now.minute / 60.0
-    # Bell curve peaking ~13:00 local (approximate using UTC+2 offset).
     solar_hour = (hour + 2) % 24
     pv_factor = max(0.0, math.sin((solar_hour - 6) * math.pi / 12))
     pv_power = round(4200 * pv_factor, 0)
@@ -124,26 +125,36 @@ def demo_decision(ts: datetime | None = None, shadow_mode: bool = True) -> Decis
             target_soc=52.0,
             solar_bridge_soc=48.0,
             autonomy_floor_soc=44.0,
-            rationale=(
-                "Defending 52% reserve: 12 h autonomy at 400 W critical load plus "
-                "15% solar-bridge buffer. Grid present — opportunistic top-up available."
+            rationale=msg(
+                "engine.grid.legacy_top_up",
+                soc=52,
+                target=52,
             ),
         ),
         actions=[
             ControlAction(
                 capability=Capability.GRID_CHARGE_ENABLE,
                 value=True,
-                reason="Grid available; SOC below target with solar ramp expected.",
+                reason=msg("engine.grid.ramp_to", soc=52, target=52, amps=40),
             ),
             ControlAction(
                 capability=Capability.MAX_GRID_CHARGE_CURRENT,
                 value=40.0,
-                reason="Moderate grid charge to reach target SOC before evening load.",
+                reason=msg("engine.grid.charge_hard", amps=40),
             ),
         ],
         blackout_risk=BlackoutRisk.LOW,
         blackout_risk_score=0.12,
-        summary="Shadow: would enable grid charge at 40 A to reach 52% reserve.",
+        summary=msg(
+            "engine.summary.with_priorities_present",
+            order="resilience → savings → self-sufficiency",
+            soc="52",
+            target=52,
+            risk="low",
+            extra="",
+            advisory_suffix="",
+            advisory_kw=0,
+        ),
         shadow_mode=shadow_mode,
     )
 
@@ -155,7 +166,7 @@ def demo_execution(ts: datetime | None = None) -> ExecutionResult:
         requested=True,
         applied=False,
         verified=False,
-        skipped_reason="shadow_mode",
+        skipped_reason=SKIP_SHADOW_MODE,
         ts=now,
     )
 
@@ -168,7 +179,7 @@ def demo_shed_execution(ts: datetime | None = None) -> ShedResult:
         desired_on=True,
         applied=False,
         verified=False,
-        skipped_reason="shadow_mode",
+        skipped_reason=SKIP_SHADOW_MODE,
         ts=now,
     )
 

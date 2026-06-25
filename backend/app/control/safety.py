@@ -10,6 +10,14 @@ import logging
 from datetime import datetime
 
 from ..config import BatteryConfig, ControlConfig, GridChargeConfig
+from ..i18n.skip_keys import (
+    REJECT_EXCEEDS_MAX_GRID_CHARGE,
+    REJECT_NEGATIVE_GRID_CHARGE,
+    SKIP_ALREADY_SET,
+    SKIP_RATE_LIMITED,
+    SKIP_RECENTLY_WRITTEN,
+    skip_key,
+)
 from ..models import Capability, utcnow
 
 log = logging.getLogger("control.safety")
@@ -43,16 +51,17 @@ class SafetyGuard:
     def violates_hard_bounds(
         self, capability: Capability, value: float | bool
     ) -> str | None:
-        """Return a reason string if the write must be REJECTED outright."""
+        """Return a skip/reject key if the write must be REJECTED outright."""
         if not self._control.enforce_hard_bounds:
             return None
         if capability is Capability.MAX_GRID_CHARGE_CURRENT:
             amps = float(value)
             if amps < 0:
-                return "negative grid charge current"
+                return REJECT_NEGATIVE_GRID_CHARGE
             if amps > self._grid_charge.max_grid_charge_a:
-                return (
-                    f"exceeds max_grid_charge_a ({self._grid_charge.max_grid_charge_a} A)"
+                return skip_key(
+                    REJECT_EXCEEDS_MAX_GRID_CHARGE,
+                    max=self._grid_charge.max_grid_charge_a,
                 )
         return None
 
@@ -63,12 +72,12 @@ class SafetyGuard:
         current: float | bool | None,
         now: datetime | None = None,
     ) -> str | None:
-        """Idempotency + EEPROM rate limiting. Returns skip reason or None."""
+        """Idempotency + EEPROM rate limiting. Returns skip reason key or None."""
         now = now or utcnow()
 
         # Idempotency: skip if the inverter already holds the desired value.
         if current is not None and self._equal(capability, value, current):
-            return "already set"
+            return SKIP_ALREADY_SET
 
         last = self._last_write.get(capability)
         if last is not None:
@@ -77,12 +86,13 @@ class SafetyGuard:
             if self._equal(capability, value, last_val):
                 # We already commanded this recently; avoid re-writing.
                 if elapsed < self._control.min_write_interval_seconds:
-                    return "recently written (unchanged)"
+                    return SKIP_RECENTLY_WRITTEN
             elif elapsed < self._control.min_write_interval_seconds:
                 # Different value but too soon -> protect EEPROM.
-                return (
-                    f"rate-limited ({elapsed:.0f}s < "
-                    f"{self._control.min_write_interval_seconds}s)"
+                return skip_key(
+                    SKIP_RATE_LIMITED,
+                    elapsed=int(elapsed),
+                    min=self._control.min_write_interval_seconds,
                 )
         return None
 

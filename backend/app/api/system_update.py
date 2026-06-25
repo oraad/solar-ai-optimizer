@@ -17,6 +17,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 
 from .. import __version__
+from ..i18n import api_error, t
+from ..i18n.serialize import localize_payload
 from ..config import Settings, get_settings
 from .session import SessionUser, require_admin
 
@@ -44,17 +46,6 @@ MIN_SELF_UPDATE_VERSION = "0.5.10"
 UPDATE_SCRIPT = "/app/scripts/docker-self-update.sh"
 RELEASES_LIST_LIMIT = 20
 
-DOWNGRADE_WARNING = (
-    "Installing an older release will restart the service. A backup of /app/data is "
-    "created automatically before every install. Downgrading may be incompatible if "
-    "config or database schema changed since that version."
-)
-
-MISSING_DOCKER_CLI_DETAIL = (
-    "Docker CLI is not available in this container. Pull "
-    f"ghcr.io/oraad/solar-ai-optimizer:latest (v{MIN_SELF_UPDATE_VERSION}+) and recreate the "
-    "container once manually; see docs/installation.md."
-)
 RELEASE_CACHE_TTL_SECONDS = 15 * 60
 
 _release_cache: dict[str, Any] | None = None
@@ -160,51 +151,24 @@ def _apply_instructions(
         settings.self_update_image
     )
     if deployment == "addon":
-        return (
-            "Update via the Home Assistant Supervisor: Settings → Add-ons → "
-            "Solar AI Optimizer → Update."
-        )
+        return t("api.update.instructions.addon")
     if deployment in ("docker", "proxmox"):
         if not _docker_cli_available():
-            return MISSING_DOCKER_CLI_DETAIL
+            return t(
+                "api.update.docker_cli_missing",
+                min_version=MIN_SELF_UPDATE_VERSION,
+            )
         return None
     if deployment == "compose":
         if version:
-            return (
-                f"From the project directory:\n"
-                f"  docker pull {image}\n"
-                f"  docker compose up -d --build\n\n"
-                f"Or set SELF_UPDATE_IMAGE={image} and enable self-update "
-                f"(see docs/installation.md)."
+            return t(
+                "api.update.instructions.compose_versioned",
+                image=image,
             )
-        return (
-            "From the project directory:\n"
-            "  docker compose pull\n"
-            "  docker compose up -d --build\n\n"
-            "Or enable self-update with docker-compose.self-update.yml "
-            "(see docs/installation.md)."
-        )
+        return t("api.update.instructions.compose")
     if version:
-        return (
-            f"On Proxmox LXC, run: update\n\n"
-            f"Or manually:\n"
-            f"  docker pull {image}\n"
-            f"  docker stop solar-optimizer && docker rm solar-optimizer\n"
-            f"  docker run -d --name solar-optimizer --restart unless-stopped \\\n"
-            f"    --env-file /opt/solar-ai-optimizer/solar.env \\\n"
-            f"    -v solar-data:/app/data -p 8000:8000 \\\n"
-            f"    {image}"
-        )
-    return (
-        "On Proxmox LXC, run: update\n\n"
-        "Or manually:\n"
-        "  docker pull ghcr.io/oraad/solar-ai-optimizer:latest\n"
-        "  docker stop solar-optimizer && docker rm solar-optimizer\n"
-        "  docker run -d --name solar-optimizer --restart unless-stopped \\\n"
-        "    --env-file /opt/solar-ai-optimizer/solar.env \\\n"
-        "    -v solar-data:/app/data -p 8000:8000 \\\n"
-        "    ghcr.io/oraad/solar-ai-optimizer:latest"
-    )
+        return t("api.update.instructions.proxmox_versioned", image=image)
+    return t("api.update.instructions.proxmox")
 
 
 def _data_dir(settings: Settings) -> Path:
@@ -687,16 +651,16 @@ def _resolve_target_version(
     if requested:
         normalized = _normalize_version(requested)
         if not normalized:
-            raise HTTPException(status_code=400, detail="Invalid version format.")
+            raise api_error("api.update.invalid_version", 400)
         known = {_normalize_version(str(r.get("tag_name", ""))) for r in releases}
         if normalized not in known:
-            raise HTTPException(status_code=400, detail="Unknown or unavailable release.")
+            raise api_error("api.update.unknown_release", 400)
         return normalized
     if not summaries:
-        raise HTTPException(status_code=503, detail="Could not resolve latest release.")
+        raise api_error("api.update.release_unavailable", 503)
     latest = _normalize_version(str(releases[0].get("tag_name", "")))
     if not latest:
-        raise HTTPException(status_code=503, detail="Could not resolve latest release.")
+        raise api_error("api.update.release_unavailable", 503)
     return latest
 
 
@@ -742,7 +706,18 @@ async def build_update_info(
         else None
     )
 
-    return {
+    progress = _load_update_progress(settings)
+    if progress and isinstance(progress.get("message"), str):
+        progress_msgs = {
+            "Preparing update": "api.update.preparing_update",
+            "Preparing restore": "api.update.preparing_restore",
+        }
+        key = progress_msgs.get(progress["message"])
+        if key:
+            progress = {**progress, "message": t(key)}
+
+    return localize_payload(
+        {
         "current_version": current,
         "latest_version": latest_version,
         "update_available": update_available,
@@ -753,16 +728,17 @@ async def build_update_info(
         "deployment": deployment,
         "apply_instructions": _apply_instructions(settings, deployment),
         "update_in_progress": _update_in_progress(settings),
-        "update_progress": _load_update_progress(settings),
+        "update_progress": progress,
         "release_checked_at": release_checked_at,
         "release_from_cache": release_from_cache,
         "releases": release_summaries,
         "previous_version": previous_version,
         "min_self_update_version": MIN_SELF_UPDATE_VERSION,
         "backups": _list_backups(settings),
-        "downgrade_warning": DOWNGRADE_WARNING,
+        "downgrade_warning": t("api.update.downgrade_warning"),
         "update_failed": update_failed,
-    }
+        }
+    )
 
 
 @router.get("/update")
@@ -786,13 +762,14 @@ async def apply_update(
             and _docker_socket_available()
             and not _docker_cli_available()
         ):
-            raise HTTPException(status_code=503, detail=MISSING_DOCKER_CLI_DETAIL)
-        raise HTTPException(
-            status_code=403,
-            detail="Self-update is not enabled for this deployment.",
-        )
+            raise api_error(
+                "api.update.docker_cli_missing",
+                503,
+                min_version=MIN_SELF_UPDATE_VERSION,
+            )
+        raise api_error("api.update.self_update_disabled", 403)
     if _update_in_progress(settings):
-        raise HTTPException(status_code=409, detail="Update already in progress.")
+        raise api_error("api.update.already_in_progress", 409)
 
     current = __version__
     releases_raw, _ = await _fetch_releases(force=True)
@@ -801,12 +778,13 @@ async def apply_update(
     )
 
     if _parse_version(target_version) == _parse_version(current):
-        raise HTTPException(status_code=400, detail="Already running this version.")
+        raise api_error("api.update.already_running_version", 400)
     if _version_below_min(target_version):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Version {target_version} is below minimum {MIN_SELF_UPDATE_VERSION} "
-            "for one-click self-update.",
+        raise api_error(
+            "api.update.version_below_minimum",
+            400,
+            version=target_version,
+            min_version=MIN_SELF_UPDATE_VERSION,
         )
 
     target_image = _resolve_image(settings.self_update_image, target_version)
@@ -826,7 +804,7 @@ async def apply_update(
         {
             "operation": "update",
             "stage": "starting",
-            "message": "Preparing update",
+            "message": t("api.update.preparing_update"),
             "from_version": current,
             "to_version": target_version,
         },
@@ -843,14 +821,16 @@ async def apply_update(
         (_data_dir(settings) / UPDATE_PENDING_FILE).unlink(missing_ok=True)
         _clear_update_progress(settings)
         log.exception("Failed to spawn updater")
-        raise HTTPException(status_code=500, detail=f"Failed to start update: {exc}") from exc
+        raise api_error("api.update.start_failed", 500, error=str(exc)) from exc
 
-    payload = {
-        "status": "accepted",
-        "target_version": target_version,
-        "is_downgrade": is_downgrade,
-        "message": "Update started; service will restart.",
-    }
+    payload = localize_payload(
+        {
+            "status": "accepted",
+            "target_version": target_version,
+            "is_downgrade": is_downgrade,
+            "message": t("api.update.update_started"),
+        }
+    )
     return Response(status_code=202, content=json.dumps(payload), media_type="application/json")
 
 
@@ -861,26 +841,23 @@ async def restore_update_backup(
     settings: Settings = Depends(get_settings),
 ) -> Response:
     if not _can_apply(settings):
-        raise HTTPException(
-            status_code=403,
-            detail="Backup restore is not enabled for this deployment.",
-        )
+        raise api_error("api.update.restore_disabled", 403)
     if _update_in_progress(settings):
-        raise HTTPException(status_code=409, detail="Update already in progress.")
+        raise api_error("api.update.already_in_progress", 409)
 
     backups = _list_backups(settings)
     if not backups:
-        raise HTTPException(status_code=404, detail="No backups available.")
+        raise api_error("api.update.no_backups", 404)
 
     backup_name = body.backup if body and body.backup else backups[0]["name"]
     if not any(b["name"] == backup_name for b in backups):
-        raise HTTPException(status_code=404, detail="Backup not found.")
+        raise api_error("api.update.backup_not_found", 404)
 
     deploy_state = _load_deploy_state(settings) or {}
     pending = _read_json_file(_data_dir(settings) / UPDATE_PENDING_FILE) or {}
     restore_image = _resolve_restore_image(settings, deploy_state, pending)
     if not restore_image:
-        raise HTTPException(status_code=400, detail="Could not determine image for restore.")
+        raise api_error("api.update.restore_image_unknown", 400)
 
     _clear_update_failed(settings)
     _set_update_lock(settings)
@@ -889,7 +866,7 @@ async def restore_update_backup(
         {
             "operation": "restore",
             "stage": "starting",
-            "message": "Preparing restore",
+            "message": t("api.update.preparing_restore"),
             "from_version": _image_version(str(restore_image)),
             "to_version": _image_version(str(restore_image)),
         },
@@ -904,11 +881,13 @@ async def restore_update_backup(
         _lock_path(settings).unlink(missing_ok=True)
         _clear_update_progress(settings)
         log.exception("Failed to spawn restore")
-        raise HTTPException(status_code=500, detail=f"Failed to start restore: {exc}") from exc
+        raise api_error("api.update.restore_start_failed", 500, error=str(exc)) from exc
 
-    payload = {
-        "status": "accepted",
-        "backup": backup_name,
-        "message": "Restore started; service will restart.",
-    }
+    payload = localize_payload(
+        {
+            "status": "accepted",
+            "backup": backup_name,
+            "message": t("api.update.restore_started"),
+        }
+    )
     return Response(status_code=202, content=json.dumps(payload), media_type="application/json")

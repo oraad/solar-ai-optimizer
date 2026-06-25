@@ -17,10 +17,11 @@ from app.engine.priorities import (
 from app.grid.ramp import RampContext, compute_ramp_plan
 from app.config import BatteryConfig, GridChargeConfig, GridChargeFactor, ReserveConfig
 from app.models import BlackoutRisk, GridStats, ReserveTarget, Telemetry
+from tests.conftest import DUMMY_MSG
 
 
 def test_engine_config_rejects_invalid_priority_order():
-    with pytest.raises(ValueError, match="exactly once"):
+    with pytest.raises(ValueError, match="priority_order"):
         EngineConfig(priority_order=["resilience", "resilience", "savings"])
 
 
@@ -127,7 +128,7 @@ def test_savings_first_raises_grid_window_ceiling():
         target_soc=55.0,
         solar_bridge_soc=55.0,
         autonomy_floor_soc=30.0,
-        rationale="test",
+        rationale=DUMMY_MSG,
     )
     base = dict(
         telemetry=Telemetry(battery_soc=40.0, grid_present=True),

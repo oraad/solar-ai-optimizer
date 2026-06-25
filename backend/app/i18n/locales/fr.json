@@ -62,6 +62,7 @@
       "driver_autonomy_floor": "plancher-autonomie"
     },
     "summary": {
+      "main": "SOC {soc} vs réserve {target}% | {grid} | risque de coupure : {risk}. {rationale}",
       "with_priorities_present": "{prefix}Priorités : {order}. SOC {soc} vs réserve {target}% | réseau PRÉSENT | risque de coupure : {risk}.{advisory_suffix}{extra}",
       "with_priorities_absent": "{prefix}Priorités : {order}. SOC {soc} vs réserve {target}% | réseau absent | risque de coupure : {risk}.{advisory_suffix}{extra}",
       "priorities_prefix": "Priorités : {order}. ",

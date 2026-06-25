@@ -156,18 +156,18 @@ def _apply_instructions(
         if not _docker_cli_available():
             return t(
                 "api.update.docker_cli_missing",
-                min_version=MIN_SELF_UPDATE_VERSION,
+                {"min_version": MIN_SELF_UPDATE_VERSION},
             )
         return None
     if deployment == "compose":
         if version:
             return t(
                 "api.update.instructions.compose_versioned",
-                image=image,
+                {"image": image},
             )
         return t("api.update.instructions.compose")
     if version:
-        return t("api.update.instructions.proxmox_versioned", image=image)
+        return t("api.update.instructions.proxmox_versioned", {"image": image})
     return t("api.update.instructions.proxmox")
 
 

@@ -6,7 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models import Decision, Override, ReserveTarget, utcnow
+from app.models import BlackoutRisk, Decision, Override, ReserveTarget, utcnow
+from tests.conftest import DUMMY_MSG
 
 
 def _decision_with_shed() -> Decision:
@@ -18,7 +19,7 @@ def _decision_with_shed() -> Decision:
             target_soc=50,
             solar_bridge_soc=55,
             autonomy_floor_soc=30,
-            rationale="test",
+            rationale=DUMMY_MSG,
         ),
         actions=[],
         shed_actions=[
@@ -26,12 +27,12 @@ def _decision_with_shed() -> Decision:
                 tier="pool",
                 entity="switch.pool",
                 desired_on=False,
-                reason="test shed",
+                reason=DUMMY_MSG,
             )
         ],
-        blackout_risk="low",
+        blackout_risk=BlackoutRisk.LOW,
         blackout_risk_score=0.1,
-        summary="test",
+        summary=DUMMY_MSG,
         shadow_mode=True,
     )
 

@@ -4,6 +4,9 @@ import type { EntityInfo } from "./types.js";
 
 export const SHED_ENTITY_DOMAINS = ["switch", "input_boolean"] as const;
 
+/** Stable array reference for Lit property binding in load-shedding tier inputs. */
+export const SHED_DOMAINS: string[] = ["switch", "input_boolean"];
+
 export const SHED_DATALIST_ID = entityDatalistId("shed");
 
 export function entityDatalistId(key: string): string {

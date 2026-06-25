@@ -251,12 +251,12 @@ export class SettingsPanel extends LitElement {
   @property({ attribute: false }) status: SystemStatus | null = null;
   @property({ attribute: false }) session: SessionInfo | null = null;
   @property({ attribute: false }) updateInfo: UpdateInfo | null = null;
+  @property({ attribute: false }) entities: EntityInfo[] = [];
+  @property({ attribute: false }) entitiesConnected = false;
 
   @state() private draft: AppConfigView | null = null;
   @state() private raw = "";
   @state() private busy = false;
-  @state() private entities: EntityInfo[] = [];
-  @state() private entitiesConnected = false;
   @state() private apiToken = "";
   @state() private mpcAvailable = false;
   @state() private mlAvailable = false;
@@ -283,7 +283,6 @@ export class SettingsPanel extends LitElement {
     this.apiToken = getApiToken();
     if (this.config) this.setDraft(this.config);
     void this.loadConfig();
-    void this.loadEntities();
     void this.loadCapabilities();
     this.maybeResumeUpdateWatch();
   }
@@ -358,15 +357,8 @@ export class SettingsPanel extends LitElement {
     }
   }
 
-  private async loadEntities(): Promise<void> {
-    try {
-      const res = await api.entities();
-      this.entities = res.entities;
-      this.entitiesConnected = res.connected;
-    } catch {
-      this.entities = [];
-      this.entitiesConnected = false;
-    }
+  private requestEntityReload(): void {
+    window.dispatchEvent(new Event("solar-reload-entities"));
   }
 
   private setDraft(cfg: AppConfigView): void {
@@ -536,7 +528,7 @@ export class SettingsPanel extends LitElement {
     const ok = await runWithToast(fn, { loading, success });
     if (ok) {
       await this.loadConfig();
-      void this.loadEntities();
+      this.requestEntityReload();
     }
     this.busy = false;
   }
@@ -1642,7 +1634,7 @@ export class SettingsPanel extends LitElement {
           ${this.entitiesConnected
             ? html`Start typing to pick from your Home Assistant entities.`
             : html`Home Assistant not connected — set the connection above and
-                <button class="link" @click=${() => void this.loadEntities()}>reload entities</button>
+                <button class="link" @click=${() => this.requestEntityReload()}>reload entities</button>
                 for autocomplete.`}
         </p>
         <p class="label">Read sensors</p>

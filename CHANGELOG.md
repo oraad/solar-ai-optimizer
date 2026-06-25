@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.15] - 2026-06-25
+
+### Fixed
+
+- **Load shedding** tier entity autocomplete: hoist HA entity list to app root so cold tab opens get populated datalists; stabilize shed domain bindings and add regression tests
+
 ## [0.5.14] - 2026-06-25
 
 ### Added

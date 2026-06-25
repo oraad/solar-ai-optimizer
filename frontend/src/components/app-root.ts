@@ -5,6 +5,7 @@ import { api, AuthRequiredError, live } from "../api.js";
 import { sharedStyles } from "../styles.js";
 import type {
   AppConfigView,
+  EntityInfo,
   ExecutionResult,
   ForecastBundle,
   GridStats,
@@ -228,6 +229,8 @@ export class SolarApp extends LitElement {
   @state() private gridStats: GridStats | null = null;
   @state() private forecast: ForecastBundle | null = null;
   @state() private config: AppConfigView | null = null;
+  @state() private entities: EntityInfo[] = [];
+  @state() private entitiesConnected = false;
   @state() private execResults: ExecutionResult[] = [];
   @state() private shedResults: ShedResult[] = [];
   @state() private tab: Tab = "overview";
@@ -279,6 +282,7 @@ export class SolarApp extends LitElement {
     window.addEventListener("solar-login-success", this.onLoginSuccess);
     window.addEventListener("solar-logout", this.onLogout);
     window.addEventListener("solar-update-info", this.onUpdateInfo as EventListener);
+    window.addEventListener("solar-reload-entities", this.onReloadEntities);
     void this.initAuth();
     this.clockTimer = window.setInterval(() => (this.now = Date.now()), 1000);
   }
@@ -294,6 +298,7 @@ export class SolarApp extends LitElement {
     window.removeEventListener("solar-login-success", this.onLoginSuccess);
     window.removeEventListener("solar-logout", this.onLogout);
     window.removeEventListener("solar-update-info", this.onUpdateInfo as EventListener);
+    window.removeEventListener("solar-reload-entities", this.onReloadEntities);
     if (this.pollTimer) window.clearInterval(this.pollTimer);
     if (this.clockTimer) window.clearInterval(this.clockTimer);
   }
@@ -325,6 +330,10 @@ export class SolarApp extends LitElement {
   private onUpdateInfo = (e: Event): void => {
     const detail = (e as CustomEvent<UpdateInfo>).detail;
     if (detail) this.updateInfo = detail;
+  };
+
+  private onReloadEntities = (): void => {
+    void this.loadEntities();
   };
 
   private dismissBootSplash(): void {
@@ -492,11 +501,24 @@ export class SolarApp extends LitElement {
       } catch (e) {
         this.noteApiError(e);
       }
+      await this.loadEntities();
       const now = Date.now();
       if (now - this.lastForcedUpdateCheck >= UPDATE_FORCE_INTERVAL_MS) {
         this.lastForcedUpdateCheck = now;
         await this.refreshUpdateInfo(true);
       }
+    }
+  }
+
+  private async loadEntities(): Promise<void> {
+    if (!this.isAdmin) return;
+    try {
+      const res = await api.entities();
+      this.entities = res.entities;
+      this.entitiesConnected = res.connected;
+    } catch {
+      this.entities = [];
+      this.entitiesConnected = false;
     }
   }
 
@@ -649,9 +671,9 @@ export class SolarApp extends LitElement {
       case "assistant":
         return html`<div class="layout"><solar-assistant-panel class="span-12 center"></solar-assistant-panel></div>`;
       case "settings":
-        return html`<div class="layout"><solar-settings-panel class="span-12 center" .config=${this.config} .status=${this.status} .session=${this.session} .updateInfo=${this.updateInfo}></solar-settings-panel></div>`;
+        return html`<div class="layout"><solar-settings-panel class="span-12 center" .config=${this.config} .status=${this.status} .session=${this.session} .updateInfo=${this.updateInfo} .entities=${this.entities} .entitiesConnected=${this.entitiesConnected}></solar-settings-panel></div>`;
       case "load_shedding":
-        return html`<div class="layout"><solar-load-shedding-panel class="span-12 center" .config=${this.config} .status=${this.status}></solar-load-shedding-panel></div>`;
+        return html`<div class="layout"><solar-load-shedding-panel class="span-12 center" .config=${this.config} .entities=${this.entities} .entitiesConnected=${this.entitiesConnected}></solar-load-shedding-panel></div>`;
       default:
         return html`
           <div class="layout">

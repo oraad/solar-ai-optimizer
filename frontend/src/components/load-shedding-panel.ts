@@ -1,8 +1,9 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { repeat } from "lit/directives/repeat.js";
 
 import { api } from "../api.js";
-import { SHED_ENTITY_DOMAINS } from "../entity-datalists.js";
+import { SHED_DOMAINS } from "../entity-datalists.js";
 import { fieldLabel } from "../field-labels.js";
 import { fieldHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
@@ -10,7 +11,7 @@ import { sharedStyles } from "../styles.js";
 import { runWithToast, showToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
-import type { AppConfigView, CompanionEntity, EntityInfo, SystemStatus } from "../types.js";
+import type { AppConfigView, CompanionEntity, EntityInfo } from "../types.js";
 
 function tierSwitches(t: Record<string, unknown>): string[] {
   if (Array.isArray(t.switches)) {
@@ -119,18 +120,16 @@ export class LoadSheddingPanel extends LitElement {
   ];
 
   @property({ attribute: false }) config: AppConfigView | null = null;
-  @property({ attribute: false }) status: SystemStatus | null = null;
+  @property({ attribute: false }) entities: EntityInfo[] = [];
+  @property({ attribute: false }) entitiesConnected = false;
 
   @state() private draft: Record<string, unknown> | null = null;
-  @state() private entities: EntityInfo[] = [];
-  @state() private entitiesConnected = false;
   @state() private busy = false;
   @state() private companionMeta: Record<string, CompanionEntity[]> = {};
 
   connectedCallback(): void {
     super.connectedCallback();
     void this.loadConfig();
-    void this.loadEntities();
   }
 
   updated(changed: Map<string, unknown>): void {
@@ -148,15 +147,8 @@ export class LoadSheddingPanel extends LitElement {
     }
   }
 
-  private async loadEntities(): Promise<void> {
-    try {
-      const res = await api.entities();
-      this.entities = res.entities;
-      this.entitiesConnected = res.connected;
-    } catch {
-      this.entities = [];
-      this.entitiesConnected = false;
-    }
+  private requestEntityReload(): void {
+    window.dispatchEvent(new Event("solar-reload-entities"));
   }
 
   private patch(mutator: (d: Record<string, unknown>) => void): void {
@@ -400,7 +392,7 @@ export class LoadSheddingPanel extends LitElement {
           ${this.entitiesConnected
             ? html`Start typing to pick from your Home Assistant entities.`
             : html`Home Assistant not connected — set the connection in Settings and
-                <button class="link" @click=${() => void this.loadEntities()}>reload entities</button>
+                <button class="link" @click=${() => this.requestEntityReload()}>reload entities</button>
                 for autocomplete.`}
         </p>
         ${tiers.map((t, i) => {
@@ -493,7 +485,9 @@ export class LoadSheddingPanel extends LitElement {
                   +
                 </button>
               </div>
-              ${tierSwitches(t).map(
+              ${repeat(
+                tierSwitches(t),
+                (_entity, j) => `${i}-${j}`,
                 (entity, j) => {
                   const companionIds = se[entity] ?? [];
                   return html`
@@ -502,7 +496,7 @@ export class LoadSheddingPanel extends LitElement {
                         <solar-entity-input
                           .entityId=${entity}
                           .entities=${this.entities}
-                          .domains=${[...SHED_ENTITY_DOMAINS]}
+                          .domains=${SHED_DOMAINS}
                           placeholder="switch.… or input_boolean.…"
                           @entity-id-change=${(e: CustomEvent<string | null>) =>
                             this.setTierSwitch(i, j, e.detail ?? "")}

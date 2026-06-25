@@ -10,8 +10,15 @@ import { sharedStyles } from "../styles.js";
 import { dismissToast, runWithToast, showToast, updateToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
-import type { AppConfigView, EntityInfo, ReleaseSummary, SessionInfo, SystemStatus, UpdateInfo, UpdateProgress, UpdateStage } from "../types.js";
+import type { AppConfigView, EntityInfo, ReleaseSummary, SessionInfo, SystemStatus, UpdateInfo, UpdateProgress } from "../types.js";
 import { renderMarkdown } from "../markdown.js";
+import {
+  activeStageIndex,
+  flowStages,
+  progressHeaderTitle,
+  stageLabel,
+  UPDATE_LOG_HINT,
+} from "../update-progress.js";
 
 type Section = Record<string, unknown>;
 
@@ -49,48 +56,6 @@ const SCHEMA_DOWNGRADE_NOTE =
   "If you saved config on a newer release, downgrading may ignore newer settings keys " +
   "(e.g. grid_charge.max_grid_charge_a on releases before schema v3).";
 
-const UPDATE_STAGE_LABELS: Record<UpdateStage, string> = {
-  starting: "Preparing update…",
-  backing_up: "Backing up data…",
-  pulling: "Pulling container image…",
-  stopping: "Stopping current container…",
-  restoring_data: "Restoring backup data…",
-  recreating: "Starting updated container…",
-  finishing: "Finalizing…",
-  failed: "Update failed",
-};
-
-const UPDATE_FLOW_STAGES: UpdateStage[] = [
-  "starting",
-  "backing_up",
-  "pulling",
-  "stopping",
-  "recreating",
-  "finishing",
-];
-
-const RESTORE_FLOW_STAGES: UpdateStage[] = [
-  "starting",
-  "stopping",
-  "restoring_data",
-  "recreating",
-  "finishing",
-];
-
-function stageLabel(stage: UpdateStage, progress?: UpdateProgress | null): string {
-  if (progress?.message && progress.stage === stage) return progress.message;
-  return UPDATE_STAGE_LABELS[stage] ?? stage;
-}
-
-function flowStages(operation: UpdateProgress["operation"]): UpdateStage[] {
-  return operation === "restore" ? RESTORE_FLOW_STAGES : UPDATE_FLOW_STAGES;
-}
-
-function stageIndex(stages: UpdateStage[], stage: UpdateStage): number {
-  const idx = stages.indexOf(stage);
-  return idx >= 0 ? idx : 0;
-}
-
 type OptimizationPriorityKey = (typeof DEFAULT_PRIORITY_ORDER)[number];
 
 // Read-only helper fields returned by the API that must not be edited.
@@ -103,16 +68,6 @@ const WRITE_DOMAIN: Record<string, string> = {
   max_grid_charge_current: "number",
 };
 const WRITE_ENTITY_KEYS = Object.keys(WRITE_DOMAIN);
-
-const DATALIST_DOMAINS = [
-  "sensor",
-  "binary_sensor",
-  "switch",
-  "input_boolean",
-  "number",
-  "select",
-  "input_datetime",
-] as const;
 
 function isScalar(v: unknown): v is number | string | boolean {
   return typeof v === "number" || typeof v === "string" || typeof v === "boolean";
@@ -259,6 +214,21 @@ export class SettingsPanel extends LitElement {
         color: var(--muted);
         margin-top: 2px;
       }
+      .update-pull-track {
+        width: 100%;
+        height: 4px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--border) 80%, transparent);
+        margin: 4px 0 2px 22px;
+        max-width: calc(100% - 22px);
+        overflow: hidden;
+      }
+      .update-pull-bar {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--accent);
+        transition: width 0.3s ease;
+      }
       .update-spinner {
         display: inline-block;
         width: 12px;
@@ -281,12 +251,12 @@ export class SettingsPanel extends LitElement {
   @property({ attribute: false }) status: SystemStatus | null = null;
   @property({ attribute: false }) session: SessionInfo | null = null;
   @property({ attribute: false }) updateInfo: UpdateInfo | null = null;
+  @property({ attribute: false }) entities: EntityInfo[] = [];
+  @property({ attribute: false }) entitiesConnected = false;
 
   @state() private draft: AppConfigView | null = null;
   @state() private raw = "";
   @state() private busy = false;
-  @state() private entities: EntityInfo[] = [];
-  @state() private entitiesConnected = false;
   @state() private apiToken = "";
   @state() private mpcAvailable = false;
   @state() private mlAvailable = false;
@@ -313,7 +283,6 @@ export class SettingsPanel extends LitElement {
     this.apiToken = getApiToken();
     if (this.config) this.setDraft(this.config);
     void this.loadConfig();
-    void this.loadEntities();
     void this.loadCapabilities();
     this.maybeResumeUpdateWatch();
   }
@@ -388,15 +357,8 @@ export class SettingsPanel extends LitElement {
     }
   }
 
-  private async loadEntities(): Promise<void> {
-    try {
-      const res = await api.entities();
-      this.entities = res.entities;
-      this.entitiesConnected = res.connected;
-    } catch {
-      this.entities = [];
-      this.entitiesConnected = false;
-    }
+  private requestEntityReload(): void {
+    window.dispatchEvent(new Event("solar-reload-entities"));
   }
 
   private setDraft(cfg: AppConfigView): void {
@@ -566,7 +528,7 @@ export class SettingsPanel extends LitElement {
     const ok = await runWithToast(fn, { loading, success });
     if (ok) {
       await this.loadConfig();
-      void this.loadEntities();
+      this.requestEntityReload();
     }
     this.busy = false;
   }
@@ -636,31 +598,15 @@ export class SettingsPanel extends LitElement {
   }
 
   // ----------------------------------------------------------- entity fields --
-  private hasEntitiesForDomain(domain: string): boolean {
-    return this.entities.some((e) => e.domain === domain);
-  }
-
-  private renderDatalists() {
-    const domainLists = DATALIST_DOMAINS.map((dom) => {
-      const opts = this.entities.filter((e) => e.domain === dom);
-      return html`<datalist id="dl-${dom}">
-        ${opts.map((e) => html`<option value=${e.entity_id}>${e.name}</option>`)}
-      </datalist>`;
-    });
-    return html`${domainLists}`;
-  }
-
   private entityInput(section: string, group: string, key: string, domain: string) {
     const d = this.draft as unknown as Record<string, any>;
     const value = (d[section]?.[group]?.[key] ?? "") as string;
-    const listId = this.hasEntitiesForDomain(domain) ? `dl-${domain}` : "";
     return html`<div class="field">
       <label>${labelWithTip(entityLabel(key), entityHelp(key))}</label>
       <solar-entity-input
         .entityId=${value}
         .entities=${this.entities}
         .domains=${[domain]}
-        .listId=${listId}
         placeholder=${`${domain}.…`}
         @entity-id-change=${(e: CustomEvent<string | null>) =>
           this.setNested(section, group, key, e.detail)}
@@ -680,7 +626,6 @@ export class SettingsPanel extends LitElement {
           .entityId=${value}
           .entities=${this.entities}
           .domains=${["sensor"]}
-          .listId=${this.hasEntitiesForDomain("sensor") ? "dl-sensor" : ""}
           placeholder="sensor.…"
           @entity-id-change=${(e: CustomEvent<string | null>) =>
             this.setNested("inverter", "read", "battery_power", e.detail)}
@@ -736,7 +681,6 @@ export class SettingsPanel extends LitElement {
               .entityId=${heartbeatEntity}
               .entities=${this.entities}
               .domains=${["input_datetime"]}
-              .listId=${this.hasEntitiesForDomain("input_datetime") ? "dl-input_datetime" : ""}
               placeholder="input_datetime.solar_optimizer_heartbeat"
               @entity-id-change=${(e: CustomEvent<string | null>) =>
                 this.setField("fail_safe", "heartbeat_entity", e.detail)}
@@ -791,7 +735,7 @@ export class SettingsPanel extends LitElement {
       <details>
         <summary>Display preferences</summary>
         <p class="label">
-          How dates and times appear in history tables, charts, and release lists on this browser.
+          How dates and times appear in history tables and charts on this browser.
         </p>
         <div class="fields">
           <div class="field">
@@ -860,7 +804,7 @@ export class SettingsPanel extends LitElement {
 
   private formatPublishedAt(iso: string | null): string {
     if (!iso) return "";
-    return formatDateTime(iso);
+    return formatDateTime(iso, "iso");
   }
 
   private async refreshUpdateInfo(): Promise<void> {
@@ -955,11 +899,18 @@ export class SettingsPanel extends LitElement {
           await new Promise((r) => setTimeout(r, 2000));
           continue;
         }
-        if (sawInProgress || pollErrors > 0) break;
+        if (sawInProgress || pollErrors > 0) {
+          this.updateHealthWait = true;
+          break;
+        }
         await new Promise((r) => setTimeout(r, 2000));
       } catch {
         pollErrors += 1;
-        if (sawInProgress || pollErrors >= 3) break;
+        if (sawInProgress) {
+          this.updateHealthWait = true;
+          break;
+        }
+        if (pollErrors >= 3) break;
         await new Promise((r) => setTimeout(r, 2000));
       }
     }
@@ -1157,22 +1108,35 @@ export class SettingsPanel extends LitElement {
 
   private renderUpdateProgress() {
     const progress = this.updateProgress ?? this.updateInfo?.update_progress ?? null;
+    const failed = this.updateInfo?.update_failed;
     const inProgress = Boolean(this.updateInfo?.update_in_progress) || this.updateBusy;
-    if (!inProgress && !progress) return null;
+    if (!inProgress && !progress && !failed) return null;
 
     const operation = progress?.operation ?? "update";
     const stages = flowStages(operation);
-    const activeStage = this.updateHealthWait
-      ? null
-      : (progress?.stage ?? (this.updateInfo?.update_in_progress ? "starting" : null));
-    const activeIdx = activeStage ? stageIndex(stages, activeStage) : stages.length;
+    const failedActive = Boolean(failed) && !inProgress;
+    const activeIdx = failedActive
+      ? stages.length
+      : activeStageIndex(
+          stages,
+          progress,
+          this.updateHealthWait,
+          Boolean(this.updateInfo?.update_in_progress),
+        );
+    const activeStage = failedActive
+      ? "failed"
+      : this.updateHealthWait
+        ? null
+        : (progress?.stage ?? (this.updateInfo?.update_in_progress ? "starting" : null));
 
     return html`
       <div class="update-progress">
-        <h4>${this.updateHealthWait ? "Restarting service…" : "Update in progress"}</h4>
+        <h4>${progressHeaderTitle(progress, this.updateHealthWait)}</h4>
         ${stages.map((stage, idx) => {
           const done = idx < activeIdx;
-          const active = !this.updateHealthWait && activeStage === stage;
+          const active = !failedActive && !this.updateHealthWait && activeStage === stage;
+          const showPullBar =
+            active && progress?.stage === "pulling" && progress.pull_percent != null;
           return html`
             <div class="update-step ${done ? "done" : ""} ${active ? "active" : ""}">
               <span class="update-step-icon">
@@ -1180,6 +1144,22 @@ export class SettingsPanel extends LitElement {
               </span>
               <span>
                 ${stageLabel(stage, active ? progress : null)}
+                ${showPullBar
+                  ? html`
+                      <div
+                        class="update-pull-track"
+                        role="progressbar"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                        aria-valuenow=${progress!.pull_percent!}
+                      >
+                        <div
+                          class="update-pull-bar"
+                          style="width: ${progress!.pull_percent}%"
+                        ></div>
+                      </div>
+                    `
+                  : null}
                 ${active && progress?.stage === "pulling" && progress.pull_detail
                   ? html`<span class="update-step-detail">${progress.pull_detail}</span>`
                   : null}
@@ -1187,6 +1167,14 @@ export class SettingsPanel extends LitElement {
             </div>
           `;
         })}
+        ${failedActive
+          ? html`
+              <div class="update-step active">
+                <span class="update-step-icon">✕</span>
+                <span>${failed!.message}</span>
+              </div>
+            `
+          : null}
         ${this.updateHealthWait
           ? html`
               <div class="update-step active">
@@ -1209,6 +1197,7 @@ export class SettingsPanel extends LitElement {
     return html`
       <div class="recovery-banner">
         <p>${message}</p>
+        <p class="label">${UPDATE_LOG_HINT}</p>
         ${backup
           ? html`
               <div class="buttons">
@@ -1290,9 +1279,10 @@ export class SettingsPanel extends LitElement {
     const latest = info?.latest_version;
     const releases = info?.releases ?? [];
     const upToDate = info && !info.update_available && latest;
+    const updatesOpen = this.updateBusy || Boolean(info?.update_in_progress);
 
     return html`
-      <details open>
+      <details ?open=${updatesOpen}>
         <summary>
           Software updates
           ${info?.update_available
@@ -1644,7 +1634,7 @@ export class SettingsPanel extends LitElement {
           ${this.entitiesConnected
             ? html`Start typing to pick from your Home Assistant entities.`
             : html`Home Assistant not connected — set the connection above and
-                <button class="link" @click=${() => void this.loadEntities()}>reload entities</button>
+                <button class="link" @click=${() => this.requestEntityReload()}>reload entities</button>
                 for autocomplete.`}
         </p>
         <p class="label">Read sensors</p>
@@ -1842,7 +1832,6 @@ export class SettingsPanel extends LitElement {
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
         <h3>Settings (config from UI)</h3>
-        ${this.renderDatalists()}
         ${this.renderHaSection()}
         ${this.renderFailSafeSection()}
         ${this.renderSecuritySection()}

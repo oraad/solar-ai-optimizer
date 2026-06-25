@@ -51,12 +51,12 @@ export class InfoTip extends LitElement {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
+      width: 15px;
+      height: 15px;
       border-radius: 50%;
       border: 1px solid var(--muted);
       color: var(--muted);
-      font-size: 0.72rem;
+      font-size: 0.62rem;
       font-weight: 700;
       font-style: italic;
       font-family: Georgia, "Times New Roman", serif;
@@ -66,6 +66,13 @@ export class InfoTip extends LitElement {
       padding: 0;
       box-shadow: none;
       -webkit-tap-highlight-color: transparent;
+    }
+    @media (hover: none), (pointer: coarse) {
+      .btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.72rem;
+      }
     }
     .btn:hover,
     .btn:focus-visible,

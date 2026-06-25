@@ -44,6 +44,14 @@ SAMPLE_RELEASES = [
         "draft": False,
     },
     {
+        "tag_name": "v0.5.10",
+        "body": "Recent stable",
+        "html_url": "https://example.com/v0.5.10",
+        "published_at": "2026-06-20T12:00:00Z",
+        "prerelease": False,
+        "draft": False,
+    },
+    {
         "tag_name": "v0.5.5",
         "body": "Stable",
         "html_url": "https://example.com/v0.5.5",
@@ -136,9 +144,9 @@ def test_get_update_info_newer_release(mock_fetch, mock_list, update_client):
     assert "New feature" in data["release_notes"]
     assert data["can_apply"] is False
     assert data["apply_instructions"]
-    assert len(data["releases"]) == 3
+    assert len(data["releases"]) == 4
     assert all(r["version"] != "0.5.3-beta" for r in data["releases"])
-    assert data["min_self_update_version"] == "0.5.5"
+    assert data["min_self_update_version"] == "0.5.10"
     assert data["downgrade_warning"]
 
 
@@ -218,15 +226,15 @@ def test_post_update_with_version_downgrade(
     res = update_client.post(
         "/api/system/update",
         headers={"X-Remote-User-Id": "admin-1"},
-        json={"version": "0.5.5"},
+        json={"version": "0.5.10"},
     )
     assert res.status_code == 202
     body = res.json()
-    assert body["target_version"] == "0.5.5"
+    assert body["target_version"] == "0.5.10"
     assert body["is_downgrade"] is True
     mock_spawn.assert_called_once()
     kwargs = mock_spawn.call_args.kwargs
-    assert kwargs["target_image"].endswith(":0.5.5")
+    assert kwargs["target_image"].endswith(":0.5.10")
 
 
 @patch("app.api.system_update._fetch_releases", new_callable=AsyncMock)
@@ -306,7 +314,7 @@ def test_post_update_rejects_below_min_self_update(
         headers={"X-Remote-User-Id": "admin-1"},
     )
     assert res.status_code == 400
-    assert "0.5.5" in res.json()["detail"]
+    assert "0.5.10" in res.json()["detail"]
 
 
 def test_post_update_rejected_when_disabled(update_client):
@@ -339,7 +347,7 @@ def test_get_update_info_socket_without_cli(
     assert data["can_apply"] is False
     assert data["deployment"] == "docker"
     assert "Docker CLI" in data["apply_instructions"]
-    assert "v0.5.5+" in data["apply_instructions"]
+    assert "v0.5.10+" in data["apply_instructions"]
 
 
 @patch("app.api.system_update._spawn_updater")

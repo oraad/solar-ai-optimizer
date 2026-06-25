@@ -1,3 +1,9 @@
-# Keep shell scripts LF so they work inside Linux containers.
+# Normalize text files to LF on checkout/commit (avoids VERSION CRLF breaking release CI).
+* text=auto eol=lf
+
+# Shell entrypoints must stay LF for Linux containers.
 *.sh text eol=lf
 run.sh text eol=lf
+
+# Canonical version file — release workflow compares tag to raw VERSION on Linux.
+VERSION text eol=lf

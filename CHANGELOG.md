@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.15] - 2026-06-25
+
+### Fixed
+
+- **Load shedding** tier entity autocomplete: hoist HA entity list to app root so cold tab opens get populated datalists; stabilize shed domain bindings and add regression tests
+
+## [0.5.14] - 2026-06-25
+
+### Added
+
+- **Load shedding** tier editor: dismiss (×) control per tier, icon buttons for add/remove entities, collapsible companion-entity sections
+- Dashboard user guide screenshots for the dedicated **Load shedding** tab and mobile layouts (`mobile-*.png`)
+
+### Changed
+
+- Docs screenshot workflow captures Load shedding on its own tab (no longer nested under Settings)
+
+## [0.5.13] - 2026-06-25
+
+### Fixed
+
+- **Software updates:** release and backup dates always use ISO format (`YYYY-MM-DD HH:mm`) instead of US-style locale dates on en-US browsers
+
+## [0.5.12] - 2026-06-24
+
+### Fixed
+
+- **Info tips:** restore compact circled “i” on desktop/pointer devices; keep larger tap targets on touch screens
+- **Load shedding** tier entity autocomplete: render datalists inside each entity input so suggestions work across shadow DOM boundaries (fixes empty datalist after v0.5.10)
+
+### Changed
+
+- **Entity inputs** own per-instance filtered datalists; Settings and Load shedding no longer render shared panel-level datalists
+
+## [0.5.11] - 2026-06-24
+
+### Added
+
+- **Dependable Docker self-update:** versioned `docker-self-update.sh` helper with rename-first container swap, health-gated verification, and automatic rollback on failed recreate or health check
+- Self-update **pull progress** (`pull_percent`) with layer-based percentage in the dashboard; new **verifying** stage with health-check attempt counter
+- Helper logs written to `$DATA_PATH/.update-logs/latest.log` for failed install troubleshooting
+- `self_update_health_timeout` setting (default 120s) for post-swap health wait
+
+### Changed
+
+- Dashboard **Install** spawns the **target image** as updater helper (not `docker:cli`) with `--entrypoint` override; restore uses the **current running image**
+- Settings update progress: version header (`vX → vY`), pull progress bar, header chip shows current step, auto-open Software updates details, log path hint on failure
+- Minimum self-update version raised to **0.5.10** (first release shipping the updater script)
+
+### Fixed
+
+- Dashboard self-update no longer stops and removes the container before the replacement is proven healthy; failed installs roll back to the previous container automatically
+
+## [0.5.10] - 2026-06-24
+
+### Fixed
+
+- **Load shedding** tier entity inputs: restore Home Assistant entity autocomplete (datalist suggestions) after the tier editor moved to its own tab
+
+### Changed
+
+- Extract shared `entity-datalists` helpers used by Settings and Load shedding entity pickers
+
 ## [0.5.9] - 2026-06-24
 
 ### Added
@@ -289,6 +352,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dashboard user guide screenshots are included under `docs/images/frontend/`.
 
+[0.5.10]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.10
 [0.5.9]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.9
 [0.5.8]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.8
 [0.5.7]: https://github.com/oraad/solar-ai-optimizer/releases/tag/v0.5.7

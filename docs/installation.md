@@ -74,6 +74,11 @@ Each install pins `SELF_UPDATE_IMAGE` to the selected tag (e.g. `ghcr.io/oraad/s
 To track `:latest` again, install the newest release from the picker or set the env var manually
 when recreating the container.
 
+The Settings panel shows step-by-step progress (including image pull %). The service is
+**briefly offline** during the container swap; if the new version fails its health check,
+the previous container is restored automatically. On failure, check
+`/app/data/.update-logs/latest.log` on the data volume.
+
 !!! note "Image version"
     One-click install requires **v0.5.5 or newer** (the image includes the Docker CLI via
     `docker-cli`). Releases below v0.5.5 cannot be installed via the dashboard picker.
@@ -112,6 +117,25 @@ docker run -d --name solar-optimizer --restart unless-stopped \
 ```
 
 Open **http://localhost:8000**. API docs: **http://localhost:8000/docs**.
+
+For **dashboard one-click updates** on a standalone host (no Compose), include the Docker
+socket, self-update flags, and a health check:
+
+```bash
+docker run -d --name solar-optimizer --restart unless-stopped \
+  -v solar-data:/app/data \
+  -p 8000:8000 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e SHADOW_MODE=true \
+  -e SELF_UPDATE_ENABLED=true \
+  -e SELF_UPDATE_IMAGE=ghcr.io/oraad/solar-ai-optimizer:latest \
+  --health-cmd="curl -fsS http://localhost:8000/api/health || exit 1" \
+  --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=25s \
+  ghcr.io/oraad/solar-ai-optimizer:latest
+```
+
+Custom `docker run` options (extra volumes, networks) beyond this recipe are not preserved
+by one-click install — use manual `docker pull` + recreate for those setups.
 
 ---
 

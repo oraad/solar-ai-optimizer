@@ -1,7 +1,9 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { repeat } from "lit/directives/repeat.js";
 
 import { api } from "../api.js";
+import { SHED_DOMAINS } from "../entity-datalists.js";
 import { fieldLabel } from "../field-labels.js";
 import { fieldHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
@@ -9,7 +11,7 @@ import { sharedStyles } from "../styles.js";
 import { runWithToast, showToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
-import type { AppConfigView, CompanionEntity, EntityInfo, SystemStatus } from "../types.js";
+import type { AppConfigView, CompanionEntity, EntityInfo } from "../types.js";
 
 function tierSwitches(t: Record<string, unknown>): string[] {
   if (Array.isArray(t.switches)) {
@@ -38,13 +40,58 @@ export class LoadSheddingPanel extends LitElement {
       .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-top: 10px; }
       @media (max-width: 700px) { .fields { grid-template-columns: 1fr; } }
       .field { display: flex; flex-direction: column; gap: 3px; }
-      .field label { font-size: 0.75rem; color: var(--muted); }
+      .field label { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 0.75rem; color: var(--muted); }
       .field input { width: 100%; box-sizing: border-box; }
       .tier-block {
+        position: relative;
         border: 1px solid var(--border);
         border-radius: 8px;
         padding: 12px;
+        padding-top: 40px;
         margin-bottom: 12px;
+      }
+      .tier-dismiss {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+      }
+      .icon-btn {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        font-size: 1.1rem;
+        line-height: 1;
+      }
+      .shed-entities-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .entity-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .entity-row solar-entity-input {
+        flex: 1;
+        min-width: 0;
+      }
+      .companion-details {
+        margin-top: 6px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 6px 10px;
+      }
+      .companion-details summary {
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
       }
       .companion-row {
         display: flex;
@@ -52,6 +99,12 @@ export class LoadSheddingPanel extends LitElement {
         gap: 8px;
         margin: 4px 0;
         font-size: 0.82rem;
+      }
+      .companion-row .icon-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 1rem;
+        margin-left: auto;
       }
       .domain-badge {
         font-size: 0.7rem;
@@ -67,17 +120,16 @@ export class LoadSheddingPanel extends LitElement {
   ];
 
   @property({ attribute: false }) config: AppConfigView | null = null;
-  @property({ attribute: false }) status: SystemStatus | null = null;
+  @property({ attribute: false }) entities: EntityInfo[] = [];
+  @property({ attribute: false }) entitiesConnected = false;
 
   @state() private draft: Record<string, unknown> | null = null;
-  @state() private entities: EntityInfo[] = [];
   @state() private busy = false;
   @state() private companionMeta: Record<string, CompanionEntity[]> = {};
 
   connectedCallback(): void {
     super.connectedCallback();
     void this.loadConfig();
-    void this.loadEntities();
   }
 
   updated(changed: Map<string, unknown>): void {
@@ -95,13 +147,8 @@ export class LoadSheddingPanel extends LitElement {
     }
   }
 
-  private async loadEntities(): Promise<void> {
-    try {
-      const res = await api.entities();
-      this.entities = res.entities;
-    } catch {
-      this.entities = [];
-    }
+  private requestEntityReload(): void {
+    window.dispatchEvent(new Event("solar-reload-entities"));
   }
 
   private patch(mutator: (d: Record<string, unknown>) => void): void {
@@ -341,10 +388,25 @@ export class LoadSheddingPanel extends LitElement {
         <p class="label" style="margin-top:16px">
           Tiers — lowest priority sheds first. All entities in a tier shed and restore together.
         </p>
+        <p class="label">
+          ${this.entitiesConnected
+            ? html`Start typing to pick from your Home Assistant entities.`
+            : html`Home Assistant not connected — set the connection in Settings and
+                <button class="link" @click=${() => this.requestEntityReload()}>reload entities</button>
+                for autocomplete.`}
+        </p>
         ${tiers.map((t, i) => {
           const se = stateEntitiesMap(t);
           return html`
             <div class="tier-block">
+              <button
+                type="button"
+                class="tier-dismiss danger icon-btn"
+                aria-label="Remove tier"
+                @click=${() => this.removeTier(i)}
+              >
+                ×
+              </button>
               <div class="fields">
                 <div class="field">
                   <label>${this.lbl("name")}</label>
@@ -412,68 +474,88 @@ export class LoadSheddingPanel extends LitElement {
                   />
                 </div>
               </div>
-              <div style="margin-top:10px">
+              <div class="shed-entities-header">
                 <label class="label">${this.lbl("switches")}</label>
-                ${tierSwitches(t).map(
-                  (entity, j) => html`
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Add entity"
+                  @click=${() => this.addTierEntity(i)}
+                >
+                  +
+                </button>
+              </div>
+              ${repeat(
+                tierSwitches(t),
+                (_entity, j) => `${i}-${j}`,
+                (entity, j) => {
+                  const companionIds = se[entity] ?? [];
+                  return html`
                     <div style="margin:8px 0;padding:8px;border:1px dashed var(--border);border-radius:6px">
-                      <div class="row" style="margin-bottom:6px">
+                      <div class="entity-row">
                         <solar-entity-input
                           .entityId=${entity}
                           .entities=${this.entities}
-                          .domains=${["switch", "input_boolean"]}
+                          .domains=${SHED_DOMAINS}
                           placeholder="switch.… or input_boolean.…"
                           @entity-id-change=${(e: CustomEvent<string | null>) =>
                             this.setTierSwitch(i, j, e.detail ?? "")}
                         />
                         <button
                           type="button"
+                          class="danger icon-btn"
+                          aria-label="Remove entity"
                           ?disabled=${tierSwitches(t).length <= 1}
                           @click=${() => this.removeTierEntity(i, j)}
                         >
-                          Remove
+                          <span aria-hidden="true">🗑</span>
                         </button>
                       </div>
                       ${entity.includes(".")
                         ? html`
-                            <div style="margin-left:4px">
-                              <span class="label">Companion entities</span>
-                              ${(se[entity] ?? []).map(
-                                (cid) => {
-                                  const c = this.companionDisplay(entity, cid);
-                                  return html`
-                                    <div class="companion-row">
-                                      <span class="domain-badge">${c?.domain ?? "?"}</span>
-                                      <span>${c?.name ?? cid}</span>
-                                      <button
-                                        type="button"
-                                        @click=${() => this.removeCompanion(i, entity, cid)}
-                                      >
-                                        ×
-                                      </button>
-                                    </div>
-                                  `;
-                                },
-                              )}
+                            <details
+                              class="companion-details"
+                              ?open=${companionIds.length > 0}
+                            >
+                              <summary>Companion entities (${companionIds.length})</summary>
+                              ${companionIds.map((cid) => {
+                                const c = this.companionDisplay(entity, cid);
+                                return html`
+                                  <div class="companion-row">
+                                    <span class="domain-badge">${c?.domain ?? "?"}</span>
+                                    <span>${c?.name ?? cid}</span>
+                                    <button
+                                      type="button"
+                                      class="danger icon-btn"
+                                      aria-label="Remove companion"
+                                      @click=${() => this.removeCompanion(i, entity, cid)}
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                `;
+                              })}
                               <div class="row" style="margin-top:6px">
-                                <button type="button" @click=${() => this.discoverCompanions(i, entity)}>
+                                <button
+                                  type="button"
+                                  @click=${() => this.discoverCompanions(i, entity)}
+                                >
                                   Rediscover
                                 </button>
-                                <button type="button" @click=${() => this.clearCompanions(i, entity)}>
+                                <button
+                                  type="button"
+                                  @click=${() => this.clearCompanions(i, entity)}
+                                >
                                   Clear all (switch-only)
                                 </button>
                               </div>
-                            </div>
+                            </details>
                           `
                         : null}
                     </div>
-                  `,
-                )}
-                <button type="button" @click=${() => this.addTierEntity(i)}>Add entity</button>
-              </div>
-              <div class="buttons">
-                <button @click=${() => this.removeTier(i)}>Remove tier</button>
-              </div>
+                  `;
+                },
+              )}
             </div>
           `;
         })}

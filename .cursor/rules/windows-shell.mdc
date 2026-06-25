@@ -1,0 +1,65 @@
+---
+description: Windows host shell paths, Git Bash, and Docker execution for agents
+alwaysApply: true
+---
+
+# Windows shell execution (agents)
+
+Cursor on this machine may run **PowerShell** even when commands look like bash. Repo root: `C:\Projects\solar` (Git Bash: `/c/Projects/solar`).
+
+## When to use which approach
+
+- **Simple Docker Compose** (no pipes, no `$()`, no HEREDOC): set Shell tool `working_directory` to `C:\Projects\solar` and run `docker compose …` directly.
+- **Everything else** (pipes, `head`/`grep`, `$(pwd)`, `scripts/*.sh`, git HEREDOC, `source .venv/bin/activate`): wrap in `bash -lc '…'`.
+
+## Path rules
+
+| Context | Format | Example |
+|---------|--------|---------|
+| Shell tool `working_directory` | Windows backslashes OK | `C:\Projects\solar` |
+| Docker `-v` from PowerShell | Git Bash / Docker Desktop style | `"/c/Projects/solar/frontend:/ui"` |
+| Inside WSL bash (`bash -lc`) | WSL mount path | `/mnt/c/Projects/solar` |
+| Inside Git Bash | MSYS path | `/c/Projects/solar` or `c:/Projects/solar` |
+
+Never use `C:\…` backslashes inside Docker volume strings.
+
+`$(pwd)` and repo scripts must run inside bash, not bare PowerShell. When `bash -lc` lands in WSL, `cd` to `/mnt/c/Projects/solar` (or rely on `working_directory` and skip `cd`).
+
+## Repo-canonical commands
+
+From repo root (`working_directory` or `cd "c:/Projects/solar" &&`):
+
+```bash
+docker compose run --rm test
+docker compose run --rm frontend-test
+```
+
+One-off container with bind mount:
+
+```bash
+docker run --rm -v "/c/Projects/solar:/repo" -w /repo python:3.14-slim-trixie \
+  python scripts/sync-version.py --check
+```
+
+Repo scripts (always via bash):
+
+```bash
+bash scripts/check-python.sh
+bash scripts/reset-local-password.sh
+```
+
+See `python.mdc` for Docker-first Python/pytest policy.
+
+## Anti-patterns
+
+| Avoid (PowerShell) | Use instead |
+|--------------------|-------------|
+| `Select-Object -First N` | `bash -lc '… \| head -n N'` |
+| `Select-String -Pattern` | `bash -lc '… \| grep pattern'` |
+| `$env:VAR` / backtick continuations | `export VAR=…` inside `bash -lc` |
+| `cat <<'EOF'` for git commits | Full commit wrapped in `bash -lc '…'` |
+| `C:\Projects\…` in `docker -v` | `"/c/Projects/…"` |
+
+## On failure
+
+Retry once with `bash -lc` and POSIX paths before changing command logic or abandoning the approach.

@@ -61,4 +61,23 @@ describe("EntityInput datalist", () => {
     a.remove();
     b.remove();
   });
+
+  it("renders datalist when mounted inside a parent shadow root", async () => {
+    const host = document.createElement("div");
+    host.attachShadow({ mode: "open" });
+    const el = document.createElement("solar-entity-input") as EntityInput;
+    el.entities = ENTITIES;
+    el.domains = ["switch", "input_boolean"];
+    host.shadowRoot!.appendChild(el);
+    document.body.appendChild(host);
+    await el.updateComplete;
+
+    const input = el.querySelector("input")!;
+    const datalist = el.querySelector("datalist")!;
+    expect(input.getAttribute("list")).toBe(datalist.id);
+    const values = [...datalist.querySelectorAll("option")].map((o) => o.value);
+    expect(values).toEqual(["switch.pool", "input_boolean.guest"]);
+
+    host.remove();
+  });
 });

@@ -32,7 +32,7 @@ export class EntityInput extends LitElement {
 
   @property({ attribute: false }) entities: EntityInfo[] = [];
 
-  @property({ type: Array }) domains: string[] = ["sensor"];
+  @property({ attribute: false, type: Array }) domains: string[] = ["sensor"];
 
   @property() placeholder = "";
 

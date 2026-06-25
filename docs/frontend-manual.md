@@ -218,9 +218,12 @@ bucket influences the cap chain.
 Open the **Load shedding** tab to configure tiers. Each tier can control **several power
 switches** (e.g. pool pump + heater, or an AC power switch). All entities in a tier shed
 and restore together using the same SOC hysteresis. Lower **priority** number sheds first.
+Tier blocks are **collapsed by default**; the summary line shows the tier name, shed SOC,
+priority, and device count — click to expand the full editor.
 
 When you pick a power entity, companions on the same HA device (climate, select, fan, etc.)
-are **discovered automatically** and listed under that entity. Remove unwanted companions or
+are **discovered automatically** and listed under that entity (companion sections also
+start collapsed). Remove unwanted companions or
 use **Clear all** for switch-only shedding. Devices that were off before shedding stay off on
 restore.
 

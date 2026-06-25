@@ -1,5 +1,5 @@
 import { LitElement, css, html, type PropertyValues } from "lit";
-import { customElement, query, state } from "lit/decorators.js";
+import { customElement, property, query, state } from "lit/decorators.js";
 import type uPlot from "uplot";
 
 import { api } from "../api.js";
@@ -13,9 +13,11 @@ import {
   type ChartHandle,
 } from "../charts.js";
 import { formatDateTime } from "../date-format.js";
+import { entityDisplayName } from "../entity-resolve.js";
 import { sharedStyles } from "../styles.js";
 import type {
   DecisionHistoryRow,
+  EntityInfo,
   ExecutionHistoryRow,
   GridEventRow,
   ShedExecutionRow,
@@ -23,6 +25,8 @@ import type {
 } from "../types.js";
 
 type HistoryTab = "chart" | "decisions" | "grid" | "executions" | "shed";
+
+const HISTORY_DATE_FMT = "iso" as const;
 
 @customElement("solar-history-view")
 export class HistoryView extends LitElement {
@@ -84,6 +88,7 @@ export class HistoryView extends LitElement {
   @state() private executions: ExecutionHistoryRow[] = [];
   @state() private shedExecs: ShedExecutionRow[] = [];
   @state() private loadError = "";
+  @property({ attribute: false }) entities: EntityInfo[] = [];
   @query(".chart-mount") private chartEl!: HTMLDivElement;
   @query(".cursor-values") private cursorLegendEl!: HTMLDivElement;
   private chartHandle?: ChartHandle;
@@ -175,6 +180,14 @@ export class HistoryView extends LitElement {
     this.tab = t;
   }
 
+  private entityLabel(id: string): string {
+    return entityDisplayName(id, this.entities);
+  }
+
+  private entityLabels(ids: string[]): string {
+    return ids.map((id) => this.entityLabel(id)).join(", ");
+  }
+
   updated(changed: PropertyValues<this>): void {
     if (this.tab !== "chart") {
       this.chartHandle?.destroy();
@@ -248,6 +261,8 @@ export class HistoryView extends LitElement {
       {
         showLegend: false,
         cursorLegendEl: this.cursorLegendEl,
+        cursorDateFormat: HISTORY_DATE_FMT,
+        axisDateFormat: HISTORY_DATE_FMT,
         padding: [8, axisSize, 14, 0],
         scales: {
           x: { time: true },
@@ -308,7 +323,7 @@ export class HistoryView extends LitElement {
             ${this.decisions.map(
               (d) => html`
                 <tr title=${d.reserve_rationale || ""}>
-                  <td>${formatDateTime(d.ts)}</td>
+                  <td>${formatDateTime(d.ts, HISTORY_DATE_FMT)}</td>
                   <td>${d.target_soc.toFixed(0)}%</td>
                   <td>${d.blackout_risk}</td>
                   <td>${d.summary}</td>
@@ -336,7 +351,7 @@ export class HistoryView extends LitElement {
             ${this.executions.map(
               (e) => html`
                 <tr title=${e.skipped_reason || e.error || ""}>
-                  <td>${formatDateTime(e.ts)}</td>
+                  <td>${formatDateTime(e.ts, HISTORY_DATE_FMT)}</td>
                   <td>${e.capability}</td>
                   <td>${e.requested}</td>
                   <td>
@@ -368,18 +383,21 @@ export class HistoryView extends LitElement {
           <tbody>
             ${this.shedExecs.map(
               (e) => {
+                const entityName = this.entityLabel(e.entity);
                 const comp =
                   (e.companions_restored?.length ?? 0) > 0
-                    ? `restored: ${e.companions_restored!.join(", ")}`
+                    ? `restored: ${this.entityLabels(e.companions_restored!)}`
                     : (e.companions_captured?.length ?? 0) > 0
-                      ? `captured: ${e.companions_captured!.join(", ")}`
+                      ? `captured: ${this.entityLabels(e.companions_captured!)}`
                       : "";
-                const title = [e.skipped_reason, e.error, comp].filter(Boolean).join(" · ");
+                const titleParts = [e.skipped_reason, e.error, comp];
+                if (entityName !== e.entity) titleParts.push(e.entity);
+                const title = titleParts.filter(Boolean).join(" · ");
                 return html`
                 <tr title=${title}>
-                  <td>${formatDateTime(e.ts)}</td>
+                  <td>${formatDateTime(e.ts, HISTORY_DATE_FMT)}</td>
                   <td>${e.tier}</td>
-                  <td>${e.entity}</td>
+                  <td>${entityName}</td>
                   <td>${e.desired_on ? "ON" : "OFF"}</td>
                   <td>
                     ${e.applied
@@ -411,7 +429,7 @@ export class HistoryView extends LitElement {
             ${this.gridEvents.map(
               (e) => html`
                 <tr>
-                  <td>${formatDateTime(e.ts)}</td>
+                  <td>${formatDateTime(e.ts, HISTORY_DATE_FMT)}</td>
                   <td>${e.grid_present ? "ON" : "OFF"}</td>
                 </tr>
               `,

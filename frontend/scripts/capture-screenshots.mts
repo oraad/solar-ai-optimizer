@@ -89,6 +89,7 @@ async function captureAdmin(page: Page): Promise<void> {
   await clickMainTab(page, "Load shedding");
   await shot(page, "load-shedding.png");
   const tierBlock = app(page).locator("solar-load-shedding-panel .tier-block").first();
+  await tierBlock.locator("summary").click();
   await tierBlock.screenshot({ path: path.join(OUT_DIR, "settings-load-shedding.png") });
   console.log(`wrote ${path.join(OUT_DIR, "settings-load-shedding.png")}`);
 

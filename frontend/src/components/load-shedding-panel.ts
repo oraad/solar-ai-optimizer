@@ -22,6 +22,12 @@ function tierSwitches(t: Record<string, unknown>): string[] {
   return legacy ? [legacy] : [""];
 }
 
+function tierDeviceCount(t: Record<string, unknown>): number {
+  return tierSwitches(t)
+    .map((s) => s.trim())
+    .filter(Boolean).length;
+}
+
 function stateEntitiesMap(t: Record<string, unknown>): Record<string, string[]> {
   const raw = t.state_entities;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -46,14 +52,41 @@ export class LoadSheddingPanel extends LitElement {
         position: relative;
         border: 1px solid var(--border);
         border-radius: 8px;
+        padding: 10px 48px 10px 12px;
+        margin-bottom: 12px;
+      }
+      .tier-block[open] {
         padding: 12px;
         padding-top: 40px;
-        margin-bottom: 12px;
+      }
+      .tier-summary {
+        cursor: pointer;
+        list-style: none;
+      }
+      .tier-summary::-webkit-details-marker {
+        display: none;
+      }
+      .tier-block[open] > .tier-summary {
+        display: none;
+      }
+      .tier-summary-text {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .tier-summary-meta {
+        color: var(--muted);
+        font-weight: 500;
       }
       .tier-dismiss {
         position: absolute;
         top: 8px;
         right: 8px;
+        z-index: 1;
       }
       .icon-btn {
         width: 34px;
@@ -397,13 +430,29 @@ export class LoadSheddingPanel extends LitElement {
         </p>
         ${tiers.map((t, i) => {
           const se = stateEntitiesMap(t);
+          const tierName = String(t.name ?? "").trim() || `Tier ${i + 1}`;
+          const deviceCount = tierDeviceCount(t);
+          const deviceLabel = deviceCount === 1 ? "device" : "devices";
           return html`
-            <div class="tier-block">
+            <details class="tier-block">
+              <summary class="tier-summary">
+                <span class="tier-summary-text">
+                  ${tierName}
+                  <span class="tier-summary-meta">
+                    · Shed ${t.shed_below_soc ?? ""}% · Priority ${t.priority ?? 0} ·
+                    ${deviceCount} ${deviceLabel}
+                  </span>
+                </span>
+              </summary>
               <button
                 type="button"
                 class="tier-dismiss danger icon-btn"
                 aria-label="Remove tier"
-                @click=${() => this.removeTier(i)}
+                @click=${(e: Event) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  this.removeTier(i);
+                }}
               >
                 ×
               </button>
@@ -513,10 +562,7 @@ export class LoadSheddingPanel extends LitElement {
                       </div>
                       ${entity.includes(".")
                         ? html`
-                            <details
-                              class="companion-details"
-                              ?open=${companionIds.length > 0}
-                            >
+                            <details class="companion-details">
                               <summary>Companion entities (${companionIds.length})</summary>
                               ${companionIds.map((cid) => {
                                 const c = this.companionDisplay(entity, cid);
@@ -556,7 +602,7 @@ export class LoadSheddingPanel extends LitElement {
                   `;
                 },
               )}
-            </div>
+            </details>
           `;
         })}
         <button type="button" @click=${() => this.addTier()}>Add tier</button>

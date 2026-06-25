@@ -22,7 +22,7 @@ aiosqlite>=0.22.1
 
 # Config + time
 PyYAML>=6.0.3
-python-dateutil>=2.9.0
+python-dateutil>=2.9.0.post0
 
 # Local admin login (bcrypt password verification)
 bcrypt>=4.3.0

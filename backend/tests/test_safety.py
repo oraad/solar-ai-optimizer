@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from app.config import BatteryConfig, ControlConfig, GridChargeConfig
 from app.control.safety import SafetyGuard
-from app.i18n.skip_keys import SKIP_ALREADY_SET
+from app.i18n.skip_keys import REJECT_EXCEEDS_MAX_GRID_CHARGE, SKIP_ALREADY_SET, SKIP_RATE_LIMITED
 from app.models import Capability, utcnow
 
 
@@ -39,7 +39,9 @@ def test_rate_limit_blocks_rapid_change():
     skip = g.should_skip(
         Capability.MAX_GRID_CHARGE_CURRENT, 80.0, current=50.0, now=now + timedelta(seconds=5)
     )
-    assert skip is not None and "rate-limited" in skip
+    assert skip == SKIP_RATE_LIMITED or (
+        skip is not None and SKIP_RATE_LIMITED in skip
+    )
 
 
 def test_rate_limit_allows_after_interval():
@@ -56,7 +58,7 @@ def test_hard_bounds_rejects_over_max():
     g = _guard()
     reason = g.violates_hard_bounds(Capability.MAX_GRID_CHARGE_CURRENT, 200.0)
     assert reason is not None
-    assert "max_grid_charge_a" in reason
+    assert REJECT_EXCEEDS_MAX_GRID_CHARGE in reason
 
 
 def test_hard_bounds_rejects_negative():

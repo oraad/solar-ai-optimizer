@@ -62,6 +62,7 @@ async def test_control_cycle_survives_grid_stats_failure(
     from app.config_store import ConfigStore
     from app.models import Decision, ReserveTarget
     from app.orchestrator import Orchestrator
+    from tests.conftest import DUMMY_MSG
 
     settings = get_settings()
     (tmp_path / "base.yaml").write_text("battery:\n  capacity_kwh: 10\n")
@@ -83,9 +84,9 @@ async def test_control_cycle_survives_grid_stats_failure(
                 target_soc=50,
                 solar_bridge_soc=55,
                 autonomy_floor_soc=30,
-                rationale="test",
+                rationale=DUMMY_MSG,
             ),
-            summary="ok",
+            summary=DUMMY_MSG,
             shadow_mode=True,
         )
     )
@@ -113,6 +114,7 @@ async def test_grid_stats_failure_clears_prior_snapshot(
     from app.config_store import ConfigStore
     from app.models import Decision, ReserveTarget
     from app.orchestrator import Orchestrator
+    from tests.conftest import DUMMY_MSG
 
     settings = get_settings()
     (tmp_path / "base.yaml").write_text("battery:\n  capacity_kwh: 10\n")
@@ -131,9 +133,9 @@ async def test_grid_stats_failure_clears_prior_snapshot(
                 target_soc=50,
                 solar_bridge_soc=55,
                 autonomy_floor_soc=30,
-                rationale="test",
+                rationale=DUMMY_MSG,
             ),
-            summary="ok",
+            summary=DUMMY_MSG,
             shadow_mode=True,
         )
     )

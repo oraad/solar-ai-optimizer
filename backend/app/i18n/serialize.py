@@ -19,11 +19,16 @@ def encode_msg(value: Msg) -> str:
     )
 
 
-def decode_msg(raw: str | Msg | None) -> Msg | str | None:
+def decode_msg(raw: str | Msg | dict[str, Any] | None) -> Msg | str | None:
     if raw is None:
         return None
     if isinstance(raw, Msg):
         return raw
+    if isinstance(raw, dict):
+        if "key" in raw:
+            return Msg(key=str(raw["key"]), params=dict(raw.get("params") or {}))
+        if "k" in raw:
+            return Msg(key=str(raw["k"]), params=dict(raw.get("p") or {}))
     text = raw.strip()
     if not text:
         return ""

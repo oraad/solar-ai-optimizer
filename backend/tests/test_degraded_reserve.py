@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.config import BatteryConfig, EngineConfig, ReserveConfig
 from app.engine.rules import RuleEngine
 from app.grid.reactive import ReactiveGrid
+from app.i18n import msg
 from app.models import ForecastBundle, Telemetry
 
 
@@ -24,7 +25,11 @@ def test_degraded_forecast_raises_reserve():
     t = Telemetry(battery_soc=80.0, grid_present=False)
     normal = eng.compute_reserve(t, ForecastBundle(degraded=False))
     degraded = eng.compute_reserve(
-        t, ForecastBundle(degraded=True, degraded_reasons=["solar stale"])
+        t,
+        ForecastBundle(
+            degraded=True,
+            degraded_reasons=[msg("forecast.degraded.stale_solar")],
+        ),
     )
     assert degraded.target_soc >= normal.target_soc
-    assert "Degraded" in degraded.rationale
+    assert degraded.rationale.params.get("extra_degraded") == "yes"

@@ -8,9 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.config import BatteryConfig, ControlConfig, LoadTier
 from app.control.executor import Executor
-from app.models import ShedAction
 from app.i18n.skip_keys import SKIP_ALREADY_SET, SKIP_WAS_OFF_BEFORE_SHED
-from app.shed_snapshots import ShedSnapshotStore
+from app.models import ShedAction
+from app.shed_snapshots import EntitySnapshot, ShedSnapshotStore
+from tests.conftest import DUMMY_MSG
 
 
 def _executor(ha: MagicMock, store: ShedSnapshotStore) -> Executor:
@@ -47,7 +48,7 @@ def test_restore_skips_when_was_off(tmp_path):
                         tier="pool",
                         entity="switch.pool",
                         desired_on=True,
-                        reason="restore",
+                        reason=DUMMY_MSG,
                     )
                 ],
                 shadow_mode=False,
@@ -82,7 +83,7 @@ def test_shed_captures_snapshot_when_already_off(tmp_path):
                         tier="pool",
                         entity="switch.pool",
                         desired_on=False,
-                        reason="shed",
+                        reason=DUMMY_MSG,
                     )
                 ],
                 shadow_mode=False,
@@ -111,7 +112,7 @@ def test_shadow_mode_no_snapshot(tmp_path):
                         tier="pool",
                         entity="switch.pool",
                         desired_on=False,
-                        reason="shed",
+                        reason=DUMMY_MSG,
                     )
                 ],
                 shadow_mode=True,
@@ -153,7 +154,7 @@ def test_restore_companions_when_power_already_on(tmp_path):
                         tier="pool",
                         entity="switch.pool",
                         desired_on=True,
-                        reason="restore",
+                        reason=DUMMY_MSG,
                     )
                 ],
                 shadow_mode=False,

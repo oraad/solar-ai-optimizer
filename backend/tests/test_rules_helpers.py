@@ -8,6 +8,7 @@ from app.config import BatteryConfig, EngineConfig, ReserveConfig
 from app.engine.rules import RuleEngine
 from app.grid.reactive import ReactiveGrid
 from app.models import ForecastBundle, LoadForecastPoint, ReserveTarget, SolarForecastPoint, Telemetry, utcnow
+from tests.conftest import DUMMY_MSG
 
 
 def _engine(total_kwp: float = 1.0) -> RuleEngine:
@@ -59,7 +60,7 @@ def test_blackout_risk_uses_configured_kwp():
         target_soc=60.0,
         autonomy_floor_soc=40.0,
         solar_bridge_soc=55.0,
-        rationale="test",
+        rationale=DUMMY_MSG,
     )
     # Same absolute yield is worse for a larger array (3 kWh vs 5 vs 50 kWh clear-sky).
     forecast = ForecastBundle(solar=[], load=[], solar_tomorrow_kwh=3.0)

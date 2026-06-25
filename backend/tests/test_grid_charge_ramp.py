@@ -20,6 +20,7 @@ from app.models import (
     Telemetry,
     utcnow,
 )
+from tests.conftest import DUMMY_MSG
 
 
 def _battery(**kwargs) -> BatteryConfig:
@@ -56,7 +57,7 @@ def _reserve(target: float = 55.0) -> ReserveTarget:
         target_soc=target,
         solar_bridge_soc=target,
         autonomy_floor_soc=30.0,
-        rationale="test",
+        rationale=DUMMY_MSG,
     )
 
 
@@ -188,7 +189,7 @@ def test_force_override_bypasses_ramp():
     )
     assert decision.grid_charge is not None
     assert decision.grid_charge.target_amps == 60.0
-    assert "Operator override" in decision.grid_charge.rationale
+    assert decision.grid_charge.rationale.key == "engine.override.force_grid_charge_plan"
 
 
 def test_remaining_solar_lowers_when_plentiful():
@@ -263,7 +264,7 @@ def test_solar_bridge_at_target_no_floor():
             target_soc=55.0,
             solar_bridge_soc=bridge,
             autonomy_floor_soc=30.0,
-            rationale="test",
+            rationale=DUMMY_MSG,
         ),
         target_soc=55.0,
         telemetry=_telemetry(battery_soc=bridge),

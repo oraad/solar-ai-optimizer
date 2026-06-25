@@ -44,7 +44,14 @@ def _orch_with_decision(decision: Decision | None = None) -> MagicMock:
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    monkeypatch.delenv("API_TOKEN", raising=False)
+    monkeypatch.delenv("LOCAL_ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("LOCAL_ADMIN_PASSWORD_HASH", raising=False)
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+
     decision = Decision(
         reserve=ReserveTarget(
             target_soc=50,
@@ -67,9 +74,9 @@ def client():
     app = FastAPI()
     app.state.orchestrator = orch
     app.state.admin_resolver = AsyncMock()
-    app.add_middleware(UserContextMiddleware)
-    app.add_middleware(LocaleMiddleware)
     app.add_middleware(AuthGateMiddleware)
+    app.add_middleware(LocaleMiddleware)
+    app.add_middleware(UserContextMiddleware)
     app.include_router(router)
     return TestClient(app)
 
@@ -100,9 +107,9 @@ def authed_client(monkeypatch):
     app = FastAPI()
     app.state.orchestrator = orch
     app.state.admin_resolver = AsyncMock()
-    app.add_middleware(UserContextMiddleware)
-    app.add_middleware(LocaleMiddleware)
     app.add_middleware(AuthGateMiddleware)
+    app.add_middleware(LocaleMiddleware)
+    app.add_middleware(UserContextMiddleware)
     app.include_router(router)
     return TestClient(app)
 

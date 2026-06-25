@@ -62,6 +62,7 @@
       "driver_autonomy_floor": "حد-اكتفاء"
     },
     "summary": {
+      "main": "SOC {soc} مقابل احتياطي {target}% | {grid} | خطر انقطاع: {risk}. {rationale}",
       "with_priorities_present": "{prefix}الأولويات: {order}. SOC {soc} مقابل احتياطي {target}% | الشبكة متوفرة | خطر انقطاع: {risk}.{advisory_suffix}{extra}",
       "with_priorities_absent": "{prefix}الأولويات: {order}. SOC {soc} مقابل احتياطي {target}% | الشبكة غير متوفرة | خطر انقطاع: {risk}.{advisory_suffix}{extra}",
       "priorities_prefix": "الأولويات: {order}. ",

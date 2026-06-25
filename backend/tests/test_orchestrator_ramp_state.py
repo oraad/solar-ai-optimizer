@@ -11,6 +11,7 @@ from app.models import (
     GridChargePlan,
 )
 from app.orchestrator import Orchestrator
+from tests.conftest import DUMMY_MSG
 
 
 def _bare_orch() -> Orchestrator:
@@ -30,7 +31,7 @@ def test_update_last_amps_on_already_set_skip() -> None:
             enabled=True,
             target_amps=30.0,
             max_amps=60.0,
-            rationale="test",
+            rationale=DUMMY_MSG,
         )
     )
     orch._update_last_grid_charge_amps(
@@ -56,7 +57,7 @@ def test_update_last_amps_from_shadow_plan() -> None:
             enabled=True,
             target_amps=25.0,
             max_amps=60.0,
-            rationale="shadow ramp",
+            rationale=DUMMY_MSG,
         )
     )
     orch._update_last_grid_charge_amps([])

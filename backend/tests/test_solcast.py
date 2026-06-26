@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.config import ForecastConfig, PvArray
+from app.config import ForecastConfig, PvArray, SiteConfig
 from app.forecast.bias import BiasCorrector
 from app.forecast.solar import SolarForecaster
 
@@ -14,11 +14,10 @@ from app.forecast.solar import SolarForecaster
 def _forecaster(provider: str, key: str = "", resource: str = "") -> SolarForecaster:
     cfg = ForecastConfig(
         provider=provider,  # type: ignore[arg-type]
-        latitude=-33.9,
-        longitude=18.4,
         arrays=[PvArray(kwp=5.0)],
     )
-    return SolarForecaster(cfg, BiasCorrector(), solcast_key=key, solcast_resource=resource)
+    site = SiteConfig(latitude=-33.9, longitude=18.4)
+    return SolarForecaster(cfg, site, BiasCorrector(), solcast_key=key, solcast_resource=resource)
 
 
 def test_solcast_configured_requires_key_and_resource():

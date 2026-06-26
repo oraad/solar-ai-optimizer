@@ -195,7 +195,7 @@ After any deployment path:
 
 1. Open the dashboard → **Settings**
 2. **Connect Home Assistant** (URL + long-lived token) — skip if using the add-on with default Supervisor wiring
-3. Set **latitude / longitude** and **PV arrays** (required for solar forecast)
+3. Set **site latitude / longitude** and **PV arrays** (required for solar forecast)
 4. Map **inverter read/write entities** in Settings → Inverter entity map
 5. Leave **shadow mode** on; confirm Overview decisions look reasonable
 6. Optionally import the [fail-safe HA package](home-assistant-failsafe.md) and enable heartbeat in Settings → Fail-safe

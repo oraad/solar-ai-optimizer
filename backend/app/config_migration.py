@@ -10,7 +10,7 @@ import yaml
 
 log = logging.getLogger("config_migration")
 
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
 SCHEMA_VERSION_KEY = "schema_version"
 OVERRIDES_KEY = "overrides"
 
@@ -122,11 +122,43 @@ def migrate_v3_to_v4(overrides: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def migrate_v4_to_v5(overrides: dict[str, Any]) -> dict[str, Any]:
+    """Move forecast.latitude/longitude to site."""
+    out = dict(overrides)
+    forecast = out.get("forecast")
+    if not isinstance(forecast, dict):
+        return out
+
+    forecast = dict(forecast)
+    legacy_lat = forecast.pop("latitude", None)
+    legacy_lon = forecast.pop("longitude", None)
+    if legacy_lat is None and legacy_lon is None:
+        return out
+
+    site = out.get("site")
+    if not isinstance(site, dict):
+        site = {}
+    else:
+        site = dict(site)
+
+    if legacy_lat is not None and site.get("latitude") is None:
+        site["latitude"] = legacy_lat
+        log.info("Migrated forecast.latitude -> site.latitude (%s)", legacy_lat)
+    if legacy_lon is not None and site.get("longitude") is None:
+        site["longitude"] = legacy_lon
+        log.info("Migrated forecast.longitude -> site.longitude (%s)", legacy_lon)
+
+    out["site"] = site
+    out["forecast"] = forecast
+    return out
+
+
 def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
     """Apply structural migrations to base YAML / merged config dicts."""
     if not data:
         return {}
-    return migrate_v3_to_v4(dict(data))
+    data = migrate_v3_to_v4(dict(data))
+    return migrate_v4_to_v5(data)
 
 
 MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = [
@@ -134,6 +166,7 @@ MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = 
     (1, 2, migrate_v1_to_v2),
     (2, 3, migrate_v2_to_v3),
     (3, 4, migrate_v3_to_v4),
+    (4, 5, migrate_v4_to_v5),
 ]
 
 

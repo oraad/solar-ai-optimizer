@@ -39,7 +39,9 @@
     },
     "fields": {
       "site": {
-        "timezone": "المنطقة الزمنية"
+        "timezone": "المنطقة الزمنية",
+        "latitude": "خط العرض",
+        "longitude": "خط الطول"
       },
       "battery": {
         "capacity_kwh": "القدرة (كيلوواط ساعة)",
@@ -55,8 +57,6 @@
         "cloudy_extra_buffer_pct": "غائم المخزن المؤقت الإضافي (٪)"
       },
       "forecast": {
-        "latitude": "خط العرض",
-        "longitude": "خط الطول",
         "provider": "مزود توقعات الطاقة الشمسية",
         "training_days": "تاريخ التدريب (بالأيام)",
         "min_load_fraction": "الحد الأدنى لجزء التحميل"
@@ -167,15 +167,15 @@
         "solar_bridge_buffer_pct": "من المتوقع وجود مخزن مؤقت إضافي لـ SOC بينما من المتوقع أن يتم استخدام الطاقة الشمسية قريبًا، قبل الانغماس في الاحتياطي العميق.",
         "cloudy_extra_buffer_pct": "احتياطي احتياطي إضافي في الأيام الملبدة بالغيوم عندما يكون إنتاج الطاقة الشمسية غير مؤكد."
       },
-      "forecast": {
+      "site": {
+        "timezone": "المنطقة الزمنية IANA لحدود اليوم المحلية للموقع (التوقعات، منحدر الشبكة، ملفات التحميل، والعرض). اختر تلقائي للكشف من إحداثيات الموقع.",
         "latitude": "خط عرض الموقع للتنبؤات الشمسية والطقس (الدرجات العشرية).",
-        "longitude": "خط طول الموقع للتنبؤات الشمسية والطقس (الدرجات العشرية).",
+        "longitude": "خط طول الموقع للتنبؤات الشمسية والطقس (الدرجات العشرية)."
+      },
+      "forecast": {
         "provider": "مصدر التنبؤ بالطاقة الشمسية: Open-Meteo (مجاني) أو Solcast (مفتاح API مطلوب عبر البيئة).",
         "training_days": "أيام من تاريخ القياس عن بعد تُستخدم لتدريب انحياز التحميل ونماذج الملفات الشخصية.",
         "min_load_fraction": "الحد الأدنى للأحمال المتوقعة باعتباره جزءًا صغيرًا من الذروة الأخيرة (يتجنب التوقعات القريبة من الصفر)."
-      },
-      "site": {
-        "timezone": "المنطقة الزمنية IANA لحدود اليوم المحلية للموقع (التوقعات، منحدر الشبكة، ملفات التحميل، والعرض). اختر تلقائي للكشف من إحداثيات التوقعات."
       },
       "control": {
         "loop_interval_seconds": "عدد المرات التي يقرأ فيها المنسق القياس عن بعد ويعيد حساب القرارات.",
@@ -464,7 +464,7 @@
       "seriesLoad": "Load (W)",
       "seriesTemp": "Temp (°C)",
       "noForecastViewer": "No forecast yet. Ask an admin to configure forecast location and PV arrays in Settings.",
-      "noForecastAdmin": "No forecast yet. Set your latitude/longitude and panels in the Settings tab."
+      "noForecastAdmin": "No forecast yet. Set your site latitude/longitude and panels in the Settings tab."
     },
     "history": {
       "title": "تاريخ",

@@ -97,8 +97,8 @@
     "seriesSolar": "Solar (W)",
     "seriesLoad": "Load (W)",
     "seriesTemp": "Temp (°C)",
-    "noForecastViewer": "No forecast yet. Ask an admin to configure forecast location and PV arrays in Settings.",
-    "noForecastAdmin": "No forecast yet. Set your latitude/longitude and panels in the Settings tab."
+    "noForecastViewer": "No forecast yet. Ask an admin to configure site location and PV arrays in Settings.",
+    "noForecastAdmin": "No forecast yet. Set your site latitude/longitude and panels in the Settings tab."
   },
   "history": {
     "title": "History",

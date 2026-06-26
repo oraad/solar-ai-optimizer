@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from app.config import AppConfig, ForecastConfig, Settings
+from app.config import AppConfig, ForecastConfig, Settings, SiteConfig
 from app.forecast.load import LoadForecaster
 from app.forecast.service import ForecastService
 from app.forecast.temperature import TemperatureService
@@ -62,7 +62,7 @@ def test_load_forecaster_buckets_by_site_local_hour():
 
 
 def test_temperature_temp_at_uses_site_local_bias_hour():
-    temp = TemperatureService(ForecastConfig())
+    temp = TemperatureService(ForecastConfig(), SiteConfig())
     temp.set_site_timezone("Africa/Johannesburg")
     temp._resolved_timezone = "Africa/Johannesburg"  # noqa: SLF001
 

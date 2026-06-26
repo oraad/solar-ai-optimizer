@@ -138,7 +138,7 @@ The **Forecast** tab shows a 48-hour solar and load forecast chart plus daily en
 - **Temperature** (when configured) uses a separate right-hand °C axis
 - Pills warn about **cloudy tomorrow** or a **degraded forecast** (hover for reasons)
 
-Admins: set latitude, longitude, PV arrays, and forecast provider under **Settings** if the chart is empty. Viewers: contact an admin if the chart shows a configuration message.
+Admins: set site latitude, longitude, PV arrays, and forecast provider under **Settings** if the chart is empty. Viewers: contact an admin if the chart shows a configuration message.
 
 ![Forecast chart and grid statistics](images/frontend/forecast.png)
 
@@ -185,7 +185,7 @@ Major sections:
 | Section | What to configure |
 |---------|-------------------|
 | **Home Assistant connection** | URL, token, SSL verification |
-| **Site** | **Timezone** — searchable IANA list or **Auto** (Open-Meteo at forecast location). Applies to forecast daily totals, history/chart timestamps, and backend load/temperature bucketing. |
+| **Site** | **Timezone** — searchable IANA list or **Auto** (Open-Meteo at site location). **Latitude / longitude** for solar and weather APIs. Applies to forecast daily totals, history/chart timestamps, and backend load/temperature bucketing. |
 | **Fail-safe** | Heartbeat entity, shutdown grid-charge-at-max |
 | **API security** | Browser-stored API token when `API_TOKEN` is set on the server |
 | **Display preferences** | **Language** (English, العربية, Français) and **date format** for this browser: locale default, DD/MM/YY, or YYYY-MM-DD (ISO). Arabic sets right-to-left layout. Applies to history tables, chart axes/cursor, and release dates. Decision rationales, API errors, system-update messages, and assistant heuristic fallbacks follow the selected language when the dashboard sends `X-Solar-Locale` to the backend. Changing language reconnects the live WebSocket and refetches history. Ollama system prompts and heuristic replies are catalog-backed per locale; model output may still vary. History rows stored before the i18n migration may show legacy English skip text until re-fetched; the API normalizes known legacy strings when possible. |

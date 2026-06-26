@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from ..config import ForecastConfig
+from ..config import ForecastConfig, SiteConfig
 from ..dates import parse_datetime
 from ..tz import resolve_site_tz, to_site_local
 
@@ -71,8 +71,9 @@ class TemperatureBias:
 
 
 class TemperatureService:
-    def __init__(self, cfg: ForecastConfig) -> None:
+    def __init__(self, cfg: ForecastConfig, site: SiteConfig) -> None:
         self._cfg = cfg
+        self._site = site
         self._site_timezone = "auto"
         self._resolved_timezone: str | None = None
         self._by_hour_ts: dict[datetime, float] = {}
@@ -94,6 +95,9 @@ class TemperatureService:
     def update_config(self, cfg: ForecastConfig) -> None:
         self._cfg = cfg
 
+    def update_site(self, site: SiteConfig) -> None:
+        self._site = site
+
     @staticmethod
     def _hour_align(ts: datetime) -> datetime:
         return ts.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -113,8 +117,8 @@ class TemperatureService:
         """Fetch the hourly temperature series (history + horizon)."""
         past_days = max(0, min(92, int(past_days)))
         params = {
-            "latitude": self._cfg.latitude,
-            "longitude": self._cfg.longitude,
+            "latitude": self._site.latitude,
+            "longitude": self._site.longitude,
             "hourly": "temperature_2m",
             "past_days": past_days,
             "forecast_days": forecast_days,

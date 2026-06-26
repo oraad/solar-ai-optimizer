@@ -174,7 +174,7 @@
   "forecast": {
     "degraded": {
       "solcast_misconfigured": "solcast sélectionné mais SOLCAST_API_KEY ou SOLCAST_RESOURCE_ID non défini",
-      "location_missing": "latitude/longitude non configurées (toujours 0,0) ; prévision solaire peu fiable",
+      "location_missing": "latitude/longitude du site non configurées (toujours 0,0) ; prévision solaire peu fiable",
       "temperature_failed": "fournisseur de température en échec : {error}",
       "solar_failed": "fournisseur solaire en échec : {error}",
       "stale_solar": "utilisation de la prévision solaire précédente/obsolète"

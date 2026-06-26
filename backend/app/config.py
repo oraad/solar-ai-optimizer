@@ -204,6 +204,8 @@ class TemperatureConfig(BaseModel):
 
 class SiteConfig(BaseModel):
     timezone: str = "auto"
+    latitude: float = 0.0
+    longitude: float = 0.0
 
     @field_validator("timezone", mode="before")
     @classmethod
@@ -221,11 +223,13 @@ class SiteConfig(BaseModel):
             raise ValueError("api.config.timezone") from e
         return s
 
+    @property
+    def location_configured(self) -> bool:
+        return not (self.latitude == 0.0 and self.longitude == 0.0)
+
 
 class ForecastConfig(BaseModel):
     provider: ForecastProvider = "open-meteo"
-    latitude: float = 0.0
-    longitude: float = 0.0
     arrays: list[PvArray] = Field(default_factory=lambda: [PvArray()])
     temperature: TemperatureConfig = Field(default_factory=TemperatureConfig)
 
@@ -238,10 +242,6 @@ class ForecastConfig(BaseModel):
         if s not in ("open-meteo", "solcast"):
             raise ValueError("api.config.forecast_provider")
         return s
-
-    @property
-    def location_configured(self) -> bool:
-        return not (self.latitude == 0.0 and self.longitude == 0.0)
 
 
 class ControlConfig(BaseModel):

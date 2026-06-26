@@ -23,10 +23,11 @@ def test_legacy_flat_overrides_migrate_to_v1(tmp_path):
     )
     store = ConfigStore(str(base), str(runtime))
     cfg = store.load()
-    assert cfg.forecast.latitude == -33.9
+    assert cfg.site.latitude == -33.9
     raw = yaml.safe_load(runtime.read_text(encoding="utf-8"))
     assert raw["schema_version"] == CURRENT_SCHEMA_VERSION
-    assert raw["overrides"]["forecast"]["latitude"] == -33.9
+    assert raw["overrides"]["site"]["latitude"] == -33.9
+    assert "latitude" not in raw["overrides"].get("forecast", {})
 
 
 def test_v1_wrapped_file_loads_without_rewrite(tmp_path):
@@ -44,10 +45,10 @@ def test_config_store_update_writes_v1_format(tmp_path):
     base.write_text("battery:\n  capacity_kwh: 10\n", encoding="utf-8")
     runtime = tmp_path / "runtime.yaml"
     store = ConfigStore(str(base), str(runtime))
-    store.update({"forecast": {"latitude": -34.0}})
+    store.update({"site": {"latitude": -34.0}})
     raw = yaml.safe_load(runtime.read_text(encoding="utf-8"))
     assert raw["schema_version"] == CURRENT_SCHEMA_VERSION
-    assert raw["overrides"]["forecast"]["latitude"] == -34.0
+    assert raw["overrides"]["site"]["latitude"] == -34.0
 
 
 def test_migrate_overrides_identity():
@@ -104,4 +105,38 @@ def test_migrate_v3_to_v4_moves_forecast_timezone():
     )
     assert version == CURRENT_SCHEMA_VERSION
     assert overrides["site"]["timezone"] == "Africa/Johannesburg"
+    assert overrides["site"]["latitude"] == -33.9
     assert "timezone" not in overrides["forecast"]
+    assert "latitude" not in overrides["forecast"]
+
+
+def test_migrate_v4_to_v5_moves_forecast_coordinates():
+    overrides, version = migrate_overrides(
+        {
+            "schema_version": 4,
+            "overrides": {
+                "forecast": {"latitude": -33.9, "longitude": 18.4, "provider": "open-meteo"},
+            },
+        }
+    )
+    assert version == CURRENT_SCHEMA_VERSION
+    assert overrides["site"]["latitude"] == -33.9
+    assert overrides["site"]["longitude"] == 18.4
+    assert "latitude" not in overrides["forecast"]
+    assert "longitude" not in overrides["forecast"]
+    assert overrides["forecast"]["provider"] == "open-meteo"
+
+
+def test_migrate_v4_to_v5_keeps_existing_site_coordinates():
+    overrides, version = migrate_overrides(
+        {
+            "schema_version": 4,
+            "overrides": {
+                "site": {"latitude": -34.0, "longitude": 19.0},
+                "forecast": {"latitude": -33.9, "longitude": 18.4},
+            },
+        }
+    )
+    assert version == CURRENT_SCHEMA_VERSION
+    assert overrides["site"]["latitude"] == -34.0
+    assert overrides["site"]["longitude"] == 19.0

@@ -41,11 +41,13 @@ class ReactiveGrid:
         reserve: ReserveConfig,
         grid_charge: GridChargeConfig | None = None,
         site_timezone: str = "auto",
+        site_timezone_resolved: str | None = None,
     ) -> None:
         self._battery = battery
         self._reserve = reserve
         self._grid_charge = grid_charge or GridChargeConfig()
         self._site_timezone = site_timezone
+        self._site_timezone_resolved = site_timezone_resolved
         self._priority_weights = {
             k.value: v for k, v in resolve_weights().items()
         }
@@ -56,6 +58,7 @@ class ReactiveGrid:
         reserve: ReserveConfig,
         grid_charge: GridChargeConfig | None = None,
         site_timezone: str | None = None,
+        site_timezone_resolved: str | None = None,
         priority_order: list[OptimizationPriority] | None = None,
     ) -> None:
         self._battery = battery
@@ -64,6 +67,8 @@ class ReactiveGrid:
             self._grid_charge = grid_charge
         if site_timezone is not None:
             self._site_timezone = site_timezone
+        if site_timezone_resolved is not None:
+            self._site_timezone_resolved = site_timezone_resolved
         if priority_order is not None:
             self._priority_weights = {
                 k.value: v for k, v in resolve_weights(priority_order).items()
@@ -106,6 +111,7 @@ class ReactiveGrid:
             grid_charge=self._grid_charge,
             last_amps=last_amps,
             site_timezone=self._site_timezone,
+            site_timezone_resolved=self._site_timezone_resolved,
             priority_weights=self._priority_weights,
         )
         plan = compute_ramp_plan(ctx)

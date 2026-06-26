@@ -13,6 +13,7 @@ import { sharedStyles } from "../styles.js";
 import { dismissToast, runWithToast, showToast, updateToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
+import "./timezone-input.js";
 import type { AppConfigView, EntityInfo, ReleaseSummary, SessionInfo, SystemStatus, UpdateInfo, UpdateProgress } from "../types.js";
 import { renderMarkdown } from "../markdown.js";
 import {
@@ -27,6 +28,7 @@ type Section = Record<string, unknown>;
 
 // Sections rendered as simple scalar forms.
 const FORM_SECTIONS = [
+  "site",
   "battery",
   "reserve",
   "forecast",
@@ -579,6 +581,22 @@ export class SettingsPanel extends LitElement {
 
   private renderField(section: string, key: string, value: number | string | boolean) {
     const label = this.lbl(section, key);
+    if (section === "site" && key === "timezone") {
+      const tzValue = String(value);
+      const resolved =
+        tzValue.toLowerCase() === "auto"
+          ? this.status?.timezone_resolved ?? ""
+          : "";
+      return html`<div class="field">
+        <label>${label}</label>
+        <solar-timezone-input
+          .value=${String(value)}
+          .resolvedHint=${resolved}
+          @timezone-change=${(e: CustomEvent<string>) =>
+            this.setField(section, key, e.detail)}
+        />
+      </div>`;
+    }
     if (section === "forecast" && key === "provider") {
       return html`<div class="field">
         <label>${label}</label>

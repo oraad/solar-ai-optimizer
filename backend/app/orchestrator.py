@@ -134,13 +134,18 @@ class Orchestrator:
         """(Re)create stateless engine/control components from current cfg."""
         cfg = self.cfg
         self.reactive = ReactiveGrid(
-            cfg.battery, cfg.reserve, cfg.grid_charge, cfg.forecast.timezone
+            cfg.battery,
+            cfg.reserve,
+            cfg.grid_charge,
+            cfg.site.timezone,
+            self.forecast.resolved_timezone,
         )
         self.reactive.update_config(
             cfg.battery,
             cfg.reserve,
             cfg.grid_charge,
-            cfg.forecast.timezone,
+            cfg.site.timezone,
+            self.forecast.resolved_timezone,
             cfg.engine.priority_order,
         )
         from .forecast.helpers import total_kwp
@@ -591,6 +596,8 @@ class Orchestrator:
             force_grid_charge_override=self.override.force_grid_charge,
             shadow_mode=self.shadow_mode,
             paused=self.paused,
+            timezone_config=self.cfg.site.timezone,
+            timezone_resolved=self.forecast.resolved_timezone,
             last_updated=utcnow(),
         )
 

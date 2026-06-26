@@ -5,7 +5,9 @@ import {
   formatChartCursor,
   formatDateTime,
   getDateFormat,
+  getDisplayTimezone,
   setDateFormat,
+  setSiteTimezone,
   type DateDisplayFormat,
 } from "./date-format.js";
 
@@ -62,6 +64,38 @@ describe("formatChartAxisLabels", () => {
 describe("formatChartCursor", () => {
   it("always includes time", () => {
     expect(formatChartCursor(SAMPLE_UNIX, "iso")).toBe("2026-06-24 15:30");
+  });
+});
+
+describe("site timezone", () => {
+  afterEach(() => {
+    setSiteTimezone(null, null);
+  });
+
+  it("uses explicit site timezone for iso formatting", () => {
+    setSiteTimezone("Africa/Johannesburg", null);
+    expect(getDisplayTimezone()).toBe("Africa/Johannesburg");
+    expect(formatDateTime(SAMPLE_ISO, "iso")).toBe("2026-06-24 17:30");
+  });
+
+  it("uses resolved timezone when config is auto", () => {
+    setSiteTimezone("auto", "Africa/Johannesburg");
+    expect(getDisplayTimezone()).toBe("Africa/Johannesburg");
+    expect(formatDateTime(SAMPLE_ISO, "ddmmyy")).toBe("24/06/26 17:30");
+  });
+
+  it("falls back to browser local when auto is unresolved", () => {
+    setSiteTimezone("auto", null);
+    expect(getDisplayTimezone()).toBeUndefined();
+  });
+
+  it("dispatches solar-site-timezone-change when effective timezone changes", () => {
+    let fired = false;
+    window.addEventListener("solar-site-timezone-change", () => {
+      fired = true;
+    });
+    setSiteTimezone("Europe/Berlin", null);
+    expect(fired).toBe(true);
   });
 });
 

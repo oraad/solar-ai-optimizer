@@ -5,6 +5,26 @@ export type DateDisplayFormat = "locale" | "ddmmyy" | "iso";
 const STORAGE_KEY = "solar-date-format";
 const VALID: DateDisplayFormat[] = ["locale", "ddmmyy", "iso"];
 
+let siteTimezoneConfig: string | null = null;
+let siteTimezoneResolved: string | null = null;
+
+export function setSiteTimezone(config: string | null, resolved: string | null): void {
+  const prev = getDisplayTimezone();
+  siteTimezoneConfig = config;
+  siteTimezoneResolved = resolved;
+  const next = getDisplayTimezone();
+  if (prev !== next && typeof window !== "undefined") {
+    window.dispatchEvent(new Event("solar-site-timezone-change"));
+  }
+}
+
+/** Effective IANA timezone for display, or undefined for browser local. */
+export function getDisplayTimezone(): string | undefined {
+  const cfg = (siteTimezoneConfig ?? "auto").trim();
+  if (cfg && cfg.toLowerCase() !== "auto") return cfg;
+  return siteTimezoneResolved ?? undefined;
+}
+
 export function getDateFormat(): DateDisplayFormat {
   if (typeof localStorage === "undefined") return "locale";
   try {
@@ -42,45 +62,92 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-function formatDdmmyy(date: Date, includeTime: boolean): string {
-  const dd = pad2(date.getDate());
-  const mm = pad2(date.getMonth() + 1);
-  const yy = pad2(date.getFullYear() % 100);
+type DateParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+};
+
+function partsInTimezone(date: Date, timeZone?: string): DateParts {
+  if (!timeZone) {
+    return {
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      day: date.getDate(),
+      hour: date.getHours(),
+      minute: date.getMinutes(),
+    };
+  }
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const mapped = Object.fromEntries(
+    fmt.formatToParts(date).map((p) => [p.type, p.value]),
+  );
+  return {
+    year: Number(mapped.year),
+    month: Number(mapped.month),
+    day: Number(mapped.day),
+    hour: Number(mapped.hour),
+    minute: Number(mapped.minute),
+  };
+}
+
+function formatDdmmyy(date: Date, includeTime: boolean, timeZone?: string): string {
+  const p = partsInTimezone(date, timeZone);
+  const dd = pad2(p.day);
+  const mm = pad2(p.month);
+  const yy = pad2(p.year % 100);
   if (!includeTime) return `${dd}/${mm}/${yy}`;
-  return `${dd}/${mm}/${yy} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+  return `${dd}/${mm}/${yy} ${pad2(p.hour)}:${pad2(p.minute)}`;
 }
 
-function formatIso(date: Date, includeTime: boolean): string {
-  const y = date.getFullYear();
-  const m = pad2(date.getMonth() + 1);
-  const d = pad2(date.getDate());
+function formatIso(date: Date, includeTime: boolean, timeZone?: string): string {
+  const p = partsInTimezone(date, timeZone);
+  const y = String(p.year);
+  const m = pad2(p.month);
+  const d = pad2(p.day);
   if (!includeTime) return `${y}-${m}-${d}`;
-  return `${y}-${m}-${d} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+  return `${y}-${m}-${d} ${pad2(p.hour)}:${pad2(p.minute)}`;
 }
 
-function formatLocale(date: Date, includeTime: boolean): string {
+function formatLocale(date: Date, includeTime: boolean, timeZone?: string): string {
   const locale = getLocale();
+  const opts: Intl.DateTimeFormatOptions = timeZone ? { timeZone } : {};
   if (includeTime) {
     return new Intl.DateTimeFormat(locale, {
+      ...opts,
       dateStyle: "short",
       timeStyle: "short",
     }).format(date);
   }
-  return new Intl.DateTimeFormat(locale, { dateStyle: "short" }).format(date);
+  return new Intl.DateTimeFormat(locale, {
+    ...opts,
+    dateStyle: "short",
+  }).format(date);
 }
 
 function formatWithMode(
   date: Date,
   fmt: DateDisplayFormat,
   includeTime: boolean,
+  timeZone?: string,
 ): string {
   switch (fmt) {
     case "ddmmyy":
-      return formatDdmmyy(date, includeTime);
+      return formatDdmmyy(date, includeTime, timeZone);
     case "iso":
-      return formatIso(date, includeTime);
+      return formatIso(date, includeTime, timeZone);
     default:
-      return formatLocale(date, includeTime);
+      return formatLocale(date, includeTime, timeZone);
   }
 }
 
@@ -90,21 +157,23 @@ export function formatDateTime(
 ): string {
   const d = toDate(input);
   if (!d) return String(input);
-  return formatWithMode(d, fmt ?? getDateFormat(), true);
+  return formatWithMode(d, fmt ?? getDateFormat(), true, getDisplayTimezone());
 }
 
 export function formatChartCursor(unixSec: number, fmt?: DateDisplayFormat): string {
   const d = toDate(unixSec * 1000);
   if (!d) return "";
-  return formatWithMode(d, fmt ?? getDateFormat(), true);
+  return formatWithMode(d, fmt ?? getDateFormat(), true, getDisplayTimezone());
 }
 
-function formatTimeHm(date: Date): string {
-  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+function formatTimeHm(date: Date, timeZone?: string): string {
+  const p = partsInTimezone(date, timeZone);
+  return `${pad2(p.hour)}:${pad2(p.minute)}`;
 }
 
-function localDayKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+function localDayKey(date: Date, timeZone?: string): string {
+  const p = partsInTimezone(date, timeZone);
+  return `${p.year}-${p.month}-${p.day}`;
 }
 
 /** X-axis tick labels: date at axis start or day boundary; HH:mm elsewhere. */
@@ -113,14 +182,15 @@ export function formatChartAxisLabels(
   fmt?: DateDisplayFormat,
 ): string[] {
   const mode = fmt ?? getDateFormat();
+  const tz = getDisplayTimezone();
   return ticksSec.map((unixSec, i) => {
     const d = toDate(unixSec * 1000);
     if (!d) return "";
-    if (i === 0) return formatWithMode(d, mode, false);
+    if (i === 0) return formatWithMode(d, mode, false, tz);
     const prev = toDate(ticksSec[i - 1]! * 1000);
-    if (prev && localDayKey(d) !== localDayKey(prev)) {
-      return formatWithMode(d, mode, false);
+    if (prev && localDayKey(d, tz) !== localDayKey(prev, tz)) {
+      return formatWithMode(d, mode, false, tz);
     }
-    return formatTimeHm(d);
+    return formatTimeHm(d, tz);
   });
 }

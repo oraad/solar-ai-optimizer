@@ -51,11 +51,13 @@ export class GridStatsCard extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("solar-date-format-change", this.onDateFormat);
+    window.addEventListener("solar-site-timezone-change", this.onDateFormat);
     window.addEventListener("solar-locale-change", this.onLocale);
   }
 
   disconnectedCallback(): void {
     window.removeEventListener("solar-date-format-change", this.onDateFormat);
+    window.removeEventListener("solar-site-timezone-change", this.onDateFormat);
     window.removeEventListener("solar-locale-change", this.onLocale);
     super.disconnectedCallback();
   }

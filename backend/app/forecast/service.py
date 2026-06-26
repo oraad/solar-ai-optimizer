@@ -15,6 +15,7 @@ from ..config import AppConfig, Settings
 from ..i18n import msg
 from ..models import ForecastBundle, Telemetry, TemperaturePoint, utcnow
 from ..storage import repo
+from ..tz import fetch_auto_timezone, resolve_site_tz, to_site_local
 from .bias import BiasCorrector
 from .load import LoadForecaster
 from .solar import SolarForecaster
@@ -36,6 +37,8 @@ class ForecastService:
         )
         self._load = LoadForecaster(fallback_w=cfg.reserve.critical_load_w)
         self._temp = TemperatureService(cfg.forecast)
+        self._resolved_timezone: str | None = None
+        self._apply_site_timezone()
         self._apply_temp_config()
         self._current: ForecastBundle | None = None
         self._refresh_lock = asyncio.Lock()
@@ -58,6 +61,54 @@ class ForecastService:
             except Exception as e:  # noqa: BLE001
                 log.warning("ML load init failed (%s); using heuristic.", e)
 
+    @property
+    def resolved_timezone(self) -> str | None:
+        if (self._cfg.site.timezone or "auto").lower() != "auto":
+            return self._cfg.site.timezone
+        return self._resolved_timezone
+
+    def site_tz(self):
+        return resolve_site_tz(
+            self._cfg.site.timezone,
+            auto_hint=self._resolved_timezone,
+        )
+
+    def _apply_site_timezone(self) -> None:
+        tz = self._cfg.site.timezone
+        self._solar.set_site_timezone(tz)
+        self._temp.set_site_timezone(tz)
+        self._load.set_site_tz(self.site_tz())
+
+    def _sync_resolved_timezone(self) -> None:
+        for source in (self._solar, self._temp):
+            hint = source.resolved_timezone
+            if hint:
+                self._resolved_timezone = hint
+                break
+
+    async def ensure_resolved_timezone(
+        self, client: httpx.AsyncClient | None = None
+    ) -> None:
+        if (self._cfg.site.timezone or "auto").lower() != "auto":
+            return
+        if self._resolved_timezone:
+            return
+        fc = self._cfg.forecast
+        if not fc.location_configured:
+            return
+
+        async def run(c: httpx.AsyncClient) -> None:
+            hint = await fetch_auto_timezone(fc.latitude, fc.longitude, c)
+            if hint:
+                self._resolved_timezone = hint
+                self._load.set_site_tz(self.site_tz())
+
+        if client is not None:
+            await run(client)
+        else:
+            async with httpx.AsyncClient(timeout=20.0) as owned:
+                await run(owned)
+
     def solcast_configured(self) -> bool:
         return self._solar.solcast_configured()
 
@@ -79,6 +130,9 @@ class ForecastService:
 
     def update_config(self, cfg: AppConfig) -> None:
         """Hot-update config without losing learned state."""
+        prev_tz = self._cfg.site.timezone
+        prev_lat = self._cfg.forecast.latitude
+        prev_lon = self._cfg.forecast.longitude
         self._cfg = cfg
         self._solar._cfg = cfg.forecast  # noqa: SLF001
         self._solar.set_solcast_credentials(
@@ -87,6 +141,13 @@ class ForecastService:
         )
         self._load._fallback_w = cfg.reserve.critical_load_w  # noqa: SLF001
         self._temp.update_config(cfg.forecast)
+        if (
+            cfg.site.timezone != prev_tz
+            or cfg.forecast.latitude != prev_lat
+            or cfg.forecast.longitude != prev_lon
+        ):
+            self._resolved_timezone = None
+        self._apply_site_timezone()
         self._apply_temp_config()
 
     def _ensure_ml_load(self) -> None:
@@ -170,6 +231,7 @@ class ForecastService:
                 temp_lookup=temp_lookup,
                 hdd_base=tc.hdd_base_c,
                 cdd_base=tc.cdd_base_c,
+                site_tz=self.site_tz(),
             )
             return bool(trained)
 
@@ -209,6 +271,7 @@ class ForecastService:
 
         if fc.location_configured:
             async with httpx.AsyncClient(timeout=20.0) as client:
+                await self.ensure_resolved_timezone(client)
                 names: list[str] = []
                 coros = []
                 if tc.enabled:
@@ -251,6 +314,8 @@ class ForecastService:
                     elif self._temp.available:
                         temp_lookup = self._temp.temp_at
                         self._update_temp_bias_from_history(history)
+                self._sync_resolved_timezone()
+                self._load.set_site_tz(self.site_tz())
         else:
             solar = self._current.solar if self._current else []
             solar_stale = True
@@ -268,6 +333,7 @@ class ForecastService:
                         temp_lookup=temp_lookup,
                         hdd_base=tc.hdd_base_c,
                         cdd_base=tc.cdd_base_c,
+                        site_tz=self.site_tz(),
                     )
                     ml_ok = bool(load)
                 elif self._ml_load.train(
@@ -275,12 +341,14 @@ class ForecastService:
                     temp_lookup=temp_lookup,
                     hdd_base=tc.hdd_base_c,
                     cdd_base=tc.cdd_base_c,
+                    site_tz=self.site_tz(),
                 ):
                     load = self._ml_load.forecast(
                         hours=48,
                         temp_lookup=temp_lookup,
                         hdd_base=tc.hdd_base_c,
                         cdd_base=tc.cdd_base_c,
+                        site_tz=self.site_tz(),
                     )
                     ml_ok = bool(load)
             except Exception as e:  # noqa: BLE001
@@ -340,6 +408,7 @@ class ForecastService:
 
     def _update_temp_bias_from_history(self, history: list[Telemetry]) -> None:
         """EMA the Open-Meteo vs HA-sensor temperature offset per hour-of-day."""
+        site_tz = self.site_tz()
         pairs: list[tuple[int, float, float]] = []
         for t in history:
             if t.outdoor_temp is None:
@@ -347,18 +416,19 @@ class ForecastService:
             raw = self._temp.raw_at(t.ts)
             if raw is None:
                 continue
-            hour = t.ts.astimezone(timezone.utc).hour
+            hour = to_site_local(t.ts, site_tz).hour
             pairs.append((hour, float(t.outdoor_temp), raw))
         if pairs:
             self._temp.bias.update_from_pairs(pairs)
             log.debug("Temp bias updated from %d hour pairs", len(pairs))
 
     def _daily_totals(self, solar: list) -> tuple[float, float]:
-        today = utcnow().astimezone(timezone.utc).date()
+        site_tz = self.site_tz()
+        today = to_site_local(utcnow(), site_tz).date()
         tomorrow = today + timedelta(days=1)
         totals: dict[object, float] = defaultdict(float)
         for p in solar:
-            d = p.ts.astimezone(timezone.utc).date()
+            d = to_site_local(p.ts, site_tz).date()
             totals[d] += p.pv_energy_wh / 1000.0  # Wh -> kWh
         return totals.get(today, 0.0), totals.get(tomorrow, 0.0)
 
@@ -372,19 +442,20 @@ class ForecastService:
         raw = self._solar.last_raw_by_ts
         if not raw:
             return
+        site_tz = self.site_tz()
         # Average actual PV per hour-bucket timestamp.
         actual_by_hour_ts: dict[datetime, list[float]] = defaultdict(list)
         for t in history:
             if t.pv_power is None:
                 continue
-            hour_ts = t.ts.astimezone(timezone.utc).replace(
+            hour_ts = to_site_local(t.ts, site_tz).replace(
                 minute=0, second=0, microsecond=0
             )
             actual_by_hour_ts[hour_ts].append(t.pv_power)
 
         pairs: list[tuple[int, float, float]] = []
         for hour_ts, fc_w in raw.items():
-            key = hour_ts.astimezone(timezone.utc).replace(
+            key = to_site_local(hour_ts, site_tz).replace(
                 minute=0, second=0, microsecond=0
             )
             if key in actual_by_hour_ts:

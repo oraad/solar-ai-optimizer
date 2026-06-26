@@ -185,6 +185,7 @@ Major sections:
 | Section | What to configure |
 |---------|-------------------|
 | **Home Assistant connection** | URL, token, SSL verification |
+| **Site** | **Timezone** — searchable IANA list or **Auto** (Open-Meteo at forecast location). Applies to forecast daily totals, history/chart timestamps, and backend load/temperature bucketing. |
 | **Fail-safe** | Heartbeat entity, shutdown grid-charge-at-max |
 | **API security** | Browser-stored API token when `API_TOKEN` is set on the server |
 | **Display preferences** | **Language** (English, العربية, Français) and **date format** for this browser: locale default, DD/MM/YY, or YYYY-MM-DD (ISO). Arabic sets right-to-left layout. Applies to history tables, chart axes/cursor, and release dates. Decision rationales, API errors, system-update messages, and assistant heuristic fallbacks follow the selected language when the dashboard sends `X-Solar-Locale` to the backend. Changing language reconnects the live WebSocket and refetches history. Ollama system prompts and heuristic replies are catalog-backed per locale; model output may still vary. History rows stored before the i18n migration may show legacy English skip text until re-fetched; the API normalizes known legacy strings when possible. |

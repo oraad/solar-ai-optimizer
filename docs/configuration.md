@@ -7,7 +7,7 @@ the dashboard is the primary interface for operators.
 
 | Source | Purpose |
 |--------|---------|
-| **Settings UI** | Primary config: HA connection, entity map, battery, reserve, forecast, control |
+| **Settings UI** | Primary config: HA connection, site timezone, entity map, battery, reserve, forecast, control |
 | `config/config.yaml` (in image) | Base defaults; UI overrides stored in data volume |
 | `config.runtime.yaml` (data volume) | Persisted UI edits (deep-merged over base) |
 | `.env` / Compose `environment` | Secrets, feature flags, optional API token |
@@ -16,6 +16,7 @@ the dashboard is the primary interface for operators.
 Key sections (all editable in Settings):
 
 - Home Assistant connection
+- **Site** — IANA timezone or **Auto** (from Open-Meteo at forecast latitude/longitude); drives forecast day boundaries, load/temperature learning buckets, and dashboard timestamps
 - Inverter entity map (read sensors + write controls)
 - Battery specs and reserve policy
 - Forecast location, PV arrays, temperature model

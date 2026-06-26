@@ -10,7 +10,7 @@ import yaml
 
 log = logging.getLogger("config_migration")
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 SCHEMA_VERSION_KEY = "schema_version"
 OVERRIDES_KEY = "overrides"
 
@@ -95,10 +95,45 @@ def migrate_v2_to_v3(overrides: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def migrate_v3_to_v4(overrides: dict[str, Any]) -> dict[str, Any]:
+    """Move forecast.timezone to site.timezone."""
+    out = dict(overrides)
+    forecast = out.get("forecast")
+    if not isinstance(forecast, dict):
+        return out
+
+    forecast = dict(forecast)
+    legacy_tz = forecast.pop("timezone", None)
+    if legacy_tz is None:
+        return out
+
+    site = out.get("site")
+    if not isinstance(site, dict):
+        site = {}
+    else:
+        site = dict(site)
+
+    if site.get("timezone") is None:
+        site["timezone"] = legacy_tz
+        log.info("Migrated forecast.timezone -> site.timezone (%s)", legacy_tz)
+
+    out["site"] = site
+    out["forecast"] = forecast
+    return out
+
+
+def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
+    """Apply structural migrations to base YAML / merged config dicts."""
+    if not data:
+        return {}
+    return migrate_v3_to_v4(dict(data))
+
+
 MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = [
     (0, 1, migrate_v0_to_v1),
     (1, 2, migrate_v1_to_v2),
     (2, 3, migrate_v2_to_v3),
+    (3, 4, migrate_v3_to_v4),
 ]
 
 

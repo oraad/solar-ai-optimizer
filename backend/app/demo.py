@@ -60,10 +60,12 @@ def demo_config_overrides() -> dict:
             "token": "demo-token-not-real",
             "verify_ssl": True,
         },
+        "site": {
+            "timezone": "Africa/Johannesburg",
+        },
         "forecast": {
             "latitude": DEMO_LATITUDE,
             "longitude": DEMO_LONGITUDE,
-            "timezone": "Africa/Johannesburg",
             "arrays": [
                 {
                     "name": "North roof",

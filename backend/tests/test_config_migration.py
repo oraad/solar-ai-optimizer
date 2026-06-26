@@ -91,3 +91,17 @@ def test_migrate_v2_to_v3_moves_max_to_grid_charge():
     assert overrides["grid_charge"]["max_grid_charge_a"] == 80.0
     assert overrides["grid_charge"]["min_grid_charge_a"] == 5.0
     assert "max_grid_charge_a" not in overrides["battery"]
+
+
+def test_migrate_v3_to_v4_moves_forecast_timezone():
+    overrides, version = migrate_overrides(
+        {
+            "schema_version": 3,
+            "overrides": {
+                "forecast": {"timezone": "Africa/Johannesburg", "latitude": -33.9},
+            },
+        }
+    )
+    assert version == CURRENT_SCHEMA_VERSION
+    assert overrides["site"]["timezone"] == "Africa/Johannesburg"
+    assert "timezone" not in overrides["forecast"]

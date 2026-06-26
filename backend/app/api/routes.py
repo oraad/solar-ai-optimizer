@@ -72,6 +72,8 @@ async def health(request: Request) -> dict:
         "heartbeat_last_pulse": hb.isoformat() if hb else None,
         "metrics": metrics.as_dict(),
         "time": utcnow().isoformat(),
+        "timezone_config": status.timezone_config,
+        "timezone_resolved": status.timezone_resolved,
         "forecast_generated_at": (
             forecast.generated_at.isoformat() if forecast else None
         ),

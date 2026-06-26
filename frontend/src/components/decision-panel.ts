@@ -4,6 +4,13 @@ import { customElement, property } from "lit/decorators.js";
 import { capabilityLabel } from "../field-labels.js";
 import { t } from "../i18n.js";
 import { LocaleController } from "../locale-controller.js";
+import {
+  groupShedActionsByTier,
+  groupShedResultsByTier,
+  shedActionTooltip,
+  shedResultTooltip,
+  type TierShedResultSummary,
+} from "../shed-display.js";
 import { sharedStyles } from "../styles.js";
 import type { Decision, ExecutionResult, GridChargePlan, ShedResult } from "../types.js";
 
@@ -80,6 +87,24 @@ export class DecisionPanel extends LitElement {
     return r.skipped_reason_text ?? r.skipped_reason ?? t("ui.decision.skipped");
   }
 
+  private tierSkipLabel(summary: TierShedResultSummary): string {
+    return (
+      summary.uniformSkipReasonText ??
+      summary.primarySkipReasonText ??
+      summary.uniformSkipReason ??
+      summary.primarySkipReason ??
+      t("ui.decision.skipped")
+    );
+  }
+
+  private tierShedExtra(summary: TierShedResultSummary): string {
+    if (summary.wasOffBeforeShed) return t("ui.decision.wasOffBeforeShed");
+    if (summary.companionsRestored.length > 0) {
+      return t("ui.decision.companions", { list: summary.companionsRestored.join(", ") });
+    }
+    return "";
+  }
+
   render() {
     const d = this.decision;
     if (!d) return html`<div class="card"><h3>${t("ui.decision.title")}</h3><p class="label">${t("ui.decision.waiting")}</p></div>`;
@@ -127,9 +152,12 @@ export class DecisionPanel extends LitElement {
           ? html`
               <div class="subhead">${t("ui.decision.loadShedding")}</div>
               <div class="chips">
-                ${d.shed_actions.map(
+                ${groupShedActionsByTier(d.shed_actions).map(
                   (s) => html`
-                    <span class="chip" title=${s.reason}>
+                    <span
+                      class="chip"
+                      title=${shedActionTooltip(s, t("common.on"), t("ui.decision.shed"))}
+                    >
                       <span class="cap">${s.tier}</span>
                       <span class="val ${s.desired_on ? "on" : "off"}">${s.desired_on ? t("common.on") : t("ui.decision.shed")}</span>
                       <span class="why">${s.reason}</span>
@@ -160,26 +188,21 @@ export class DecisionPanel extends LitElement {
           ? html`
               <div class="subhead">${t("ui.decision.shedExecution")}</div>
               <div class="chips">
-                ${this.shedResults.map(
-                  (r) => {
-                    const extra =
-                      r.skipped_reason === "engine.skip.was_off_before_shed"
-                        ? t("ui.decision.wasOffBeforeShed")
-                        : (r.companions_restored?.length ?? 0) > 0
-                          ? t("ui.decision.companions", { list: r.companions_restored!.join(", ") })
-                          : "";
-                    const title = [this.skipLabel(r), extra].filter(Boolean).join(" · ");
-                    return html`
-                    <span class="chip" title=${title}>
-                      <span class="cap">${r.tier}</span>
-                      <span class="val ${r.verified ? "on" : "off"}">
-                        ${r.desired_on ? t("common.on") : t("common.off")} ${r.verified ? t("ui.decision.ok") : this.skipLabel(r) || t("ui.decision.pending")}
+                ${groupShedResultsByTier(this.shedResults).map((s) => {
+                  const extra = this.tierShedExtra(s);
+                  const status = s.allVerified
+                    ? t("ui.decision.ok")
+                    : this.tierSkipLabel(s) || t("ui.decision.pending");
+                  return html`
+                    <span class="chip" title=${shedResultTooltip(s)}>
+                      <span class="cap">${s.tier}</span>
+                      <span class="val ${s.allVerified ? "on" : "off"}">
+                        ${s.desired_on ? t("common.on") : t("common.off")} ${status}
                       </span>
                       ${extra ? html`<span class="why">${extra}</span>` : null}
                     </span>
                   `;
-                  },
-                )}
+                })}
               </div>
             `
           : null}

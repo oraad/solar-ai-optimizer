@@ -18,6 +18,7 @@ from .config import AppConfig, load_app_config
 from .config_migration import (
     CURRENT_SCHEMA_VERSION,
     load_runtime_file,
+    migrate_config_data,
     save_runtime_file,
 )
 
@@ -57,7 +58,8 @@ class ConfigStore:
         return overrides
 
     def effective_dict(self) -> dict[str, Any]:
-        return deep_merge(self._base_dict(), self._overrides())
+        merged = deep_merge(self._base_dict(), self._overrides())
+        return migrate_config_data(merged)
 
     def load(self) -> AppConfig:
         """Return the validated effective config."""

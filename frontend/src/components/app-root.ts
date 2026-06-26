@@ -2,6 +2,7 @@ import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 
 import { api, AuthRequiredError, live } from "../api.js";
+import { setSiteTimezone } from "../date-format.js";
 import { LOCALE_CHANGE_EVENT, t } from "../i18n.js";
 import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
@@ -416,6 +417,7 @@ export class SolarApp extends LitElement {
   private applyStatus(s: SystemStatus): void {
     this.status = s;
     this.lastUpdate = Date.now();
+    setSiteTimezone(s.timezone_config ?? "auto", s.timezone_resolved ?? null);
     if (s.grid_stats) {
       this.gridStats = s.grid_stats;
     } else {

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..config import BatteryConfig, GridChargeConfig, GridChargeFactor
 from ..engine.priorities import FACTOR_BLEND, RANK_WEIGHTS, blend_ceiling, resolve_weights
@@ -20,6 +19,7 @@ from ..models import (
     Telemetry,
     utcnow,
 )
+from ..tz import resolve_site_tz
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ class RampContext:
     grid_charge: GridChargeConfig
     last_amps: float | None = None
     site_timezone: str = "auto"
+    site_timezone_resolved: str | None = None
     priority_weights: dict[str, float] | None = None
 
 
@@ -52,19 +53,13 @@ def _max_amps(ctx: RampContext) -> float:
     return ctx.grid_charge.max_grid_charge_a
 
 
-def _resolve_site_tz(tz_name: str) -> timezone | ZoneInfo:
-    if not tz_name or tz_name == "auto":
-        return timezone.utc
-    try:
-        return ZoneInfo(tz_name)
-    except (ZoneInfoNotFoundError, ValueError):
-        return timezone.utc
-
-
 def _remaining_solar_wh(ctx: RampContext, now: datetime) -> float:
     if not ctx.forecast or not ctx.forecast.solar:
         return 0.0
-    site_tz = _resolve_site_tz(ctx.site_timezone)
+    site_tz = resolve_site_tz(
+        ctx.site_timezone,
+        auto_hint=ctx.site_timezone_resolved,
+    )
     local = now.astimezone(site_tz)
     end_of_day = local.replace(hour=23, minute=59, second=59, microsecond=999999)
     total = 0.0

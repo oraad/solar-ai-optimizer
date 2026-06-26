@@ -17,8 +17,12 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+from zoneinfo import ZoneInfo
 
 from ..models import LoadForecastPoint, Telemetry, utcnow
+from ..tz import to_site_local
 from .temperature import cdd, hdd
 
 log = logging.getLogger("forecast.ml_load")
@@ -41,13 +45,14 @@ def _features(
     temp: float | None,
     hdd_base: float = 18.0,
     cdd_base: float = 24.0,
+    site_tz: ZoneInfo | None = None,
 ) -> list[float]:
     import math
 
-    dt = dt.astimezone(timezone.utc)
-    hour = dt.hour + dt.minute / 60.0
-    dow = dt.weekday()
-    month = dt.month
+    local = to_site_local(dt, site_tz or ZoneInfo("UTC"))
+    hour = local.hour + local.minute / 60.0
+    dow = local.weekday()
+    month = local.month
     has_temp = 1.0 if temp is not None else 0.0
     t = temp if temp is not None else 0.0
     return [
@@ -81,6 +86,7 @@ class MLLoadForecaster:
         temp_lookup: TempLookup | None = None,
         hdd_base: float = 18.0,
         cdd_base: float = 24.0,
+        site_tz: ZoneInfo | None = None,
     ) -> bool:
         if not available():
             return False
@@ -95,7 +101,7 @@ class MLLoadForecaster:
             temp = t.outdoor_temp
             if temp is None and temp_lookup is not None:
                 temp = temp_lookup(t.ts)
-            xs.append(_features(t.ts, temp, hdd_base, cdd_base))
+            xs.append(_features(t.ts, temp, hdd_base, cdd_base, site_tz))
             ys.append(float(t.load_power))
 
         if len(ys) < 200:  # not enough signal yet
@@ -150,6 +156,7 @@ class MLLoadForecaster:
         temp_lookup: TempLookup | None = None,
         hdd_base: float = 18.0,
         cdd_base: float = 24.0,
+        site_tz: ZoneInfo | None = None,
     ) -> list[LoadForecastPoint]:
         if not self._trained or self._model is None:
             return []
@@ -164,6 +171,7 @@ class MLLoadForecaster:
                     temp_lookup(ts) if temp_lookup else None,
                     hdd_base,
                     cdd_base,
+                    site_tz,
                 )
                 for ts in rows
             ]

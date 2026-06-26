@@ -51,11 +51,7 @@ describe("settings-utils", () => {
   });
 
   it("builds checklist from status and draft", () => {
-    const items = buildSetupChecklist(
-      { forecast_misconfigured: false, ha_connected: true },
-      baseConfig(),
-      true,
-    );
+    const items = buildSetupChecklist(null, baseConfig(), true);
     expect(items.find((i) => i.id === "ha")?.done).toBe(true);
     expect(items.find((i) => i.id === "inverter")?.done).toBe(true);
     expect(checklistNeedsAttention(items)).toBe(false);

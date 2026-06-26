@@ -20,10 +20,12 @@ import type {
 import { updateChipLabel } from "../update-progress.js";
 
 import "./status-cards.js";
+import "./overview-hero.js";
 import "./decision-panel.js";
 import "./grid-stats-card.js";
 import "./overrides-panel.js";
 import "./forecast-chart.js";
+import "./forecast-insights.js";
 import "./history-view.js";
 import "./assistant-panel.js";
 import "./load-shedding-panel.js";
@@ -32,6 +34,11 @@ import "./login-page.js";
 import "./toast-host.js";
 
 type Tab = "overview" | "forecast" | "history" | "assistant" | "settings" | "load_shedding";
+
+export type HistoryNavHint = {
+  view?: "timeline" | "decisions" | "activity";
+  activity?: "executions" | "shed" | "grid";
+};
 
 const TAB_IDS: Tab[] = [
   "overview",
@@ -131,6 +138,13 @@ export class SolarApp extends LitElement {
         gap: 6px;
       }
       .status-menu.open .status-menu-panel { display: flex; }
+      .status-menu-panel button.menu-item {
+        width: 100%;
+        justify-content: flex-start;
+        border: none;
+        cursor: pointer;
+        font: inherit;
+      }
       .pill.short-text .pill-long { display: none; }
       .pill.short-text .pill-short { display: inline; }
       .pill .pill-short { display: none; }
@@ -254,12 +268,16 @@ export class SolarApp extends LitElement {
   @state() private compactTopbar = false;
   @state() private navNarrow = false;
   @state() private statusMenuOpen = false;
+  @state() private forecastLastUpdate = 0;
+  @state() private historyNavHint: HistoryNavHint | null = null;
 
   private unsub?: () => void;
   private pollTimer?: number;
   private clockTimer?: number;
   private gridStatsFetching = false;
   private lastForcedUpdateCheck = 0;
+  private lastDecisionTs = "";
+  private loadSheddingDirty = false;
   private compactMql?: MediaQueryList;
   private navMql?: MediaQueryList;
   private onCompactChange = (): void => {
@@ -289,14 +307,19 @@ export class SolarApp extends LitElement {
       (document.documentElement.getAttribute("data-theme") as "light" | "dark") || "dark";
     const savedTab = localStorage.getItem("solar-tab") as Tab | null;
     if (savedTab && TAB_IDS.includes(savedTab)) this.tab = savedTab;
+    this.applyHash(window.location.hash);
 
     window.addEventListener("solar-plan-refresh", this.onPlanRefresh);
+    window.addEventListener("solar-forecast-refresh", this.onForecastRefresh as EventListener);
+    window.addEventListener("solar-load-shedding-dirty", this.onLoadSheddingDirty as EventListener);
+    window.addEventListener("hashchange", this.onHashChange);
     window.addEventListener(LOCALE_CHANGE_EVENT, this.onLocaleChange);
     window.addEventListener("solar-login-success", this.onLoginSuccess);
     window.addEventListener("solar-logout", this.onLogout);
     window.addEventListener("solar-update-info", this.onUpdateInfo as EventListener);
     window.addEventListener("solar-reload-entities", this.onReloadEntities);
     window.addEventListener("solar-navigate-tab", this.onNavigateTab as EventListener);
+    window.addEventListener("solar-history-nav-change", this.onHistoryNavChange as EventListener);
     void this.initAuth();
     this.clockTimer = window.setInterval(() => (this.now = Date.now()), 1000);
   }
@@ -309,12 +332,16 @@ export class SolarApp extends LitElement {
     live.disconnect();
     this.unsub?.();
     window.removeEventListener("solar-plan-refresh", this.onPlanRefresh);
+    window.removeEventListener("solar-forecast-refresh", this.onForecastRefresh as EventListener);
+    window.removeEventListener("solar-load-shedding-dirty", this.onLoadSheddingDirty as EventListener);
+    window.removeEventListener("hashchange", this.onHashChange);
     window.removeEventListener(LOCALE_CHANGE_EVENT, this.onLocaleChange);
     window.removeEventListener("solar-login-success", this.onLoginSuccess);
     window.removeEventListener("solar-logout", this.onLogout);
     window.removeEventListener("solar-update-info", this.onUpdateInfo as EventListener);
     window.removeEventListener("solar-reload-entities", this.onReloadEntities);
     window.removeEventListener("solar-navigate-tab", this.onNavigateTab as EventListener);
+    window.removeEventListener("solar-history-nav-change", this.onHistoryNavChange as EventListener);
     if (this.pollTimer) window.clearInterval(this.pollTimer);
     if (this.clockTimer) window.clearInterval(this.clockTimer);
   }
@@ -322,6 +349,70 @@ export class SolarApp extends LitElement {
   private onPlanRefresh = (): void => {
     void this.refreshPlan();
   };
+
+  private onForecastRefresh = (e: Event): void => {
+    const bundle = (e as CustomEvent<ForecastBundle | undefined>).detail;
+    if (bundle) {
+      this.forecast = bundle;
+      this.forecastLastUpdate = Date.now();
+      this.apiError = "";
+    } else {
+      void this.refreshForecastOnly();
+    }
+  };
+
+  private onLoadSheddingDirty = (e: Event): void => {
+    this.loadSheddingDirty = (e as CustomEvent<boolean>).detail === true;
+  };
+
+  private onHashChange = (): void => {
+    this.applyHash(window.location.hash);
+  };
+
+  private applyHash(hash: string): void {
+    const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+    if (!raw) return;
+    const parts = raw.split("/");
+    const main = parts[0] as Tab;
+    const tabs = this.visibleTabIds.length ? this.visibleTabIds : TAB_IDS;
+    if (!tabs.includes(main)) return;
+    this.tab = main;
+    localStorage.setItem("solar-tab", main);
+    if (main === "history") {
+      const hint: HistoryNavHint = {};
+      if (parts[1] === "decisions" || parts[1] === "activity" || parts[1] === "timeline") {
+        hint.view = parts[1];
+      }
+      if (parts[1] === "activity" && (parts[2] === "executions" || parts[2] === "shed" || parts[2] === "grid")) {
+        hint.activity = parts[2];
+      }
+      this.historyNavHint = Object.keys(hint).length ? hint : null;
+    }
+  }
+
+  private updateHash(): void {
+    let hash = this.tab;
+    if (this.tab === "history" && this.historyNavHint?.view) {
+      hash += `/${this.historyNavHint.view}`;
+      if (this.historyNavHint.view === "activity" && this.historyNavHint.activity) {
+        hash += `/${this.historyNavHint.activity}`;
+      }
+    }
+    const next = `#${hash}`;
+    if (window.location.hash !== next) {
+      window.history.replaceState(null, "", next);
+    }
+  }
+
+  async refreshForecastOnly(): Promise<void> {
+    try {
+      this.forecast = await api.forecast();
+      this.forecastLastUpdate = Date.now();
+      this.apiError = "";
+    } catch (e) {
+      this.noteApiError(e);
+    }
+  }
 
   private onLocaleChange = (): void => {
     if (!this.authReady || this.needsLogin) return;
@@ -360,9 +451,35 @@ export class SolarApp extends LitElement {
   };
 
   private onNavigateTab = (e: Event): void => {
-    const tab = (e as CustomEvent<Tab>).detail;
-    if (tab && TAB_IDS.includes(tab)) this.setTab(tab);
+    const detail = (e as CustomEvent<Tab | { tab: Tab; history?: HistoryNavHint }>).detail;
+    if (typeof detail === "string") {
+      if (TAB_IDS.includes(detail)) this.setTab(detail);
+      return;
+    }
+    if (detail?.tab && TAB_IDS.includes(detail.tab)) {
+      if (detail.history) this.historyNavHint = detail.history;
+      this.setTab(detail.tab);
+    }
   };
+
+  private onHistoryNavChange = (e: Event): void => {
+    if (this.tab !== "history") return;
+    const detail = (e as CustomEvent<HistoryNavHint>).detail;
+    if (!detail?.view) return;
+    this.historyNavHint = {
+      view: detail.view,
+      activity: detail.view === "activity" ? detail.activity : undefined,
+    };
+    this.updateHash();
+  };
+
+  private tabId(id: Tab): string {
+    return `solar-tab-${id}`;
+  }
+
+  private tabPanelId(id: Tab): string {
+    return `solar-tabpanel-${id}`;
+  }
 
   private dismissBootSplash(): void {
     const el = document.getElementById("boot-splash");
@@ -425,6 +542,11 @@ export class SolarApp extends LitElement {
     this.status = s;
     this.lastUpdate = Date.now();
     setSiteTimezone(s.timezone_config ?? "auto", s.timezone_resolved ?? null);
+    const decisionTs = s.decision?.ts ?? "";
+    if (decisionTs && decisionTs !== this.lastDecisionTs) {
+      this.lastDecisionTs = decisionTs;
+      void this.refreshPlan();
+    }
     if (s.grid_stats) {
       this.gridStats = s.grid_stats;
     } else {
@@ -533,6 +655,7 @@ export class SolarApp extends LitElement {
   private async refreshSlow(): Promise<void> {
     try {
       this.forecast = await api.forecast();
+      this.forecastLastUpdate = Date.now();
     } catch (e) {
       this.noteApiError(e);
     }
@@ -566,8 +689,13 @@ export class SolarApp extends LitElement {
   }
 
   private setTab(t: Tab): void {
+    if (this.loadSheddingDirty && this.tab === "load_shedding" && t !== "load_shedding") {
+      if (!confirm(t("ui.loadShedding.unsavedWarning"))) return;
+      this.loadSheddingDirty = false;
+    }
     this.tab = t;
     localStorage.setItem("solar-tab", t);
+    this.updateHash();
   }
 
   private toggleTheme(): void {
@@ -673,16 +801,16 @@ export class SolarApp extends LitElement {
         <div class="status-menu-panel" role="menu">
           ${alerts.map(
             (a) => html`
-              <span
-                class="pill ${a.className}"
+              <button
+                type="button"
+                class="pill ${a.className} menu-item"
                 role="menuitem"
                 title=${a.title ?? ""}
                 @click=${() => {
                   a.onClick?.();
                   this.statusMenuOpen = false;
                 }}
-                style=${a.onClick ? "cursor:pointer" : ""}
-              >${a.label}</span>
+              >${a.label}</button>
             `,
           )}
         </div>
@@ -699,28 +827,38 @@ export class SolarApp extends LitElement {
               class="span-8"
               .forecast=${this.forecast}
               .role=${this.dashboardRole}
+              .forecastLastUpdate=${this.forecastLastUpdate}
+              .now=${this.now}
             ></solar-forecast-chart>
-            <solar-grid-stats
+            <solar-forecast-insights
               class="span-4"
-              .stats=${this.effectiveGridStats}
+              .forecast=${this.forecast}
+              .status=${this.status}
+              .gridStats=${this.effectiveGridStats}
               .livePresent=${this.status?.telemetry?.grid_present ?? null}
-            ></solar-grid-stats>
+            ></solar-forecast-insights>
           </div>`;
       case "history":
-        return html`<div class="layout"><solar-history-view class="span-12" .entities=${this.entities}></solar-history-view></div>`;
+        return html`<div class="layout"><solar-history-view class="span-12" .entities=${this.entities} .navHint=${this.historyNavHint}></solar-history-view></div>`;
       case "assistant":
         return html`<div class="layout"><solar-assistant-panel class="span-12 center"></solar-assistant-panel></div>`;
       case "settings":
         return html`<div class="layout"><solar-settings-panel class="span-12 center" .config=${this.config} .status=${this.status} .session=${this.session} .updateInfo=${this.updateInfo} .entities=${this.entities} .entitiesConnected=${this.entitiesConnected}></solar-settings-panel></div>`;
       case "load_shedding":
-        return html`<div class="layout"><solar-load-shedding-panel class="span-12 center" .config=${this.config} .entities=${this.entities} .entitiesConnected=${this.entitiesConnected}></solar-load-shedding-panel></div>`;
+        return html`<div class="layout"><solar-load-shedding-panel class="span-12 center" .config=${this.config} .entities=${this.entities} .entitiesConnected=${this.entitiesConnected} .status=${this.status} .shedResults=${this.shedResults}></solar-load-shedding-panel></div>`;
       default:
         return html`
           <div class="layout">
+            <solar-overview-hero
+              class="span-12"
+              .status=${this.status}
+            ></solar-overview-hero>
             <solar-status-cards
               class="span-8"
+              compact
               .status=${this.status}
               .battery=${this.config?.battery ?? null}
+              .loading=${!this.status}
             ></solar-status-cards>
             <solar-grid-stats
               class="span-4"
@@ -732,6 +870,7 @@ export class SolarApp extends LitElement {
               .decision=${this.status?.decision ?? null}
               .results=${this.execResults}
               .shedResults=${this.shedResults}
+              .role=${this.dashboardRole}
             ></solar-decision-panel>
             <solar-overrides-panel
               class="span-4"
@@ -783,17 +922,21 @@ export class SolarApp extends LitElement {
             <button
               class="icon-btn"
               title=${this.theme === "dark" ? t("ui.app.themeDark") : t("ui.app.themeLight")}
+              aria-label=${this.theme === "dark" ? t("ui.app.themeDark") : t("ui.app.themeLight")}
               @click=${() => this.toggleTheme()}
             >
               ${this.theme === "dark" ? html`&#9790;` : html`&#9728;`}
             </button>
           </div>
         </div>
-        <nav role="tablist">
+        <nav role="tablist" aria-label=${t("app.title")}>
           ${this.visibleTabIds.map(
             (id) => html`
               <button
+                type="button"
                 role="tab"
+                id=${this.tabId(id)}
+                aria-controls=${this.tabPanelId(id)}
                 class=${this.tab === id ? "active" : ""}
                 aria-selected=${this.tab === id}
                 @click=${() => this.setTab(id)}
@@ -809,7 +952,15 @@ export class SolarApp extends LitElement {
         ? html`<div class="api-error"><div class="banner">${this.apiError}</div></div>`
         : null}
 
-      <main>${this.renderTabBody()}</main>
+      <main>
+        <div
+          role="tabpanel"
+          id=${this.tabPanelId(this.tab)}
+          aria-labelledby=${this.tabId(this.tab)}
+        >
+          ${this.renderTabBody()}
+        </div>
+      </main>
     `;
   }
 }

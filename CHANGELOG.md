@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.23] - 2026-06-26
+
+### Added
+
+- **Overview hero:** prominent battery SOC bar with reserve marker and blackout-risk pill at the top of Overview
+- **Forecast insights:** excess solar estimate, peak load window, and reserve runway alongside the 48h chart; manual **Refresh** control for admins
+- **History timeline:** telemetry chart renamed to **Timeline** with grid-outage shading; new **Activity** tab groups inverter writes, shed writes, and grid events with expandable rows
+- Shared **blackout-risk** and **chart-lifecycle** helpers for consistent risk pills and chart theme/locale/date-format updates
+
+### Changed
+
+- **Decision panel:** collapsible details, shed action table, and quick links to shed history and load-shedding settings
+- **Overrides panel:** grouped into Primary, Overrides, Advanced, and Danger zone sections
+- **Load shedding** panel layout and tier display refreshed; priority labels localized
+- **Status cards** streamlined under the new overview hero
+- Forecast and history UI strings consolidated into locale catalogs (EN, AR, FR)
+
 ## [0.5.22] - 2026-06-26
 
 ### Added

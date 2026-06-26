@@ -2,6 +2,7 @@ import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
 import { batteryEtaLine } from "../duration.js";
+import { formatRiskFromLevel } from "../blackout-risk.js";
 import { statusHelp } from "../field-help.js";
 import { t } from "../i18n.js";
 import { labelWithTip } from "../label-tip.js";
@@ -31,6 +32,7 @@ const STATUS_ICONS = {
   gridCharge: "\u{1F50C}",
   reserve: "\u{1F6E1}",
   outdoor: "\u{1F321}",
+  batteryTemp: "\u2668",
   risk: "\u26A0",
 } as const;
 
@@ -68,7 +70,7 @@ export class StatusCards extends LitElement {
         position: relative;
         height: 10px;
         border-radius: 6px;
-        background: #2a313c;
+        background: var(--track);
         margin-top: 8px;
         overflow: hidden;
       }
@@ -77,12 +79,35 @@ export class StatusCards extends LitElement {
         position: absolute; top: -2px; width: 2px; height: 14px; background: var(--accent-2);
       }
       .eta { margin-top: 4px; font-size: 0.78rem; color: var(--muted); }
+      .tiles.compact { grid-template-columns: repeat(4, 1fr); }
+      @media (max-width: 700px) { .tiles.compact { grid-template-columns: repeat(2, 1fr); } }
+      .skeleton-tile {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 14px;
+        min-height: 72px;
+      }
+      .skeleton-line {
+        height: 12px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        background: linear-gradient(90deg, var(--panel-3) 25%, var(--panel-2) 50%, var(--panel-3) 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.2s infinite;
+      }
+      .skeleton-line.wide { width: 70%; height: 20px; }
+      @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
     `,
   ];
 
   @property({ attribute: false }) status: SystemStatus | null = null;
 
   @property({ attribute: false }) battery: BatteryConfigView | null = null;
+
+  @property({ type: Boolean }) compact = false;
+
+  @property({ type: Boolean }) loading = false;
 
   private tileHead(icon: string, label: string, helpKey: string) {
     return html`
@@ -94,6 +119,22 @@ export class StatusCards extends LitElement {
   }
 
   render() {
+    if (this.loading && !this.status) {
+      return html`
+        <div class="card">
+          <h3>${t("ui.status.liveStatus")}</h3>
+          <div class="tiles compact">
+            ${[1, 2, 3, 4].map(() => html`
+              <div class="skeleton-tile">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line wide"></div>
+              </div>
+            `)}
+          </div>
+        </div>
+      `;
+    }
+
     const telemetry = this.status?.telemetry ?? null;
     const d = this.status?.decision ?? null;
     const soc = telemetry?.battery_soc ?? null;
@@ -156,7 +197,7 @@ export class StatusCards extends LitElement {
               })}
             </p>`
           : null}
-        <div class="tiles">
+        <div class="tiles ${this.compact ? "compact" : ""}">
           <div class="tile">
             ${this.tileHead(STATUS_ICONS.solar, t("ui.status.solarPv"), "solar")}
             <div class="metric">${fmtW(telemetry?.pv_power)}</div>
@@ -189,6 +230,9 @@ export class StatusCards extends LitElement {
             </div>
             <div class="label" style="margin-top:6px">${fmtW(telemetry?.grid_power)}</div>
           </div>
+          ${this.compact
+            ? null
+            : html`
           <div class="tile">
             ${this.tileHead(STATUS_ICONS.gridCharge, t("ui.status.gridCharge"), "grid_charge")}
             <div class="metric" style="color:${gcEnabled ? "var(--good)" : "var(--muted)"}">
@@ -208,7 +252,7 @@ export class StatusCards extends LitElement {
             : null}
           ${telemetry?.battery_temp != null
             ? html`<div class="tile">
-                <div class="head"><span class="ic">${STATUS_ICONS.outdoor}</span><span class="label">${t("ui.status.batteryTemp")}</span></div>
+                ${this.tileHead(STATUS_ICONS.batteryTemp, t("ui.status.batteryTemp"), "battery_temp")}
                 <div class="metric">${telemetry.battery_temp.toFixed(1)}&deg;C</div>
               </div>`
             : null}
@@ -216,23 +260,17 @@ export class StatusCards extends LitElement {
             ${this.tileHead(STATUS_ICONS.risk, t("ui.status.blackoutRisk"), "risk")}
             <div class="metric">
               ${d
-                ? html`<span class="pill ${riskClass(d.blackout_risk)}">${d.blackout_risk}</span>`
+                ? (() => {
+                    const risk = formatRiskFromLevel(d.blackout_risk);
+                    return html`<span class="pill ${risk.pillClass}">${risk.label}</span>`;
+                  })()
                 : "--"}
             </div>
           </div>
+            `}
         </div>
       </div>
     `;
-  }
-}
-
-function riskClass(r: string): string {
-  switch (r) {
-    case "low": return "good";
-    case "moderate": return "warn";
-    case "high": return "bad";
-    case "critical": return "critical";
-    default: return "muted";
   }
 }
 

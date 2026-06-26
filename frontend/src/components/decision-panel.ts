@@ -2,6 +2,7 @@ import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
 import { capabilityLabel } from "../field-labels.js";
+import { riskPillClassFromScore } from "../blackout-risk.js";
 import { t } from "../i18n.js";
 import { LocaleController } from "../locale-controller.js";
 import {
@@ -25,10 +26,10 @@ export class DecisionPanel extends LitElement {
     sharedStyles,
     css`
       .summary { color: var(--text); font-size: 0.9rem; line-height: 1.5; margin-bottom: 14px; }
-      .rationale { color: var(--muted); font-size: 0.82rem; line-height: 1.5; margin: 4px 0 16px; }
+      .rationale { color: var(--muted); font-size: 0.82rem; line-height: 1.5; margin: 4px 0 12px; }
       .stats {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 10px;
         margin-bottom: 14px;
       }
@@ -41,9 +42,23 @@ export class DecisionPanel extends LitElement {
       .stat.risk-low .v { color: var(--good); }
       .stat.risk-mid .v { color: var(--warn); }
       .stat.risk-high .v { color: var(--bad); }
+      details.details {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 10px 12px;
+        margin-top: 8px;
+      }
+      details.details summary {
+        cursor: pointer;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
       .subhead {
         font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em;
-        color: var(--muted); margin: 16px 0 8px;
+        color: var(--muted); margin: 14px 0 8px;
       }
       .chips { display: flex; flex-wrap: wrap; gap: 8px; }
       .chip {
@@ -56,16 +71,26 @@ export class DecisionPanel extends LitElement {
       .chip .val.on { color: var(--good); }
       .chip .val.off { color: var(--bad); }
       .chip .why { color: var(--muted); }
+      .shed-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 8px 0; }
+      .shed-table th, .shed-table td { text-align: start; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+      .link-row { margin-top: 10px; display: flex; gap: 12px; flex-wrap: wrap; }
+      .link-row button.link-btn {
+        background: none; border: none; color: var(--accent);
+        padding: 0; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+      }
+      .link-row button.link-btn:hover { text-decoration: underline; }
     `,
   ];
 
   @property({ attribute: false }) decision: Decision | null = null;
   @property({ attribute: false }) results: ExecutionResult[] = [];
   @property({ attribute: false }) shedResults: ShedResult[] = [];
+  @property({ type: String }) role: "admin" | "viewer" = "admin";
 
-  private riskClass(score: number): string {
-    if (score >= 0.66) return "risk-high";
-    if (score >= 0.33) return "risk-mid";
+  private riskStatClass(score: number): string {
+    const cls = riskPillClassFromScore(score);
+    if (cls === "bad") return "risk-high";
+    if (cls === "warn") return "risk-mid";
     return "risk-low";
   }
 
@@ -105,11 +130,84 @@ export class DecisionPanel extends LitElement {
     return "";
   }
 
+  private goHistoryShed(): void {
+    window.dispatchEvent(
+      new CustomEvent("solar-navigate-tab", {
+        detail: { tab: "history", history: { view: "activity", activity: "shed" } },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private goLoadShedding(): void {
+    window.dispatchEvent(
+      new CustomEvent("solar-navigate-tab", { detail: "load_shedding", bubbles: true, composed: true }),
+    );
+  }
+
+  private renderShedSection(d: Decision) {
+    if (!d.shed_actions?.length) return null;
+    const grouped = groupShedActionsByTier(d.shed_actions);
+    const useTable = grouped.length > 3;
+    return html`
+      <div class="subhead">${t("ui.decision.loadShedding")}</div>
+      ${useTable
+        ? html`
+            <table class="shed-table">
+              <thead>
+                <tr><th>${t("ui.history.colTier")}</th><th>${t("ui.history.colDesired")}</th><th>${t("ui.history.colSummary")}</th></tr>
+              </thead>
+              <tbody>
+                ${grouped.map(
+                  (s) => html`
+                    <tr title=${shedActionTooltip(s, t("common.on"), t("ui.decision.shed"))}>
+                      <td>${s.tier}</td>
+                      <td><span class="pill ${s.desired_on ? "good" : "bad"}">${s.desired_on ? t("common.on") : t("ui.decision.shed")}</span></td>
+                      <td>${s.reason}</td>
+                    </tr>
+                  `,
+                )}
+              </tbody>
+            </table>
+          `
+        : html`
+            <div class="chips">
+              ${grouped.map(
+                (s) => html`
+                  <span class="chip" title=${shedActionTooltip(s, t("common.on"), t("ui.decision.shed"))}>
+                    <span class="cap">${s.tier}</span>
+                    <span class="val ${s.desired_on ? "on" : "off"}">${s.desired_on ? t("common.on") : t("ui.decision.shed")}</span>
+                    <span class="why">${s.reason}</span>
+                  </span>
+                `,
+              )}
+            </div>
+          `}
+      <div class="link-row">
+        <button type="button" class="link-btn" @click=${this.goHistoryShed}>${t("ui.decision.viewShedHistory")} →</button>
+        ${this.role === "admin"
+          ? html`<button type="button" class="link-btn" @click=${this.goLoadShedding}>${t("ui.decision.configureShedding")} →</button>`
+          : null}
+      </div>
+    `;
+  }
+
   render() {
     const d = this.decision;
     if (!d) return html`<div class="card"><h3>${t("ui.decision.title")}</h3><p class="label">${t("ui.decision.waiting")}</p></div>`;
     const gc = d.grid_charge ?? null;
     const applied = this.appliedGridChargeAmps();
+    const showAutonomy = d.reserve.autonomy_floor_soc !== d.reserve.target_soc;
+    const hasDetails =
+      d.reserve.rationale ||
+      gc?.rationale ||
+      d.actions.length > 0 ||
+      (d.shed_actions?.length ?? 0) > 0 ||
+      this.results.length > 0 ||
+      this.shedResults.length > 0 ||
+      showAutonomy;
+
     return html`
       <div class="card">
         <h3>${t("ui.decision.title")}</h3>
@@ -117,7 +215,6 @@ export class DecisionPanel extends LitElement {
         <div class="stats">
           <div class="stat"><div class="label">${t("ui.decision.targetSoc")}</div><div class="v">${d.reserve.target_soc.toFixed(0)}%</div></div>
           <div class="stat"><div class="label">${t("ui.decision.solarBridge")}</div><div class="v">${d.reserve.solar_bridge_soc.toFixed(0)}%</div></div>
-          <div class="stat"><div class="label">${t("ui.decision.autonomyFloor")}</div><div class="v">${d.reserve.autonomy_floor_soc.toFixed(0)}%</div></div>
           <div class="stat ${gc?.enabled ? "risk-low" : ""}">
             <div class="label">${t("ui.decision.gridCharge")}</div>
             <div class="v">${this.gridChargeLabel(gc)}</div>
@@ -125,85 +222,78 @@ export class DecisionPanel extends LitElement {
               ? html`<div class="label" style="margin-top:4px">${t("ui.decision.applied", { amps: applied.toFixed(0) })}</div>`
               : null}
           </div>
-          <div class="stat ${this.riskClass(d.blackout_risk_score)}"><div class="label">${t("ui.decision.riskScore")}</div><div class="v">${(d.blackout_risk_score * 100).toFixed(0)}%</div></div>
+          <div class="stat ${this.riskStatClass(d.blackout_risk_score)}"><div class="label">${t("ui.decision.riskScore")}</div><div class="v">${(d.blackout_risk_score * 100).toFixed(0)}%</div></div>
         </div>
-        <div class="rationale">${d.reserve.rationale}</div>
-        ${gc?.rationale
+
+        ${hasDetails
           ? html`
-              <div class="subhead">${t("ui.decision.gridChargeRationale")}</div>
-              <div class="rationale">${gc.rationale}</div>
-            `
-          : null}
-        <div class="subhead">${t("ui.decision.actions")}</div>
-        <div class="chips">
-          ${d.actions.length === 0
-            ? html`<span class="label">${t("ui.decision.noActions")}</span>`
-            : d.actions.map(
-                (a) => html`
-                  <span class="chip" title=${a.reason}>
-                    <span class="cap">${capabilityLabel(a.capability)}</span>
-                    <span class="val">${String(a.value)}</span>
-                    <span class="why">${a.reason}</span>
-                  </span>
-                `,
-              )}
-        </div>
-        ${d.shed_actions && d.shed_actions.length
-          ? html`
-              <div class="subhead">${t("ui.decision.loadShedding")}</div>
-              <div class="chips">
-                ${groupShedActionsByTier(d.shed_actions).map(
-                  (s) => html`
-                    <span
-                      class="chip"
-                      title=${shedActionTooltip(s, t("common.on"), t("ui.decision.shed"))}
-                    >
-                      <span class="cap">${s.tier}</span>
-                      <span class="val ${s.desired_on ? "on" : "off"}">${s.desired_on ? t("common.on") : t("ui.decision.shed")}</span>
-                      <span class="why">${s.reason}</span>
-                    </span>
-                  `,
-                )}
-              </div>
-            `
-          : null}
-        ${this.results.length
-          ? html`
-              <div class="subhead">${t("ui.decision.executionResults")}</div>
-              <div class="chips">
-                ${this.results.map(
-                  (r) => html`
-                    <span class="chip" title=${this.skipLabel(r) || r.error || ""}>
-                      <span class="cap">${r.capability}</span>
-                      <span class="val ${r.verified ? "on" : "off"}">
-                        ${r.applied ? (r.verified ? t("ui.decision.verified") : t("ui.decision.appliedShort")) : this.skipLabel(r)}
-                      </span>
-                    </span>
-                  `,
-                )}
-              </div>
-            `
-          : null}
-        ${this.shedResults.length
-          ? html`
-              <div class="subhead">${t("ui.decision.shedExecution")}</div>
-              <div class="chips">
-                ${groupShedResultsByTier(this.shedResults).map((s) => {
-                  const extra = this.tierShedExtra(s);
-                  const status = s.allVerified
-                    ? t("ui.decision.ok")
-                    : this.tierSkipLabel(s) || t("ui.decision.pending");
-                  return html`
-                    <span class="chip" title=${shedResultTooltip(s)}>
-                      <span class="cap">${s.tier}</span>
-                      <span class="val ${s.allVerified ? "on" : "off"}">
-                        ${s.desired_on ? t("common.on") : t("common.off")} ${status}
-                      </span>
-                      ${extra ? html`<span class="why">${extra}</span>` : null}
-                    </span>
-                  `;
-                })}
-              </div>
+              <details class="details">
+                <summary>${t("ui.decision.details")}</summary>
+                ${showAutonomy
+                  ? html`<div class="label" style="margin-top:8px">${t("ui.decision.autonomyFloor")}: ${d.reserve.autonomy_floor_soc.toFixed(0)}%</div>`
+                  : null}
+                ${d.reserve.rationale ? html`<div class="rationale">${d.reserve.rationale}</div>` : null}
+                ${gc?.rationale
+                  ? html`
+                      <div class="subhead">${t("ui.decision.gridChargeRationale")}</div>
+                      <div class="rationale">${gc.rationale}</div>
+                    `
+                  : null}
+                <div class="subhead">${t("ui.decision.actions")}</div>
+                <div class="chips">
+                  ${d.actions.length === 0
+                    ? html`<span class="label">${t("ui.decision.noActions")}</span>`
+                    : d.actions.map(
+                        (a) => html`
+                          <span class="chip" title=${a.reason}>
+                            <span class="cap">${capabilityLabel(a.capability)}</span>
+                            <span class="val">${String(a.value)}</span>
+                            <span class="why">${a.reason}</span>
+                          </span>
+                        `,
+                      )}
+                </div>
+                ${this.renderShedSection(d)}
+                ${this.results.length
+                  ? html`
+                      <div class="subhead">${t("ui.decision.executionResults")}</div>
+                      <div class="chips">
+                        ${this.results.map(
+                          (r) => html`
+                            <span class="chip" title=${this.skipLabel(r) || r.error || ""}>
+                              <span class="cap">${capabilityLabel(r.capability)}</span>
+                              <span class="val ${r.verified ? "on" : "off"}">
+                                ${r.applied ? (r.verified ? t("ui.decision.verified") : t("ui.decision.appliedShort")) : this.skipLabel(r)}
+                              </span>
+                            </span>
+                          `,
+                        )}
+                      </div>
+                    `
+                  : null}
+                ${this.shedResults.length
+                  ? html`
+                      <div class="subhead">${t("ui.decision.shedExecution")}</div>
+                      <div class="chips">
+                        ${groupShedResultsByTier(this.shedResults).map((s) => {
+                          const extra = this.tierShedExtra(s);
+                          const status = s.allVerified
+                            ? t("ui.decision.ok")
+                            : this.tierSkipLabel(s) || t("ui.decision.pending");
+                          return html`
+                            <span class="chip" title=${shedResultTooltip(s)}>
+                              <span class="cap">${s.tier}</span>
+                              <span class="val ${s.allVerified ? "on" : "off"}">
+                                ${s.desired_on ? t("common.on") : t("common.off")} ${status}
+                              </span>
+                              ${extra ? html`<span class="why">${extra}</span>` : null}
+                            </span>
+                          `;
+                        })}
+                      </div>
+                    `
+                  : null}
+              </details>
             `
           : null}
         ${d.shadow_mode

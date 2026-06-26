@@ -46,17 +46,16 @@ describe("OverridesPanel role", () => {
     el.remove();
   });
 
-  it("disables pause when engine already paused", async () => {
+  it("shows resume action when engine already paused", async () => {
     const el = mountPanel("admin");
     el.status = {
       ...el.status!,
       paused: true,
     };
     await el.updateComplete;
-    const buttons = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".seg button")];
-    const pause = buttons.find((b) => b.textContent?.includes("Pause"));
+    const buttons = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>("button")];
     const resume = buttons.find((b) => b.textContent?.includes("Resume"));
-    expect(pause?.disabled).toBe(true);
+    expect(resume).toBeTruthy();
     expect(resume?.disabled).toBe(false);
     el.remove();
   });

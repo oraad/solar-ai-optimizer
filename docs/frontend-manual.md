@@ -68,12 +68,13 @@ The Overview tab is the control room:
 
 | Area | Purpose |
 |------|---------|
-| **Status cards** | Live SOC, PV, load, grid, and related telemetry |
+| **Overview hero** | Large battery SOC bar with reserve marker and blackout-risk pill |
+| **Status cards** | Live PV, load, grid, and related telemetry |
 | **Grid statistics** | Recent grid availability stats |
-| **Decision & rationale** | Current target reserve, risk score, and planned inverter actions |
-| **Overrides** | Shadow/live, pause, kill switch, reserve pin, grid charge, run cycle |
+| **Decision & rationale** | Current target reserve, risk score, planned actions, and shed details (expand **Details**) |
+| **Overrides** | Shadow/live, pause, kill switch, reserve pin, grid charge, run cycle — grouped by section |
 
-Read the **Decision** panel first: it explains *why* the optimizer chose its current reserve and actions.
+Read the **Decision** panel first: it explains *why* the optimizer chose its current reserve and actions. Use **View shed history** or **Configure shedding** links when shed actions are active.
 
 ### Overrides panel (admin)
 
@@ -132,11 +133,12 @@ Shared by admin and viewer (controls differ — see [Overrides panel (admin)](#o
 
 ## Forecast
 
-The **Forecast** tab shows a 48-hour solar and load forecast chart plus daily energy totals.
+The **Forecast** tab shows a 48-hour solar and load forecast chart, **Insights** (excess solar, peak load window, reserve runway), and daily energy totals.
 
 - **Solar / Load** series use the left power axis (watts)
 - **Temperature** (when configured) uses a separate right-hand °C axis
 - Pills warn about **cloudy tomorrow** or a **degraded forecast** (hover for reasons)
+- Admins can **Refresh** the forecast manually from this tab
 
 Admins: set site latitude, longitude, PV arrays, and forecast provider under **Settings** if the chart is empty. Viewers: contact an admin if the chart shows a configuration message.
 
@@ -150,11 +152,9 @@ History combines telemetry charts and audit tables. Choose a **time window** (6h
 
 | Sub-tab | Contents |
 |---------|----------|
-| **Chart** | SOC (%), power (W), and optional temperatures |
+| **Timeline** | SOC (%), power (W), optional temperatures, and grid-outage shading |
 | **Decisions** | Past decisions with risk and shed action counts |
-| **Grid events** | Grid present / absent transitions |
-| **Writes** | Inverter capability writes (applied, verified, skipped) |
-| **Shed writes** | Per-entity load-shedding switch commands |
+| **Activity** | Recent inverter writes, shed writes, and grid events (switch segment inside the tab) |
 
 ![History telemetry chart](images/frontend/history-chart.png)
 

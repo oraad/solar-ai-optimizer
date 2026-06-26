@@ -27,6 +27,7 @@ export type ChartOptions = Partial<uPlot.Options> & {
   cursorLegendEl?: HTMLElement | null;
   cursorDateFormat?: DateDisplayFormat;
   axisDateFormat?: DateDisplayFormat;
+  extraHooks?: uPlot.Hooks.Arrays;
 };
 
 export const CHART_HEIGHT_DESKTOP = 280;
@@ -215,6 +216,106 @@ function formatCursorValue(val: number | null | undefined, label: string): strin
   return `${short} ${rounded}${unit === " W" ? "" : unit}`;
 }
 
+export interface GridAbsentInterval {
+  from: number;
+  to: number;
+}
+
+/** Build shaded intervals for grid-absent periods from transition events. */
+export function gridAbsentIntervals(
+  events: Array<{ ts: string; grid_present: boolean }>,
+  rangeFrom: number,
+  rangeTo: number,
+): GridAbsentInterval[] {
+  if (!events.length) return [];
+  const sorted = [...events].sort(
+    (a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime(),
+  );
+  const intervals: GridAbsentInterval[] = [];
+  let absentStart: number | null = null;
+  let lastPresent = sorted[0]!.grid_present;
+  for (const e of sorted) {
+    const t = Math.floor(new Date(e.ts).getTime() / 1000);
+    if (t < rangeFrom) {
+      lastPresent = e.grid_present;
+      continue;
+    }
+    if (t > rangeTo) break;
+    if (!lastPresent && absentStart == null) absentStart = rangeFrom;
+    if (lastPresent && !e.grid_present) absentStart = t;
+    if (!lastPresent && e.grid_present && absentStart != null) {
+      intervals.push({ from: absentStart, to: t });
+      absentStart = null;
+    }
+    lastPresent = e.grid_present;
+  }
+  if (!lastPresent && absentStart == null) absentStart = rangeFrom;
+  if (!lastPresent && absentStart != null) {
+    intervals.push({ from: absentStart, to: rangeTo });
+  }
+  return intervals;
+}
+
+function mergeDrawHooks(...lists: (uPlot.Hooks.Arrays | undefined)[]): uPlot.Hooks.Arrays {
+  const drawFns = lists.flatMap((h) => h?.draw ?? []);
+  return drawFns.length ? { draw: drawFns } : {};
+}
+
+/** Vertical dashed line at current time. */
+export function nowMarkerHooks(el: HTMLElement): uPlot.Hooks.Arrays {
+  return {
+    draw: [
+      (u) => {
+        const now = Date.now() / 1000;
+        const x = u.valToPos(now, "x", true);
+        if (x == null || Number.isNaN(x)) return;
+        if (x < u.bbox.left || x > u.bbox.left + u.bbox.width) return;
+        const ctx = u.ctx;
+        ctx.save();
+        ctx.strokeStyle = cssVar(el, "--accent-2", "#4cc2ff");
+        ctx.globalAlpha = 0.65;
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, u.bbox.top);
+        ctx.lineTo(x, u.bbox.top + u.bbox.height);
+        ctx.stroke();
+        ctx.restore();
+      },
+    ],
+  };
+}
+
+/** Shaded bands for grid-outage intervals (drawn under series). */
+export function gridAbsentBandHooks(
+  el: HTMLElement,
+  intervals: GridAbsentInterval[],
+): uPlot.Hooks.Arrays {
+  return {
+    draw: [
+      (u) => {
+        if (!intervals.length) return;
+        const ctx = u.ctx;
+        const top = u.bbox.top;
+        const h = u.bbox.height;
+        ctx.save();
+        ctx.fillStyle = cssVar(el, "--bad", "#e5484d");
+        ctx.globalAlpha = 0.08;
+        for (const iv of intervals) {
+          const x0 = u.valToPos(iv.from, "x", true);
+          const x1 = u.valToPos(iv.to, "x", true);
+          if (x0 == null || x1 == null) continue;
+          const left = Math.min(x0, x1);
+          const w = Math.abs(x1 - x0);
+          if (w < 1) continue;
+          ctx.fillRect(left, top, w, h);
+        }
+        ctx.restore();
+      },
+    ],
+  };
+}
+
 function cursorLegendHooks(
   el: HTMLElement | null | undefined,
   cursorDateFormat?: DateDisplayFormat,
@@ -289,6 +390,7 @@ export function makeChart(
     height: optsHeight,
     hooks: optsHooks,
     cursor: optsCursor,
+    extraHooks,
     ...restOpts
   } = opts;
   const minHeightFallback = optsHeight ?? chartHeight();
@@ -307,6 +409,7 @@ export function makeChart(
       })),
     ];
   const cursorHooks = cursorLegendHooks(cursorLegendEl, cursorDateFormat);
+  const mergedDrawHooks = mergeDrawHooks(extraHooks, cursorHooks);
 
   let chart: uPlot | null = null;
   let lastObservedWidth = 0;
@@ -351,6 +454,7 @@ export function makeChart(
     },
     hooks: {
       ...(optsHooks ?? {}),
+      ...(mergedDrawHooks.draw?.length ? { draw: [...(optsHooks?.draw ?? []), ...mergedDrawHooks.draw!] } : {}),
       setCursor: [...(optsHooks?.setCursor ?? []), ...(cursorHooks.setCursor ?? [])],
     },
     scales: optsScales ?? { x: { time: true } },

@@ -1074,11 +1074,19 @@ export class SettingsPanel extends LitElement {
   }
 
   private renderLoadSheddingLink() {
+    const ls = (this.draft as Record<string, unknown> | null)?.load_shedding as Record<string, unknown> | undefined;
+    const tiers = (ls?.tiers ?? []) as unknown[];
+    const enabled = Boolean(ls?.enabled);
+    const summary = t("ui.loadShedding.settingsSummary", {
+      count: String(tiers.length),
+      state: enabled ? t("ui.loadShedding.settingsEnabled") : t("ui.loadShedding.settingsDisabled"),
+    });
     return html`
       <div class="link-card">
         <div>
           <strong>${t("ui.settings.loadSheddingTitle")}</strong>
           <p class="label" style="margin:4px 0 0">${t("ui.settings.loadSheddingIntro")}</p>
+          <p class="label" style="margin:4px 0 0">${summary}</p>
         </div>
         <button type="button" @click=${() => this.openLoadSheddingTab()}>
           ${t("ui.settings.openLoadShedding")} →

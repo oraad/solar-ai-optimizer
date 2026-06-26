@@ -62,10 +62,10 @@ def demo_config_overrides() -> dict:
         },
         "site": {
             "timezone": "Africa/Johannesburg",
-        },
-        "forecast": {
             "latitude": DEMO_LATITUDE,
             "longitude": DEMO_LONGITUDE,
+        },
+        "forecast": {
             "arrays": [
                 {
                     "name": "North roof",

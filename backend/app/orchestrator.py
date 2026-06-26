@@ -582,7 +582,7 @@ class Orchestrator:
             ),
             telemetry_stale=stale,
             telemetry_age_seconds=self._telemetry_age_seconds(),
-            forecast_misconfigured=not self.cfg.forecast.location_configured,
+            forecast_misconfigured=not self.cfg.site.location_configured,
             forecast_degraded=forecast.degraded if forecast else False,
             forecast_provider=self.forecast.forecast_provider(),
             solcast_configured=self.forecast.solcast_configured(),

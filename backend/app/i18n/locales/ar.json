@@ -174,7 +174,7 @@
   "forecast": {
     "degraded": {
       "solcast_misconfigured": "solcast محدد لكن SOLCAST_API_KEY أو SOLCAST_RESOURCE_ID غير مضبوط",
-      "location_missing": "خط العرض/الطول غير مضبوطين (لا يزال 0,0)؛ توقّع شمسي غير موثوق",
+      "location_missing": "خط عرض/طول الموقع غير مضبوطين (لا يزال 0,0)؛ توقّع شمسي غير موثوق",
       "temperature_failed": "فشل مزوّد الحرارة: {error}",
       "solar_failed": "فشل مزوّد الشمس: {error}",
       "stale_solar": "استخدام توقّع شمسي سابق/قديم"

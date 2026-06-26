@@ -39,7 +39,9 @@
     },
     "fields": {
       "site": {
-        "timezone": "Fuseau horaire"
+        "timezone": "Fuseau horaire",
+        "latitude": "Latitude",
+        "longitude": "Longitude"
       },
       "battery": {
         "capacity_kwh": "Capacité (kWh)",
@@ -55,8 +57,6 @@
         "cloudy_extra_buffer_pct": "Tampon supplémentaire nuageux (%)"
       },
       "forecast": {
-        "latitude": "Latitude",
-        "longitude": "Longitude",
         "provider": "Fournisseur de prévisions solaires",
         "training_days": "Historique de formation (jours)",
         "min_load_fraction": "Fraction de charge minimale"
@@ -167,15 +167,15 @@
         "solar_bridge_buffer_pct": "Un tampon SOC supplémentaire tandis que le solaire est attendu prochainement, avant de puiser dans la réserve profonde.",
         "cloudy_extra_buffer_pct": "Tampon de réserve supplémentaire les jours nuageux lorsque la production solaire est incertaine."
       },
-      "forecast": {
+      "site": {
+        "timezone": "Fuseau horaire IANA pour les limites de jour du site (prévisions, rampe réseau, profils de charge et affichage). Choisissez Auto pour détecter depuis les coordonnées du site.",
         "latitude": "Latitude du site pour les prévisions solaires et météorologiques (degrés décimaux).",
-        "longitude": "Longitude du site pour les prévisions solaires et météorologiques (degrés décimaux).",
+        "longitude": "Longitude du site pour les prévisions solaires et météorologiques (degrés décimaux)."
+      },
+      "forecast": {
         "provider": "Source de prévisions solaires : Open-Meteo (gratuit) ou Solcast (clé API requise via l'environnement).",
         "training_days": "Jours d'historique de télémétrie utilisés pour entraîner des modèles de biais de charge et de profil.",
         "min_load_fraction": "Plancher sur la charge prévue en fraction du pic récent (évite les prévisions proches de zéro)."
-      },
-      "site": {
-        "timezone": "Fuseau horaire IANA pour les limites de jour du site (prévisions, rampe réseau, profils de charge et affichage). Choisissez Auto pour détecter depuis les coordonnées de prévision."
       },
       "control": {
         "loop_interval_seconds": "À quelle fréquence l’orchestrateur lit la télémétrie et recalcule les décisions.",
@@ -464,7 +464,7 @@
       "seriesLoad": "Charge (W)",
       "seriesTemp": "Température (°C)",
       "noForecastViewer": "Aucune prévision pour l'instant. Demandez à un administrateur de configurer l'emplacement prévu et les panneaux photovoltaïques dans Paramètres.",
-      "noForecastAdmin": "Aucune prévision pour l'instant. Définissez votre latitude/longitude et vos panneaux dans l'onglet Paramètres."
+      "noForecastAdmin": "Aucune prévision pour l'instant. Définissez la latitude/longitude du site et vos panneaux dans l'onglet Paramètres."
     },
     "history": {
       "title": "Histoire",

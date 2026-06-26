@@ -12,7 +12,7 @@ from tests.conftest_auth import clear_auth_env
 def live_client(tmp_path, monkeypatch):
     cfg = tmp_path / "config.yaml"
     cfg.write_text(
-        "battery:\n  capacity_kwh: 10\nforecast:\n  latitude: -33.9\n  longitude: 18.4\n",
+        "battery:\n  capacity_kwh: 10\nsite:\n  latitude: -33.9\n  longitude: 18.4\n",
         encoding="utf-8",
     )
     data = tmp_path / "data"

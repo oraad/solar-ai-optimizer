@@ -39,7 +39,9 @@
     },
     "fields": {
       "site": {
-        "timezone": "Timezone"
+        "timezone": "Timezone",
+        "latitude": "Latitude",
+        "longitude": "Longitude"
       },
       "battery": {
         "capacity_kwh": "Capacity (kWh)",
@@ -55,8 +57,6 @@
         "cloudy_extra_buffer_pct": "Cloudy extra buffer (%)"
       },
       "forecast": {
-        "latitude": "Latitude",
-        "longitude": "Longitude",
         "provider": "Solar forecast provider",
         "training_days": "Training history (days)",
         "min_load_fraction": "Minimum load fraction"
@@ -167,15 +167,15 @@
         "solar_bridge_buffer_pct": "Extra SOC buffer while solar is expected soon, before dipping into the deep reserve.",
         "cloudy_extra_buffer_pct": "Additional reserve buffer on overcast days when solar production is uncertain."
       },
-      "forecast": {
+      "site": {
+        "timezone": "IANA timezone for site-local day boundaries (forecasts, grid ramp, load profiles, and dashboard display). Choose Auto to detect from site coordinates.",
         "latitude": "Site latitude for solar and weather forecasts (decimal degrees).",
-        "longitude": "Site longitude for solar and weather forecasts (decimal degrees).",
+        "longitude": "Site longitude for solar and weather forecasts (decimal degrees)."
+      },
+      "forecast": {
         "provider": "Solar forecast source: Open-Meteo (free) or Solcast (API key required via environment).",
         "training_days": "Days of telemetry history used to train load bias and profile models.",
         "min_load_fraction": "Floor on predicted load as a fraction of recent peak (avoids near-zero forecasts)."
-      },
-      "site": {
-        "timezone": "IANA timezone for site-local day boundaries (forecasts, grid ramp, load profiles, and dashboard display). Choose Auto to detect from forecast coordinates."
       },
       "control": {
         "loop_interval_seconds": "How often the orchestrator reads telemetry and recomputes decisions.",
@@ -463,8 +463,8 @@
       "seriesSolar": "Solar (W)",
       "seriesLoad": "Load (W)",
       "seriesTemp": "Temp (°C)",
-      "noForecastViewer": "No forecast yet. Ask an admin to configure forecast location and PV arrays in Settings.",
-      "noForecastAdmin": "No forecast yet. Set your latitude/longitude and panels in the Settings tab."
+      "noForecastViewer": "No forecast yet. Ask an admin to configure site location and PV arrays in Settings.",
+      "noForecastAdmin": "No forecast yet. Set your site latitude/longitude and panels in the Settings tab."
     },
     "history": {
       "title": "History",

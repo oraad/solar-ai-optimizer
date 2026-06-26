@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.config import SiteConfig
-from app.config_migration import migrate_config_data, migrate_v3_to_v4
+from app.config_migration import migrate_config_data, migrate_v3_to_v4, migrate_v4_to_v5
 from app.tz import fetch_auto_timezone, resolve_site_tz, to_site_local
 
 
@@ -62,6 +62,19 @@ def test_migrate_v3_to_v4_keeps_existing_site_timezone():
 def test_migrate_config_data_on_base_yaml():
     out = migrate_config_data({"forecast": {"timezone": "UTC"}})
     assert out["site"]["timezone"] == "UTC"
+
+
+def test_migrate_config_data_moves_forecast_coordinates():
+    out = migrate_config_data({"forecast": {"latitude": -33.9, "longitude": 18.4}})
+    assert out["site"]["latitude"] == -33.9
+    assert out["site"]["longitude"] == 18.4
+    assert "latitude" not in out["forecast"]
+
+
+def test_migrate_v4_to_v5_moves_forecast_coordinates():
+    out = migrate_v4_to_v5({"forecast": {"latitude": -33.9, "longitude": 18.4}})
+    assert out["site"]["latitude"] == -33.9
+    assert out["site"]["longitude"] == 18.4
 
 
 def test_to_site_local():

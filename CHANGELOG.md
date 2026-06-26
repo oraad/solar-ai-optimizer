@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.21] - 2026-06-26
+
+### Changed
+
+- **Site coordinates:** latitude and longitude moved from Forecast to **Site** settings; Open-Meteo timezone resolution and solar/weather APIs use `site.latitude` / `site.longitude`
+- Config schema v5 migration moves legacy `forecast.latitude` / `forecast.longitude` to `site`
+
 ## [0.5.20] - 2026-06-26
 
 ### Fixed

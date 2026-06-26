@@ -1470,7 +1470,7 @@ export class SettingsPanel extends LitElement {
             <solar-info-tip .text=${sectionHelp("pv_arrays")!}></solar-info-tip>
           </span>
         </summary>
-        <p class="label">Each array is forecast separately (tilt/azimuth/kWp). Set site latitude/longitude above.</p>
+        <p class="label">Each array is forecast separately (tilt/azimuth/kWp). Set site latitude/longitude in the Site section above.</p>
         ${arrays.map(
           (a, i) => html`
             <div class="fields" style="margin-bottom:8px">

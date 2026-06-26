@@ -31,12 +31,13 @@ class ForecastService:
         self._bias = BiasCorrector()
         self._solar = SolarForecaster(
             cfg.forecast,
+            cfg.site,
             self._bias,
             solcast_key=settings.solcast_api_key,
             solcast_resource=settings.solcast_resource_id,
         )
         self._load = LoadForecaster(fallback_w=cfg.reserve.critical_load_w)
-        self._temp = TemperatureService(cfg.forecast)
+        self._temp = TemperatureService(cfg.forecast, cfg.site)
         self._resolved_timezone: str | None = None
         self._apply_site_timezone()
         self._apply_temp_config()
@@ -93,12 +94,12 @@ class ForecastService:
             return
         if self._resolved_timezone:
             return
-        fc = self._cfg.forecast
-        if not fc.location_configured:
+        site = self._cfg.site
+        if not site.location_configured:
             return
 
         async def run(c: httpx.AsyncClient) -> None:
-            hint = await fetch_auto_timezone(fc.latitude, fc.longitude, c)
+            hint = await fetch_auto_timezone(site.latitude, site.longitude, c)
             if hint:
                 self._resolved_timezone = hint
                 self._load.set_site_tz(self.site_tz())
@@ -131,20 +132,22 @@ class ForecastService:
     def update_config(self, cfg: AppConfig) -> None:
         """Hot-update config without losing learned state."""
         prev_tz = self._cfg.site.timezone
-        prev_lat = self._cfg.forecast.latitude
-        prev_lon = self._cfg.forecast.longitude
+        prev_lat = self._cfg.site.latitude
+        prev_lon = self._cfg.site.longitude
         self._cfg = cfg
         self._solar._cfg = cfg.forecast  # noqa: SLF001
+        self._solar._site = cfg.site  # noqa: SLF001
         self._solar.set_solcast_credentials(
             self._settings.solcast_api_key,
             self._settings.solcast_resource_id,
         )
         self._load._fallback_w = cfg.reserve.critical_load_w  # noqa: SLF001
         self._temp.update_config(cfg.forecast)
+        self._temp.update_site(cfg.site)
         if (
             cfg.site.timezone != prev_tz
-            or cfg.forecast.latitude != prev_lat
-            or cfg.forecast.longitude != prev_lon
+            or cfg.site.latitude != prev_lat
+            or cfg.site.longitude != prev_lon
         ):
             self._resolved_timezone = None
         self._apply_site_timezone()
@@ -247,16 +250,17 @@ class ForecastService:
     async def _refresh_unlocked(self) -> ForecastBundle:
         degraded_reasons: list[str] = []
         fc = self._cfg.forecast
+        site = self._cfg.site
         if fc.provider == "solcast" and not self.solcast_configured():
             degraded_reasons.append(
                 msg("forecast.degraded.solcast_misconfigured")
             )
-        if not fc.location_configured:
+        if not site.location_configured:
             degraded_reasons.append(
                 msg("forecast.degraded.location_missing")
             )
             log.warning(
-                "Forecast location is 0,0 — set latitude/longitude in Settings."
+                "Forecast location is 0,0 — set site latitude/longitude in Settings."
             )
         tc = fc.temperature
         # Use the temperature training window so month/regression have enough data.
@@ -269,7 +273,7 @@ class ForecastService:
 
         self._update_bias_from_history(history)
 
-        if fc.location_configured:
+        if site.location_configured:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 await self.ensure_resolved_timezone(client)
                 names: list[str] = []

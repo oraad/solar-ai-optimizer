@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from ..config import ForecastConfig
+from ..config import ForecastConfig, SiteConfig
 from ..dates import parse_datetime
 from ..models import SolarForecastPoint
 from ..tz import resolve_site_tz, to_site_local
@@ -39,11 +39,13 @@ class SolarForecaster:
     def __init__(
         self,
         cfg: ForecastConfig,
+        site: SiteConfig,
         bias: BiasCorrector,
         solcast_key: str = "",
         solcast_resource: str = "",
     ) -> None:
         self._cfg = cfg
+        self._site = site
         self._bias = bias
         self._solcast_key = solcast_key
         self._solcast_resource = solcast_resource
@@ -95,8 +97,8 @@ class SolarForecaster:
 
             async def fetch_array(array) -> dict[datetime, float]:  # noqa: ANN001
                 params = {
-                    "latitude": self._cfg.latitude,
-                    "longitude": self._cfg.longitude,
+                    "latitude": self._site.latitude,
+                    "longitude": self._site.longitude,
                     "hourly": "global_tilted_irradiance,cloudcover",
                     "tilt": array.tilt,
                     "azimuth": _to_openmeteo_azimuth(array.azimuth),

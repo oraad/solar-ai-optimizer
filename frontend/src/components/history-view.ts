@@ -216,12 +216,6 @@ export class HistoryView extends LitElement {
     if (hint.activity) this.activityTab = hint.activity;
   }
 
-  private tabLoadKey(): string {
-    if (this.tab === "timeline") return `timeline:${this.hours}`;
-    if (this.tab === "decisions") return "decisions";
-    return `activity:${this.activityTab}`;
-  }
-
   private async loadActiveTab(): Promise<void> {
     const errors: string[] = [];
     try {

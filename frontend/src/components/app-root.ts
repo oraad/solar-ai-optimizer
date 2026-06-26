@@ -688,13 +688,13 @@ export class SolarApp extends LitElement {
     }
   }
 
-  private setTab(t: Tab): void {
-    if (this.loadSheddingDirty && this.tab === "load_shedding" && t !== "load_shedding") {
+  private setTab(nextTab: Tab): void {
+    if (this.loadSheddingDirty && this.tab === "load_shedding" && nextTab !== "load_shedding") {
       if (!confirm(t("ui.loadShedding.unsavedWarning"))) return;
       this.loadSheddingDirty = false;
     }
-    this.tab = t;
-    localStorage.setItem("solar-tab", t);
+    this.tab = nextTab;
+    localStorage.setItem("solar-tab", nextTab);
     this.updateHash();
   }
 

@@ -411,7 +411,17 @@
       "gridAbsent": "Grille absente",
       "gridChargeOn": "activé · max {ampères} A",
       "gridChargeOff": "désactivé",
-      "reserveMarkTitle": "Objectif de réserve"
+      "reserveMarkTitle": "Objectif de réserve",
+      "hero": {
+        "reserve": "Reserve {soc}%",
+        "risk": "Risk: {label} {pct}%"
+      },
+      "risk": {
+        "low": "Faible",
+        "moderate": "Modéré",
+        "high": "Élevé",
+        "critical": "Critique"
+      }
     },
     "decision": {
       "title": "Décision et justification",
@@ -436,7 +446,10 @@
       "companions": "compagnons : {liste}",
       "ok": "d'accord",
       "pending": "en attente",
-      "shadowMode": "Mode Shadow : les actions sont enregistrées mais PAS écrites sur l'onduleur."
+      "shadowMode": "Mode Shadow : les actions sont enregistrées mais PAS écrites sur l'onduleur.",
+      "details": "Details",
+      "viewShedHistory": "View shed history",
+      "configureShedding": "Configure shedding"
     },
     "grid": {
       "title": "Grille (réactive — non prévue)",
@@ -464,7 +477,19 @@
       "seriesLoad": "Charge (W)",
       "seriesTemp": "Température (°C)",
       "noForecastViewer": "Aucune prévision pour l'instant. Demandez à un administrateur de configurer l'emplacement prévu et les panneaux photovoltaïques dans Paramètres.",
-      "noForecastAdmin": "Aucune prévision pour l'instant. Définissez la latitude/longitude du site et vos panneaux dans l'onglet Paramètres."
+      "noForecastAdmin": "Aucune prévision pour l'instant. Définissez la latitude/longitude du site et vos panneaux dans l'onglet Paramètres.",
+      "refresh": "Refresh",
+      "updatedAgo": "Updated {label}",
+      "outlook": "Outlook",
+      "configureForecast": "Configure forecast",
+      "openSiteSettings": "Open site settings",
+      "insightsTitle": "Insights",
+      "excessSolar": "Excess solar (est. today)",
+      "peakLoad": "Peak load window",
+      "reserveRunway": "Reserve runway @ load",
+      "runwayHours": "{h} h",
+      "gridCompact": "Grid",
+      "fullStats": "Full stats"
     },
     "history": {
       "title": "Histoire",
@@ -504,7 +529,17 @@
       "seriesOutdoorTemp": "Extérieur °C",
       "restored": "restauré : {liste}",
       "captured": "capturé : {liste}",
-      "dash": null
+      "dash": null,
+      "tabTimeline": "Timeline",
+      "tabActivity": "Activity",
+      "activityExecutions": "Inverter writes",
+      "activityShed": "Shed writes",
+      "activityGrid": "Grid events",
+      "recentEvents": "Recent events",
+      "gridOn": "Réseau présent",
+      "gridOff": "Réseau absent",
+      "expandRow": "Show details",
+      "legendGridOutage": "Grid outage"
     },
     "overrides": {
       "title": "Contrôles et remplacements",
@@ -546,7 +581,11 @@
       "toastCycleLoading": "Cycle de contrôle en cours…",
       "toastCycleSuccess": "Cycle de contrôle exécuté.",
       "toastForecastLoading": "Prévisions rafraîchissantes…",
-      "toastForecastSuccess": "Prévisions actualisées."
+      "toastForecastSuccess": "Prévisions actualisées.",
+      "sectionPrimary": "Primary",
+      "sectionOverrides": "Overrides",
+      "sectionAdvanced": "Advanced",
+      "sectionDanger": "Danger zone"
     },
     "assistant": {
       "title": "Assistant",
@@ -585,7 +624,31 @@
       "toastSaveSuccess": "Délestage sauvegardé.",
       "revertConfirm": "Rétablir les paramètres de délestage sur le dernier fichier enregistré ?",
       "validationFailed": "échec de la validation",
-      "discoveryFailed": "Échec de la découverte"
+      "discoveryFailed": "Échec de la découverte",
+      "priorityLabel": "Priority {n}",
+      "companionsAdvanced": "Companions — advanced ({count})",
+      "liveStatus": "Live status",
+      "viewOverview": "View on Overview",
+      "viewHistory": "History",
+      "tierLadder": "Tier ladder",
+      "shedBelow": "Shed below",
+      "restoreAbove": "Restore above",
+      "editTier": "Edit",
+      "noLiveStatus": "No shed activity yet.",
+      "lastChange": "Last change {ago}",
+      "validationTierName": "Tier {n}: name is required.",
+      "validationTierEntities": "Tier \"{name}\": at least one shed entity is required.",
+      "unsavedWarning": "You have unsaved load shedding changes.",
+      "wizardTitle": "Set up load shedding",
+      "wizardStep1": "Enable load shedding above, then add your first tier.",
+      "wizardPresets": "SOC presets",
+      "presetConservative": "Conservative",
+      "presetBalanced": "Balanced",
+      "presetAggressive": "Aggressive",
+      "settingsSummary": "{count} tiers · {state}",
+      "settingsEnabled": "Enabled",
+      "settingsDisabled": "Disabled",
+      "snapshots": "snapshots stored"
     },
     "settings": {
       "title": "Paramètres",

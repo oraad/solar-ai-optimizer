@@ -13,7 +13,8 @@ import { sharedStyles } from "../styles.js";
 import { runWithToast, showToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
-import type { AppConfigView, CompanionEntity, EntityInfo } from "../types.js";
+import type { AppConfigView, CompanionEntity, EntityInfo, ShedResult, SystemStatus } from "../types.js";
+import { groupShedResultsByTier } from "../shed-display.js";
 
 function tierSwitches(t: Record<string, unknown>): string[] {
   if (Array.isArray(t.switches)) {
@@ -152,20 +153,107 @@ export class LoadSheddingPanel extends LitElement {
       }
       .buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
       .intro { font-size: 0.85rem; color: var(--muted); line-height: 1.45; margin-bottom: 12px; }
+      .live-block {
+        margin: 12px 0 16px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--panel-2);
+      }
+      .live-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 0.82rem; }
+      .live-links { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+      .live-links button.link-btn {
+        background: none; border: none; color: var(--accent); padding: 0; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+      }
+      .tier-ladder { margin-top: 12px; }
+      .tier-card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 10px;
+        overflow: hidden;
+      }
+      .tier-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border: none;
+        width: 100%;
+        text-align: start;
+        font: inherit;
+        color: inherit;
+        background: var(--panel-2);
+        cursor: pointer;
+      }
+      .tier-head .priority { font-size: 0.72rem; color: var(--muted); min-width: 72px; }
+      .tier-head .name { font-weight: 600; flex: 1; min-width: 0; }
+      .tier-head .meta { font-size: 0.78rem; color: var(--muted); }
+      .tier-body { padding: 12px; border-top: 1px solid var(--border); }
+      .soc-mini {
+        position: relative;
+        height: 8px;
+        border-radius: 4px;
+        background: var(--track);
+        margin: 8px 0;
+        overflow: hidden;
+      }
+      .soc-band {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        background: color-mix(in srgb, var(--warn) 35%, transparent);
+      }
+      .soc-slider-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .wizard-banner {
+        padding: 12px;
+        border-radius: var(--radius-sm);
+        border: 1px dashed var(--accent);
+        background: color-mix(in srgb, var(--accent) 8%, var(--panel-2));
+        margin-bottom: 12px;
+        font-size: 0.85rem;
+      }
+      .preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+      .preset-row button { font-size: 0.78rem; padding: 4px 10px; }
     `,
   ];
 
   @property({ attribute: false }) config: AppConfigView | null = null;
   @property({ attribute: false }) entities: EntityInfo[] = [];
   @property({ attribute: false }) entitiesConnected = false;
+  @property({ attribute: false }) status: SystemStatus | null = null;
+  @property({ attribute: false }) shedResults: ShedResult[] = [];
 
   @state() private draft: Record<string, unknown> | null = null;
   @state() private busy = false;
   @state() private companionMeta: Record<string, CompanionEntity[]> = {};
+  @state() private expandedTier: number | null = null;
+  @state() private snapshots: Array<{ entity: string; was_on: boolean; companion_count: number; captured_at: string }> = [];
+  private savedSnapshot = "";
 
   connectedCallback(): void {
     super.connectedCallback();
     void this.loadConfig();
+    void this.loadSnapshots();
+  }
+
+  private async loadSnapshots(): Promise<void> {
+    try {
+      const res = await api.shedSnapshots();
+      this.snapshots = res.snapshots ?? [];
+    } catch {
+      this.snapshots = [];
+    }
+  }
+
+  private emitDirty(dirty: boolean): void {
+    window.dispatchEvent(
+      new CustomEvent("solar-load-shedding-dirty", { detail: dirty, bubbles: true }),
+    );
+  }
+
+  private syncDirtyFlag(): void {
+    const snap = JSON.stringify(this.draft ?? {});
+    this.emitDirty(snap !== this.savedSnapshot);
   }
 
   updated(changed: Map<string, unknown>): void {
@@ -178,6 +266,8 @@ export class LoadSheddingPanel extends LitElement {
     try {
       const cfg = await api.config();
       this.draft = structuredClone(cfg.load_shedding ?? {}) as Record<string, unknown>;
+      this.savedSnapshot = JSON.stringify(this.draft);
+      this.emitDirty(false);
     } catch {
       /* non-fatal */
     }
@@ -192,6 +282,7 @@ export class LoadSheddingPanel extends LitElement {
     const copy = structuredClone(this.draft);
     mutator(copy);
     this.draft = copy;
+    this.syncDirtyFlag();
   }
 
   private lbl(key: string) {
@@ -207,11 +298,13 @@ export class LoadSheddingPanel extends LitElement {
   private validateTiers(): string | null {
     const tiers = (this.draft?.tiers ?? []) as Record<string, unknown>[];
     for (let i = 0; i < tiers.length; i++) {
-      const t = tiers[i];
-      const name = String(t.name ?? "").trim();
-      const entities = tierSwitches(t).map((s) => s.trim()).filter(Boolean);
-      if (!name) return `Tier ${i + 1}: name is required.`;
-      if (!entities.length) return `Tier "${name}": at least one shed entity is required.`;
+      const tier = tiers[i]!;
+      const name = String(tier.name ?? "").trim();
+      const entities = tierSwitches(tier).map((s) => s.trim()).filter(Boolean);
+      if (!name) return t("ui.loadShedding.validationTierName", { n: String(i + 1) });
+      if (!entities.length) {
+        return t("ui.loadShedding.validationTierEntities", { name });
+      }
     }
     return null;
   }
@@ -241,7 +334,10 @@ export class LoadSheddingPanel extends LitElement {
       },
       { loading: t("ui.loadShedding.toastSaveLoading"), success: t("ui.loadShedding.toastSaveSuccess") },
     );
-    if (ok) await this.loadConfig();
+    if (ok) {
+      await this.loadConfig();
+      void this.loadSnapshots();
+    }
     this.busy = false;
   }
 
@@ -249,6 +345,78 @@ export class LoadSheddingPanel extends LitElement {
     if (!confirm(t("ui.loadShedding.revertConfirm"))) return;
     await this.loadConfig();
     this.companionMeta = {};
+    this.expandedTier = null;
+  }
+
+  private applySocPreset(tierIdx: number, shed: number, restore: number): void {
+    this.setTier(tierIdx, "shed_below_soc", shed);
+    this.setTier(tierIdx, "restore_above_soc", restore);
+  }
+
+  private tierSummaryMeta(tier: Record<string, unknown>): string {
+    const deviceCount = tierDeviceCount(tier);
+    return t("ui.loadShedding.tierMeta", {
+      soc: String(tier.shed_below_soc ?? ""),
+      priority: String(tier.priority ?? 0),
+      count: String(deviceCount),
+      devices: deviceCount === 1 ? t("common.device") : t("common.devices"),
+    });
+  }
+
+  private renderSocMini(shed: number, restore: number): ReturnType<typeof html> {
+    const lo = Math.max(0, Math.min(shed, 100));
+    const hi = Math.max(lo, Math.min(restore, 100));
+    return html`
+      <div class="soc-mini" title="${t("ui.loadShedding.shedBelow")} ${lo}% → ${t("ui.loadShedding.restoreAbove")} ${hi}%">
+        <div class="soc-band" style="left:${lo}%;width:${hi - lo}%"></div>
+      </div>
+    `;
+  }
+
+  private renderLiveStatus(): ReturnType<typeof html> {
+    const actions = this.status?.decision?.shed_actions ?? [];
+    const results = groupShedResultsByTier(this.shedResults);
+    const hasLive = actions.length > 0 || results.length > 0 || this.snapshots.length > 0;
+    if (!hasLive) {
+      return html`<div class="live-block"><div class="label">${t("ui.loadShedding.noLiveStatus")}</div></div>`;
+    }
+    return html`
+      <div class="live-block">
+        <div class="label">${t("ui.loadShedding.liveStatus")}</div>
+        <div class="live-row">
+          ${results.length
+            ? results.map(
+                (r) => html`<span class="pill ${r.desired_on ? "good" : "bad"}">${r.tier}: ${r.desired_on ? t("common.on") : t("ui.decision.shed")} (${r.entities.length})</span>`,
+              )
+            : actions.map(
+                (a) => html`<span class="pill ${a.desired_on ? "good" : "bad"}">${a.tier}: ${a.desired_on ? t("common.on") : t("ui.decision.shed")}</span>`,
+              )}
+          ${this.snapshots.length
+            ? html`<span class="label">${this.snapshots.length} ${t("ui.loadShedding.snapshots")}</span>`
+            : null}
+        </div>
+        <div class="live-links">
+          <button type="button" class="link-btn" @click=${() => this.navigate("overview")}>${t("ui.loadShedding.viewOverview")} →</button>
+          <button type="button" class="link-btn" @click=${() => this.navigate("history")}>${t("ui.loadShedding.viewHistory")} →</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private navigate(tab: "overview" | "history"): void {
+    if (tab === "history") {
+      window.dispatchEvent(
+        new CustomEvent("solar-navigate-tab", {
+          detail: { tab: "history", history: { view: "activity", activity: "shed" } },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent("solar-navigate-tab", { detail: tab, bubbles: true, composed: true }),
+    );
   }
 
   private setTier(i: number, key: string, value: unknown): void {
@@ -386,6 +554,11 @@ export class LoadSheddingPanel extends LitElement {
     }
     const d = this.draft;
     const tiers = (d.tiers ?? []) as Record<string, unknown>[];
+    const sortedIndices = tiers
+      .map((_, i) => i)
+      .sort((a, b) => Number(tiers[a]?.priority ?? 0) - Number(tiers[b]?.priority ?? 0));
+    const showWizard = Boolean(d.enabled) && tiers.length === 0;
+
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
         <h3>
@@ -393,6 +566,7 @@ export class LoadSheddingPanel extends LitElement {
           <solar-info-tip .text=${sectionHelp("load_shedding")!}></solar-info-tip>
         </h3>
         <p class="intro">${t("ui.loadShedding.intro")}</p>
+        ${this.renderLiveStatus()}
         <div class="fields">
           <div class="field checkbox-row">
             <label>${this.lbl("enabled")}</label>
@@ -417,7 +591,15 @@ export class LoadSheddingPanel extends LitElement {
           </div>
         </div>
 
-        <p class="label" style="margin-top:16px">${t("ui.loadShedding.tiersIntro")}</p>
+        ${showWizard
+          ? html`<div class="wizard-banner">
+              <strong>${t("ui.loadShedding.wizardTitle")}</strong>
+              <p style="margin:6px 0 0">${t("ui.loadShedding.wizardStep1")}</p>
+            </div>`
+          : null}
+
+        <p class="label" style="margin-top:16px">${t("ui.loadShedding.tierLadder")}</p>
+        <p class="label">${t("ui.loadShedding.tiersIntro")}</p>
         <p class="label">
           ${this.entitiesConnected
             ? html`${t("ui.loadShedding.entitiesConnected")}`
@@ -425,183 +607,126 @@ export class LoadSheddingPanel extends LitElement {
                 <button class="link" @click=${() => this.requestEntityReload()}>${t("ui.loadShedding.reloadEntities")}</button>
                 ${t("ui.loadShedding.entitiesDisconnectedSuffix")}`}
         </p>
-        ${tiers.map((tier, i) => {
+        <div class="tier-ladder">
+        ${sortedIndices.map((i) => {
+          const tier = tiers[i]!;
           const se = stateEntitiesMap(tier);
           const tierName = String(tier.name ?? "").trim() || t("ui.loadShedding.tierDefault", { n: String(i + 1) });
-          const deviceCount = tierDeviceCount(tier);
-          const deviceLabel = deviceCount === 1 ? t("common.device") : t("common.devices");
+          const shedSoc = Number(tier.shed_below_soc ?? 40);
+          const restoreSoc = Number(tier.restore_above_soc ?? 55);
+          const open = this.expandedTier === i;
           return html`
-            <details class="tier-block">
-              <summary class="tier-summary">
-                <span class="tier-summary-text">
-                  ${tierName}
-                  <span class="tier-summary-meta">
-                    · Shed ${tier.shed_below_soc ?? ""}% · Priority ${tier.priority ?? 0} ·
-                    ${deviceCount} ${deviceLabel}
-                  </span>
-                </span>
-              </summary>
+            <div class="tier-card">
               <button
                 type="button"
-                class="tier-dismiss danger icon-btn"
-                aria-label=${t("ui.loadShedding.removeTier")}
-                @click=${(e: Event) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  this.removeTier(i);
-                }}
+                class="tier-head"
+                aria-expanded=${open}
+                @click=${() => { this.expandedTier = open ? null : i; }}
               >
-                ×
+                <span class="priority">${t("ui.loadShedding.priorityLabel", { n: String(tier.priority ?? i) })}</span>
+                <span class="name">${tierName}</span>
+                <span class="meta">${this.tierSummaryMeta(tier)}</span>
               </button>
-              <div class="fields">
-                <div class="field">
-                  <label>${this.lbl("name")}</label>
-                  <input
-                    type="text"
-                    .value=${String(tier.name ?? "")}
-                    @input=${(e: Event) =>
-                      this.setTier(i, "name", (e.target as HTMLInputElement).value)}
-                  />
-                </div>
-                <div class="field">
-                  <label>${this.lbl("priority")}</label>
-                  <input
-                    type="number"
-                    step="1"
-                    .value=${String(tier.priority ?? 0)}
-                    @input=${(e: Event) =>
-                      this.setTier(i, "priority", Number((e.target as HTMLInputElement).value))}
-                  />
-                </div>
-                <div class="field">
-                  <label>${this.lbl("shed_below_soc")}</label>
-                  <input
-                    type="number"
-                    step="any"
-                    .value=${String(tier.shed_below_soc ?? "")}
-                    @input=${(e: Event) =>
-                      this.setTier(
-                        i,
-                        "shed_below_soc",
-                        Number((e.target as HTMLInputElement).value),
-                      )}
-                  />
-                </div>
-                <div class="field">
-                  <label>${this.lbl("restore_above_soc")}</label>
-                  <input
-                    type="number"
-                    step="any"
-                    .value=${String(tier.restore_above_soc ?? "")}
-                    @input=${(e: Event) =>
-                      this.setTier(
-                        i,
-                        "restore_above_soc",
-                        Number((e.target as HTMLInputElement).value),
-                      )}
-                  />
-                </div>
-                <div class="field checkbox-row">
-                  <label>${this.lbl("restore_enabled")}</label>
-                  <input
-                    type="checkbox"
-                    .checked=${tier.restore_enabled !== false}
-                    @change=${(e: Event) =>
-                      this.setTier(i, "restore_enabled", (e.target as HTMLInputElement).checked)}
-                  />
-                </div>
-                <div class="field checkbox-row">
-                  <label>${this.lbl("restore_on_grid")}</label>
-                  <input
-                    type="checkbox"
-                    .checked=${tier.restore_on_grid !== false}
-                    @change=${(e: Event) =>
-                      this.setTier(i, "restore_on_grid", (e.target as HTMLInputElement).checked)}
-                  />
-                </div>
-              </div>
-              <div class="shed-entities-header">
-                <label class="label">${this.lbl("switches")}</label>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  aria-label=${t("ui.loadShedding.addEntity")}
-                  @click=${() => this.addTierEntity(i)}
-                >
-                  +
-                </button>
-              </div>
-              ${repeat(
-                tierSwitches(tier),
-                (_entity, j) => `${i}-${j}`,
-                (entity, j) => {
-                  const companionIds = se[entity] ?? [];
-                  return html`
-                    <div style="margin:8px 0;padding:8px;border:1px dashed var(--border);border-radius:6px">
-                      <div class="entity-row">
-                        <solar-entity-input
-                          .entityId=${entity}
-                          .entities=${this.entities}
-                          .domains=${SHED_DOMAINS}
-                          placeholder=${t("ui.loadShedding.entityPlaceholder")}
-                          @entity-id-change=${(e: CustomEvent<string | null>) =>
-                            this.setTierSwitch(i, j, e.detail ?? "")}
-                        />
-                        <button
-                          type="button"
-                          class="danger icon-btn"
-                          aria-label=${t("ui.loadShedding.removeEntity")}
-                          ?disabled=${tierSwitches(tier).length <= 1}
-                          @click=${() => this.removeTierEntity(i, j)}
-                        >
-                          <span aria-hidden="true">🗑</span>
-                        </button>
+              ${this.renderSocMini(shedSoc, restoreSoc)}
+              ${open
+                ? html`
+                    <div class="tier-body">
+                      <div class="row" style="justify-content:flex-end;margin-bottom:8px">
+                        <button type="button" class="danger" @click=${() => this.removeTier(i)}>${t("ui.loadShedding.removeTier")}</button>
                       </div>
-                      ${entity.includes(".")
-                        ? html`
-                            <details class="companion-details">
-                              <summary>${t("ui.loadShedding.companions", { count: String(companionIds.length) })}</summary>
-                              ${companionIds.map((cid) => {
-                                const c = this.companionDisplay(entity, cid);
-                                return html`
-                                  <div class="companion-row">
-                                    <span class="domain-badge">${c?.domain ?? "?"}</span>
-                                    <span>${c?.name ?? cid}</span>
-                                    <button
-                                      type="button"
-                                      class="danger icon-btn"
-                                      aria-label=${t("ui.loadShedding.removeCompanion")}
-                                      @click=${() => this.removeCompanion(i, entity, cid)}
-                                    >
-                                      ×
-                                    </button>
-                                  </div>
-                                `;
-                              })}
-                              <div class="row" style="margin-top:6px">
-                                <button
-                                  type="button"
-                                  @click=${() => this.discoverCompanions(i, entity)}
-                                >
-                                  ${t("ui.loadShedding.rediscover")}
-                                </button>
-                                <button
-                                  type="button"
-                                  @click=${() => this.clearCompanions(i, entity)}
-                                >
-                                  ${t("ui.loadShedding.clearCompanions")}
+                      <div class="fields">
+                        <div class="field">
+                          <label>${this.lbl("name")}</label>
+                          <input type="text" .value=${String(tier.name ?? "")} @input=${(e: Event) => this.setTier(i, "name", (e.target as HTMLInputElement).value)} />
+                        </div>
+                        <div class="field">
+                          <label>${this.lbl("priority")}</label>
+                          <input type="number" step="1" .value=${String(tier.priority ?? 0)} @input=${(e: Event) => this.setTier(i, "priority", Number((e.target as HTMLInputElement).value))} />
+                        </div>
+                      </div>
+                      <div class="soc-slider-row">
+                        <div class="field">
+                          <label>${this.lbl("shed_below_soc")}</label>
+                          <input type="range" min="5" max="95" .value=${String(shedSoc)} @input=${(e: Event) => this.setTier(i, "shed_below_soc", Number((e.target as HTMLInputElement).value))} />
+                          <span class="label">${shedSoc}%</span>
+                        </div>
+                        <div class="field">
+                          <label>${this.lbl("restore_above_soc")}</label>
+                          <input type="range" min="5" max="100" .value=${String(restoreSoc)} @input=${(e: Event) => this.setTier(i, "restore_above_soc", Number((e.target as HTMLInputElement).value))} />
+                          <span class="label">${restoreSoc}%</span>
+                        </div>
+                      </div>
+                      <div class="label">${t("ui.loadShedding.wizardPresets")}</div>
+                      <div class="preset-row">
+                        <button type="button" @click=${() => this.applySocPreset(i, 25, 40)}>${t("ui.loadShedding.presetConservative")}</button>
+                        <button type="button" @click=${() => this.applySocPreset(i, 35, 50)}>${t("ui.loadShedding.presetBalanced")}</button>
+                        <button type="button" @click=${() => this.applySocPreset(i, 45, 60)}>${t("ui.loadShedding.presetAggressive")}</button>
+                      </div>
+                      <div class="fields">
+                        <div class="field checkbox-row">
+                          <label>${this.lbl("restore_enabled")}</label>
+                          <input type="checkbox" .checked=${tier.restore_enabled !== false} @change=${(e: Event) => this.setTier(i, "restore_enabled", (e.target as HTMLInputElement).checked)} />
+                        </div>
+                        <div class="field checkbox-row">
+                          <label>${this.lbl("restore_on_grid")}</label>
+                          <input type="checkbox" .checked=${tier.restore_on_grid !== false} @change=${(e: Event) => this.setTier(i, "restore_on_grid", (e.target as HTMLInputElement).checked)} />
+                        </div>
+                      </div>
+                      <div class="shed-entities-header">
+                        <label class="label">${this.lbl("switches")}</label>
+                        <button type="button" class="icon-btn" aria-label=${t("ui.loadShedding.addEntity")} @click=${() => this.addTierEntity(i)}>+</button>
+                      </div>
+                      ${repeat(
+                        tierSwitches(tier),
+                        (_entity, j) => `${i}-${j}`,
+                        (entity, j) => {
+                          const companionIds = se[entity] ?? [];
+                          return html`
+                            <div style="margin:8px 0;padding:8px;border:1px dashed var(--border);border-radius:6px">
+                              <div class="entity-row">
+                                <solar-entity-input
+                                  .entityId=${entity}
+                                  .entities=${this.entities}
+                                  .domains=${SHED_DOMAINS}
+                                  placeholder=${t("ui.loadShedding.entityPlaceholder")}
+                                  @entity-id-change=${(e: CustomEvent<string | null>) => this.setTierSwitch(i, j, e.detail ?? "")}
+                                />
+                                <button type="button" class="danger icon-btn" aria-label=${t("ui.loadShedding.removeEntity")} ?disabled=${tierSwitches(tier).length <= 1} @click=${() => this.removeTierEntity(i, j)}>
+                                  <span aria-hidden="true">🗑</span>
                                 </button>
                               </div>
-                            </details>
-                          `
-                        : null}
+                              ${entity.includes(".")
+                                ? html`
+                                    <details class="companion-details">
+                                      <summary>${t("ui.loadShedding.companionsAdvanced", { count: String(companionIds.length) })}</summary>
+                                      ${companionIds.map((cid) => {
+                                        const c = this.companionDisplay(entity, cid);
+                                        return html`
+                                          <div class="companion-row">
+                                            <span class="domain-badge">${c?.domain ?? "?"}</span>
+                                            <span>${c?.name ?? cid}</span>
+                                            <button type="button" class="danger icon-btn" aria-label=${t("ui.loadShedding.removeCompanion")} @click=${() => this.removeCompanion(i, entity, cid)}>×</button>
+                                          </div>
+                                        `;
+                                      })}
+                                      <div class="row" style="margin-top:6px">
+                                        <button type="button" @click=${() => this.discoverCompanions(i, entity)}>${t("ui.loadShedding.rediscover")}</button>
+                                        <button type="button" @click=${() => this.clearCompanions(i, entity)}>${t("ui.loadShedding.clearCompanions")}</button>
+                                      </div>
+                                    </details>
+                                  `
+                                : null}
+                            </div>
+                          `;
+                        },
+                      )}
                     </div>
-                  `;
-                },
-              )}
-            </details>
+                  `
+                : null}
+            </div>
           `;
         })}
+        </div>
         <button type="button" @click=${() => this.addTier()}>${t("ui.loadShedding.addTier")}</button>
 
         <div class="buttons">

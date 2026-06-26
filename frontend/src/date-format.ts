@@ -176,6 +176,20 @@ function localDayKey(date: Date, timeZone?: string): string {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
+/** Hour-range label (e.g. peak load window) in site display timezone. */
+export function formatHourWindow(
+  start: Date | string | number,
+  windowHours: number,
+): string {
+  const d = toDate(start);
+  if (!d) return "";
+  const tz = getDisplayTimezone();
+  const p = partsInTimezone(d, tz);
+  const h = p.hour;
+  const endH = (h + windowHours) % 24;
+  return `${pad2(h)}:00–${pad2(endH)}:00`;
+}
+
 /** X-axis tick labels: date at axis start or day boundary; HH:mm elsewhere. */
 export function formatChartAxisLabels(
   ticksSec: number[],

@@ -21,6 +21,14 @@ export class OverridesPanel extends LitElement {
   static styles = [
     sharedStyles,
     css`
+      .section-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 14px 0 8px;
+      }
+      .section-label:first-of-type { margin-top: 0; }
       .ctrl {
         display: flex; justify-content: space-between; align-items: center;
         gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border);
@@ -47,30 +55,33 @@ export class OverridesPanel extends LitElement {
       .seg button.active { color: var(--text); background: var(--panel); box-shadow: var(--shadow); }
       .seg button.active.good { color: var(--good); }
       .seg button.active.warn { color: var(--warn); }
+      .primary-row { display: flex; gap: 8px; flex-wrap: wrap; }
+      .primary-row button { flex: 1 1 120px; min-height: 42px; }
       .reserve-input { display: flex; gap: 8px; align-items: center; }
       .reserve-input input { width: 84px; }
-      .buttons { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-      .buttons button { flex: 1 1 auto; }
-      .action-with-tip {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        flex: 1 1 140px;
+      .danger-zone {
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid color-mix(in srgb, var(--bad) 35%, var(--border));
       }
-      .action-with-tip button { flex: 1; }
+      .danger-zone button { width: 100%; }
+      details.advanced { margin-top: 8px; }
+      details.advanced summary {
+        cursor: pointer;
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
       .banner {
         padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 12px;
         font-size: 0.82rem; border: 1px solid var(--border);
       }
       .banner.warn { background: color-mix(in srgb, var(--warn) 12%, var(--panel-2)); color: var(--warn); }
-      .banner.danger { background: color-mix(in srgb, var(--bad) 12%, var(--panel-2)); color: var(--bad); }
       .viewer-note { font-size: 0.78rem; color: var(--muted); margin: -4px 0 12px; }
       .seg button:disabled { opacity: 0.45; cursor: not-allowed; }
       @media (max-width: 760px) {
-        .seg button {
-          min-height: 44px;
-          padding: 8px 14px;
-        }
+        .seg button, .primary-row button { min-height: 44px; padding: 8px 14px; }
       }
     `,
   ];
@@ -92,12 +103,7 @@ export class OverridesPanel extends LitElement {
     success: string,
   ): Promise<void> {
     this.busy = true;
-    const ok = await runWithToast(
-      async () => {
-        await fn();
-      },
-      { loading, success },
-    );
+    const ok = await runWithToast(async () => { await fn(); }, { loading, success });
     if (ok) this.dispatchRefresh();
     this.busy = false;
   }
@@ -170,13 +176,6 @@ export class OverridesPanel extends LitElement {
       t("ui.overrides.toastCycleSuccess"),
     );
 
-  private refreshForecast = () =>
-    this.run(
-      () => api.refreshForecast(),
-      t("ui.overrides.toastForecastLoading"),
-      t("ui.overrides.toastForecastSuccess"),
-    );
-
   render() {
     const shadow = this.status?.shadow_mode ?? true;
     const paused = this.status?.paused ?? false;
@@ -184,13 +183,9 @@ export class OverridesPanel extends LitElement {
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
         <h3>${viewer ? t("ui.overrides.titleViewer") : t("ui.overrides.title")}</h3>
-        ${viewer
-          ? html`<p class="viewer-note">${t("ui.overrides.viewerNote")}</p>`
-          : null}
+        ${viewer ? html`<p class="viewer-note">${t("ui.overrides.viewerNote")}</p>` : null}
 
-        ${paused
-          ? html`<div class="banner warn">${t("ui.overrides.enginePaused")}</div>`
-          : null}
+        ${paused ? html`<div class="banner warn">${t("ui.overrides.enginePaused")}</div>` : null}
         ${this.status?.reserve_soc_override != null
           ? html`<div class="banner warn">${t("ui.overrides.reservePinned", { soc: String(this.status.reserve_soc_override) })}</div>`
           : null}
@@ -201,32 +196,25 @@ export class OverridesPanel extends LitElement {
           ? html`<div class="banner warn">${t("ui.overrides.gridChargeAuto")}</div>`
           : null}
 
-        <div class="ctrl">
-          <span>${labelWithTip(t("ui.overrides.mode"), overrideHelp("mode"))}</span>
-          <span class="seg">
-            <button class=${shadow ? "active warn" : ""} @click=${() => shadow || this.toggleShadow()}>${t("ui.overrides.shadow")}</button>
-            <button class=${shadow ? "" : "active good"} @click=${() => shadow && this.toggleShadow()}>${t("ui.overrides.live")}</button>
-          </span>
-        </div>
-
-        <div class="ctrl">
-          <span>${labelWithTip(t("ui.overrides.engine"), overrideHelp("engine"))}</span>
-          <span class="seg">
-            <button class=${paused ? "active warn" : ""} ?disabled=${paused || this.busy} @click=${this.togglePause}>&#10073;&#10073; ${t("ui.overrides.pause")}</button>
-            <button class=${paused ? "active good" : ""} ?disabled=${!paused || this.busy} @click=${this.resume}>&#9654; ${t("ui.overrides.resume")}</button>
-          </span>
+        <div class="section-label">${t("ui.overrides.sectionPrimary")}</div>
+        <div class="primary-row">
+          ${paused
+            ? html`<button class="primary" ?disabled=${this.busy} @click=${this.resume}>&#9654; ${t("ui.overrides.resume")}</button>`
+            : html`<button ?disabled=${this.busy} @click=${this.togglePause}>&#10073;&#10073; ${t("ui.overrides.pause")}</button>`}
+          ${viewer
+            ? null
+            : html`<button ?disabled=${this.busy} @click=${this.forceCycle}>&#8635; ${t("ui.overrides.runCycle")}</button>`}
         </div>
 
         ${viewer
           ? html`
-              <div class="buttons">
-                <span class="action-with-tip">
-                  <button class="danger" @click=${this.killSwitch}>&#9760; ${t("ui.overrides.killSwitch")}</button>
-                  <solar-info-tip .text=${overrideHelp("kill_switch")!}></solar-info-tip>
-                </span>
+              <div class="danger-zone">
+                <div class="section-label">${t("ui.overrides.sectionDanger")}</div>
+                <button class="danger" @click=${this.killSwitch}>&#9760; ${t("ui.overrides.killSwitch")}</button>
               </div>
             `
           : html`
+              <div class="section-label">${t("ui.overrides.sectionOverrides")}</div>
               <div class="ctrl">
                 <span>${labelWithTip(t("ui.overrides.gridCharge"), overrideHelp("grid_charge"))}</span>
                 <span class="seg">
@@ -234,7 +222,6 @@ export class OverridesPanel extends LitElement {
                   <button @click=${this.stopForceCharge}>${t("common.auto")}</button>
                 </span>
               </div>
-
               <div class="ctrl">
                 <span>${labelWithTip(t("ui.overrides.pinReserve"), overrideHelp("pin_reserve"))}</span>
                 <span class="reserve-input">
@@ -252,26 +239,23 @@ export class OverridesPanel extends LitElement {
                 </span>
               </div>
 
-              <div class="buttons">
-                <span class="action-with-tip">
-                  <button @click=${this.forceCycle}>&#8635; ${t("ui.overrides.runCycle")}</button>
-                  <solar-info-tip .text=${overrideHelp("run_cycle")!}></solar-info-tip>
-                </span>
-                <span class="action-with-tip">
-                  <button @click=${this.refreshForecast}>&#9728; ${t("ui.overrides.refreshForecast")}</button>
-                  <solar-info-tip .text=${overrideHelp("refresh_forecast")!}></solar-info-tip>
-                </span>
-                <span class="action-with-tip">
-                  <button @click=${this.clearAll}>${t("ui.overrides.clearOverrides")}</button>
-                  <solar-info-tip .text=${overrideHelp("clear_overrides")!}></solar-info-tip>
-                </span>
-                <span class="action-with-tip">
-                  <button class="danger" @click=${this.killSwitch}>&#9760; ${t("ui.overrides.killSwitch")}</button>
-                  <solar-info-tip .text=${overrideHelp("kill_switch")!}></solar-info-tip>
-                </span>
+              <details class="advanced">
+                <summary>${t("ui.overrides.sectionAdvanced")}</summary>
+                <div class="ctrl">
+                  <span>${labelWithTip(t("ui.overrides.mode"), overrideHelp("mode"))}</span>
+                  <span class="seg">
+                    <button class=${shadow ? "active warn" : ""} @click=${() => shadow || this.toggleShadow()}>${t("ui.overrides.shadow")}</button>
+                    <button class=${shadow ? "" : "active good"} @click=${() => shadow && this.toggleShadow()}>${t("ui.overrides.live")}</button>
+                  </span>
+                </div>
+                <button style="width:100%;margin-top:8px" @click=${this.clearAll}>${t("ui.overrides.clearOverrides")}</button>
+              </details>
+
+              <div class="danger-zone">
+                <div class="section-label">${t("ui.overrides.sectionDanger")}</div>
+                <button class="danger" @click=${this.killSwitch}>&#9760; ${t("ui.overrides.killSwitch")}</button>
               </div>
             `}
-
       </div>
     `;
   }

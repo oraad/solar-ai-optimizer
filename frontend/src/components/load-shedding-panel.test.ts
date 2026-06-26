@@ -57,44 +57,40 @@ function mountPanelInShadow(
   return { host, panel };
 }
 
-describe("LoadSheddingPanel collapse defaults", () => {
+describe("LoadSheddingPanel tier ladder", () => {
   async function waitForTiers(panel: LoadSheddingPanel): Promise<void> {
     await panel.updateComplete;
     await new Promise((r) => setTimeout(r, 0));
     await panel.updateComplete;
   }
 
-  it("renders tier blocks collapsed with summary metadata", async () => {
+  it("renders tier cards collapsed with summary metadata", async () => {
     const { host, panel } = mountPanelInShadow();
     await waitForTiers(panel);
 
-    const tierBlock = panel.shadowRoot!.querySelector(".tier-block") as HTMLDetailsElement;
-    expect(tierBlock).toBeTruthy();
-    expect(tierBlock.open).toBe(false);
+    const tierCard = panel.shadowRoot!.querySelector(".tier-card");
+    expect(tierCard).toBeTruthy();
+    expect(tierCard!.querySelector(".tier-body")).toBeNull();
 
-    const summary = tierBlock.querySelector(".tier-summary-text")!;
-    expect(summary.textContent).toContain("pool");
-    expect(summary.textContent).toContain("Shed 40%");
-    expect(summary.textContent).toContain("Priority 0");
-    expect(summary.textContent).toContain("0 devices");
+    const name = tierCard!.querySelector(".name")!;
+    expect(name.textContent).toContain("pool");
+    expect(tierCard!.textContent).toContain("40");
 
     host.remove();
   });
 
-  it("collapses tier when summary is clicked again after expand", async () => {
+  it("collapses tier when head is clicked again after expand", async () => {
     const { host, panel } = mountPanelInShadow();
     await waitForTiers(panel);
 
-    const tierBlock = panel.shadowRoot!.querySelector(".tier-block") as HTMLDetailsElement;
-    const summary = tierBlock.querySelector(".tier-summary") as HTMLElement;
-
-    summary.click();
+    const tierHead = panel.shadowRoot!.querySelector(".tier-head") as HTMLElement;
+    tierHead.click();
     await panel.updateComplete;
-    expect(tierBlock.open).toBe(true);
-    expect(getComputedStyle(summary).display).not.toBe("none");
+    expect(panel.shadowRoot!.querySelector(".tier-body")).toBeTruthy();
 
-    summary.click();
-    expect(tierBlock.open).toBe(false);
+    tierHead.click();
+    await panel.updateComplete;
+    expect(panel.shadowRoot!.querySelector(".tier-body")).toBeNull();
 
     host.remove();
   });
@@ -102,6 +98,10 @@ describe("LoadSheddingPanel collapse defaults", () => {
   it("keeps companion sections collapsed when companions exist", async () => {
     const { host, panel } = mountPanelInShadow(ENTITIES, TIER_WITH_COMPANIONS);
     await waitForTiers(panel);
+
+    const tierHead = panel.shadowRoot!.querySelector(".tier-head") as HTMLElement;
+    tierHead.click();
+    await panel.updateComplete;
 
     const companionDetails = panel.shadowRoot!.querySelector(
       ".companion-details",
@@ -119,8 +119,8 @@ describe("LoadSheddingPanel entity autocomplete", () => {
     await panel.updateComplete;
     await new Promise((r) => setTimeout(r, 0));
 
-    const tierBlock = panel.shadowRoot!.querySelector(".tier-block") as HTMLDetailsElement;
-    tierBlock.open = true;
+    const tierHead = panel.shadowRoot!.querySelector(".tier-head") as HTMLElement;
+    tierHead.click();
     await panel.updateComplete;
 
     const entityInput = panel.shadowRoot!.querySelector("solar-entity-input")!;

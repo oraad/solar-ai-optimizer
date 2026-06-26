@@ -411,7 +411,17 @@
       "gridAbsent": "Grid absent",
       "gridChargeOn": "on · max {amps} A",
       "gridChargeOff": "off",
-      "reserveMarkTitle": "Reserve target"
+      "reserveMarkTitle": "Reserve target",
+      "hero": {
+        "reserve": "Reserve {soc}%",
+        "risk": "Risk: {label} {pct}%"
+      },
+      "risk": {
+        "low": "منخفض",
+        "moderate": "متوسط",
+        "high": "مرتفع",
+        "critical": "حرج"
+      }
     },
     "decision": {
       "title": "Decision & rationale",
@@ -436,7 +446,10 @@
       "companions": "companions: {list}",
       "ok": "ok",
       "pending": "pending",
-      "shadowMode": "Shadow mode: actions are logged but NOT written to the inverter."
+      "shadowMode": "Shadow mode: actions are logged but NOT written to the inverter.",
+      "details": "Details",
+      "viewShedHistory": "View shed history",
+      "configureShedding": "Configure shedding"
     },
     "grid": {
       "title": "Grid (reactive — not predicted)",
@@ -464,7 +477,19 @@
       "seriesLoad": "Load (W)",
       "seriesTemp": "Temp (°C)",
       "noForecastViewer": "No forecast yet. Ask an admin to configure forecast location and PV arrays in Settings.",
-      "noForecastAdmin": "No forecast yet. Set your site latitude/longitude and panels in the Settings tab."
+      "noForecastAdmin": "No forecast yet. Set your site latitude/longitude and panels in the Settings tab.",
+      "refresh": "Refresh",
+      "updatedAgo": "Updated {label}",
+      "outlook": "Outlook",
+      "configureForecast": "Configure forecast",
+      "openSiteSettings": "Open site settings",
+      "insightsTitle": "Insights",
+      "excessSolar": "Excess solar (est. today)",
+      "peakLoad": "Peak load window",
+      "reserveRunway": "Reserve runway @ load",
+      "runwayHours": "{h} h",
+      "gridCompact": "Grid",
+      "fullStats": "Full stats"
     },
     "history": {
       "title": "تاريخ",
@@ -504,7 +529,17 @@
       "seriesOutdoorTemp": "Outdoor °C",
       "restored": "restored: {list}",
       "captured": "captured: {list}",
-      "dash": "—"
+      "dash": "—",
+      "tabTimeline": "Timeline",
+      "tabActivity": "Activity",
+      "activityExecutions": "Inverter writes",
+      "activityShed": "Shed writes",
+      "activityGrid": "Grid events",
+      "recentEvents": "Recent events",
+      "gridOn": "الشبكة متصلة",
+      "gridOff": "الشبكة منقطعة",
+      "expandRow": "Show details",
+      "legendGridOutage": "Grid outage"
     },
     "overrides": {
       "title": "Controls & overrides",
@@ -546,7 +581,11 @@
       "toastCycleLoading": "Running control cycle…",
       "toastCycleSuccess": "Control cycle executed.",
       "toastForecastLoading": "Refreshing forecast…",
-      "toastForecastSuccess": "Forecast refreshed."
+      "toastForecastSuccess": "Forecast refreshed.",
+      "sectionPrimary": "Primary",
+      "sectionOverrides": "Overrides",
+      "sectionAdvanced": "Advanced",
+      "sectionDanger": "Danger zone"
     },
     "assistant": {
       "title": "مساعد",
@@ -585,7 +624,31 @@
       "toastSaveSuccess": "Load shedding saved.",
       "revertConfirm": "Revert load shedding settings to last saved file?",
       "validationFailed": "validation failed",
-      "discoveryFailed": "Discovery failed"
+      "discoveryFailed": "Discovery failed",
+      "priorityLabel": "Priority {n}",
+      "companionsAdvanced": "Companions — advanced ({count})",
+      "liveStatus": "Live status",
+      "viewOverview": "View on Overview",
+      "viewHistory": "History",
+      "tierLadder": "Tier ladder",
+      "shedBelow": "Shed below",
+      "restoreAbove": "Restore above",
+      "editTier": "Edit",
+      "noLiveStatus": "No shed activity yet.",
+      "lastChange": "Last change {ago}",
+      "validationTierName": "Tier {n}: name is required.",
+      "validationTierEntities": "Tier \"{name}\": at least one shed entity is required.",
+      "unsavedWarning": "You have unsaved load shedding changes.",
+      "wizardTitle": "Set up load shedding",
+      "wizardStep1": "Enable load shedding above, then add your first tier.",
+      "wizardPresets": "SOC presets",
+      "presetConservative": "Conservative",
+      "presetBalanced": "Balanced",
+      "presetAggressive": "Aggressive",
+      "settingsSummary": "{count} tiers · {state}",
+      "settingsEnabled": "Enabled",
+      "settingsDisabled": "Disabled",
+      "snapshots": "snapshots stored"
     },
     "settings": {
       "title": "إعدادات",

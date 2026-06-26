@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.22] - 2026-06-26
+
+### Added
+
+- **Settings navigation:** category sidebar (Setup, Energy, Engine, Forecast, Safety, System) with search and a dismissible setup checklist
+- **Azimuth compass:** visual azimuth input beside PV array direction fields in Site & PV settings
+- Draft validation for latitude/longitude and grid charge min/max blocks save until issues are fixed
+
+### Changed
+
+- Settings panel reorganized around the new navigation structure; settings UI strings consolidated into locale catalogs (EN, AR, FR)
+
 ## [0.5.21] - 2026-06-26
 
 ### Changed

@@ -313,6 +313,7 @@ export interface EntityInfo {
 
 export interface AppConfigView {
   ha?: Record<string, unknown>;
+  site?: Record<string, string>;
   battery: Record<string, number>;
   reserve: Record<string, number>;
   forecast: Record<string, unknown>;

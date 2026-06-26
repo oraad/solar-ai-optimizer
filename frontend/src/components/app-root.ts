@@ -296,6 +296,7 @@ export class SolarApp extends LitElement {
     window.addEventListener("solar-logout", this.onLogout);
     window.addEventListener("solar-update-info", this.onUpdateInfo as EventListener);
     window.addEventListener("solar-reload-entities", this.onReloadEntities);
+    window.addEventListener("solar-navigate-tab", this.onNavigateTab as EventListener);
     void this.initAuth();
     this.clockTimer = window.setInterval(() => (this.now = Date.now()), 1000);
   }
@@ -313,6 +314,7 @@ export class SolarApp extends LitElement {
     window.removeEventListener("solar-logout", this.onLogout);
     window.removeEventListener("solar-update-info", this.onUpdateInfo as EventListener);
     window.removeEventListener("solar-reload-entities", this.onReloadEntities);
+    window.removeEventListener("solar-navigate-tab", this.onNavigateTab as EventListener);
     if (this.pollTimer) window.clearInterval(this.pollTimer);
     if (this.clockTimer) window.clearInterval(this.clockTimer);
   }
@@ -355,6 +357,11 @@ export class SolarApp extends LitElement {
 
   private onReloadEntities = (): void => {
     void this.loadEntities();
+  };
+
+  private onNavigateTab = (e: Event): void => {
+    const tab = (e as CustomEvent<Tab>).detail;
+    if (tab && TAB_IDS.includes(tab)) this.setTab(tab);
   };
 
   private dismissBootSplash(): void {

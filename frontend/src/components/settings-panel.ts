@@ -3,7 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 
 import { api, getApiToken, setApiToken } from "../api.js";
 import { entityLabel, fieldLabel, gridChargeFactorLabel, INVERTER_READ_ENTITY_KEYS, optimizationPriorityLabel, pvLabel, sectionTitle } from "../field-labels.js";
-import { entityHelp, fieldHelp, priorityEffectHelp, priorityRankBlurb, pvHelp, sectionHelp } from "../field-help.js";
+import { entityHelp, fieldHelp, priorityEffectHelp, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
 import { formatDateTime, getDateFormat, setDateFormat, type DateDisplayFormat } from "../date-format.js";
 import { getLocale, setLocale, t, type AppLocale } from "../i18n.js";
@@ -11,9 +11,28 @@ import { LOCALES } from "../locales/manifest.js";
 import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import { dismissToast, runWithToast, showToast, updateToast } from "../toast.js";
+import "./azimuth-input.js";
 import "./entity-input.js";
 import "./info-tip.js";
 import "./timezone-input.js";
+import {
+  SETTINGS_CATEGORIES,
+  SETTINGS_NAV,
+  categoryForNav,
+  navItemsForCategory,
+  type SettingsCategory,
+  type SettingsNavId,
+} from "../settings-nav.js";
+import {
+  SAVE_SECTIONS,
+  buildSetupChecklist,
+  checklistNeedsAttention,
+  configSnapshot,
+  isConfigDirty,
+  matchesSettingsSearch,
+  validateConfigDraft,
+  type ValidationIssue,
+} from "../settings-utils.js";
 import type { AppConfigView, EntityInfo, ReleaseSummary, SessionInfo, SystemStatus, UpdateInfo, UpdateProgress } from "../types.js";
 import { renderMarkdown } from "../markdown.js";
 import {
@@ -25,18 +44,6 @@ import {
 } from "../update-progress.js";
 
 type Section = Record<string, unknown>;
-
-// Sections rendered as simple scalar forms.
-const FORM_SECTIONS = [
-  "site",
-  "battery",
-  "reserve",
-  "forecast",
-  "control",
-] as const;
-
-// Sections persisted on save (includes custom-rendered sections).
-const SAVE_SECTIONS = [...FORM_SECTIONS, "engine", "inverter", "ha", "fail_safe", "grid_charge"] as const;
 
 const DEFAULT_GRID_CHARGE_FACTORS = [
   "soc_gap",
@@ -254,6 +261,306 @@ export class SettingsPanel extends LitElement {
       @media (prefers-reduced-motion: reduce) {
         .update-spinner { animation: none; border-top-color: var(--accent); }
       }
+      .settings-shell {
+        display: grid;
+        grid-template-columns: 200px minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+      @media (max-width: 899px) {
+        .settings-shell { grid-template-columns: 1fr; }
+      }
+      .settings-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .settings-search {
+        flex: 1;
+        min-width: 140px;
+        max-width: 280px;
+      }
+      .settings-search input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--text);
+        font-size: 0.82rem;
+      }
+      .settings-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        position: sticky;
+        top: 8px;
+      }
+      @media (max-width: 899px) {
+        .settings-nav {
+          flex-direction: row;
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          position: static;
+          padding-bottom: 4px;
+          -webkit-overflow-scrolling: touch;
+        }
+      }
+      .nav-category-label {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        margin: 10px 0 4px;
+        padding-inline-start: 8px;
+      }
+      @media (max-width: 899px) {
+        .nav-category-label { display: none; }
+      }
+      .nav-item {
+        display: block;
+        width: 100%;
+        text-align: start;
+        padding: 7px 10px;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      @media (max-width: 899px) {
+        .nav-item {
+          width: auto;
+          flex-shrink: 0;
+          border: 1px solid var(--border);
+          background: var(--panel-2);
+        }
+      }
+      .nav-item:hover { color: var(--text); background: var(--panel-2); }
+      .nav-item.active {
+        color: var(--text);
+        font-weight: 600;
+        background: color-mix(in srgb, var(--accent) 14%, var(--panel-2));
+        border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+      }
+      .nav-pill {
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--muted);
+        font: inherit;
+        font-size: 0.78rem;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .nav-pill.active {
+        color: var(--text);
+        font-weight: 600;
+        border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+        background: color-mix(in srgb, var(--accent) 12%, var(--panel-2));
+      }
+      .category-pills {
+        display: none;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      @media (max-width: 899px) {
+        .category-pills { display: flex; }
+        .settings-nav-desktop { display: none; }
+      }
+      @media (min-width: 900px) {
+        .category-pills { display: none; }
+      }
+      .settings-content { min-width: 0; }
+      .section-panel {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+      }
+      .section-panel h4 {
+        margin: 0 0 10px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .persistence-badge {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 999px;
+        font-size: 0.62rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        background: color-mix(in srgb, var(--muted) 16%, transparent);
+        color: var(--muted);
+      }
+      .persistence-badge.browser {
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 14%, transparent);
+      }
+      .persistence-badge.immediate {
+        color: var(--warn, #c90);
+        background: color-mix(in srgb, var(--warn, #c90) 14%, transparent);
+      }
+      .checklist-banner {
+        margin-bottom: 14px;
+        padding: 12px 14px;
+        border-radius: 8px;
+        border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+        background: color-mix(in srgb, var(--accent) 6%, var(--panel-2));
+      }
+      .checklist-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .checklist-header h4 { margin: 0; font-size: 0.85rem; }
+      .checklist-progress {
+        height: 4px;
+        border-radius: 999px;
+        background: var(--border);
+        margin-bottom: 10px;
+        overflow: hidden;
+      }
+      .checklist-progress-bar {
+        height: 100%;
+        background: var(--accent);
+        transition: width 0.2s ease;
+      }
+      .checklist-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.8rem;
+        padding: 3px 0;
+      }
+      .checklist-row.done { color: var(--muted); }
+      .checklist-icon { width: 16px; flex-shrink: 0; text-align: center; }
+      .link-card {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .pv-array-card {
+        position: relative;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 44px 10px 12px;
+        margin-bottom: 10px;
+      }
+      .pv-array-dismiss {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        font-size: 1.1rem;
+        line-height: 1;
+      }
+      .pv-array-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--text);
+      }
+      .mode-toggle {
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .mode-toggle button {
+        border: none;
+        border-radius: 0;
+        background: var(--panel-2);
+        color: var(--muted);
+        padding: 6px 14px;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+      .mode-toggle button.active {
+        background: color-mix(in srgb, var(--accent) 18%, var(--panel-2));
+        color: var(--text);
+        font-weight: 600;
+      }
+      .priority-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        cursor: grab;
+      }
+      .priority-row.dragging { opacity: 0.5; }
+      .priority-handle { color: var(--muted); font-size: 0.9rem; user-select: none; }
+      .validation-banner {
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid color-mix(in srgb, var(--bad, #c66) 40%, var(--border));
+        background: color-mix(in srgb, var(--bad, #c66) 10%, var(--panel-2));
+        font-size: 0.8rem;
+      }
+      .validation-banner ul { margin: 4px 0 0; padding-inline-start: 1.2em; }
+      .settings-sticky-bar {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        margin: 16px -18px -18px;
+        padding: 10px 18px calc(10px + env(safe-area-inset-bottom, 0px));
+        border-top: 1px solid var(--border);
+        background: color-mix(in srgb, var(--panel) 92%, transparent);
+        backdrop-filter: blur(8px);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .dirty-indicator {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8rem;
+        color: var(--warn, #c90);
+      }
+      .dirty-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--warn, #c90);
+      }
+      .sticky-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     `,
   ];
 
@@ -280,8 +587,22 @@ export class SettingsPanel extends LitElement {
   @state() private updateWatchActive = false;
   @state() private dateFormat: DateDisplayFormat = "locale";
   @state() private locale: AppLocale = "en";
+  @state() private activeNav: SettingsNavId = "setup_ha";
+  @state() private mobileCategory: SettingsCategory = "setup";
+  @state() private searchQuery = "";
+  @state() private checklistDismissed = false;
+  @state() private validationIssues: ValidationIssue[] = [];
+  @state() private dragPriorityIndex: number | null = null;
 
+  private savedSnapshot = "";
+  private navWide = true;
+  private resizeObserver: ResizeObserver | null = null;
   private updateWatchToken = 0;
+  private onBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (this.isDirty) {
+      e.preventDefault();
+    }
+  };
   private onDateFormatChange = () => {
     this.dateFormat = getDateFormat();
     this.requestUpdate();
@@ -297,16 +618,25 @@ export class SettingsPanel extends LitElement {
     this.locale = getLocale();
     window.addEventListener("solar-date-format-change", this.onDateFormatChange);
     window.addEventListener("solar-locale-change", this.onLocaleChange);
+    window.addEventListener("beforeunload", this.onBeforeUnload);
     this.apiToken = getApiToken();
     if (this.config) this.setDraft(this.config);
     void this.loadConfig();
     void this.loadCapabilities();
     this.maybeResumeUpdateWatch();
+    this.resizeObserver = new ResizeObserver(() => {
+      this.navWide = this.offsetWidth >= 900;
+      this.requestUpdate();
+    });
+    this.resizeObserver.observe(this);
   }
 
   disconnectedCallback(): void {
     window.removeEventListener("solar-date-format-change", this.onDateFormatChange);
     window.removeEventListener("solar-locale-change", this.onLocaleChange);
+    window.removeEventListener("beforeunload", this.onBeforeUnload);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     super.disconnectedCallback();
   }
 
@@ -328,14 +658,14 @@ export class SettingsPanel extends LitElement {
     const toastId = "update-resume";
     showToast({
       id: toastId,
-      message: "Update in progress…",
+      message: t("ui.settings.updateInProgress"),
       variant: "loading",
       persistent: true,
     });
     try {
       const result = await this.watchUpdateCompletion({ toastId });
       if (result.ok) {
-        updateToast(toastId, { message: "Update complete. Reloading…", variant: "success" });
+        updateToast(toastId, { message: t("ui.settings.updateCompleteReload"), variant: "success" });
         window.location.reload();
         return;
       }
@@ -350,7 +680,7 @@ export class SettingsPanel extends LitElement {
         this.installRecoveryOffer = true;
         showToast({
           message:
-            "Update in progress but the service did not respond in time. Use Restore below if needed.",
+            t("ui.settings.updateTimeout"),
           variant: "error",
           persistent: true,
         });
@@ -382,6 +712,8 @@ export class SettingsPanel extends LitElement {
   private setDraft(cfg: AppConfigView): void {
     this.draft = structuredClone(cfg);
     this.raw = JSON.stringify(cfg, null, 2);
+    this.savedSnapshot = configSnapshot(cfg);
+    this.validationIssues = validateConfigDraft(this.draft);
   }
 
   private async loadConfig(): Promise<void> {
@@ -396,6 +728,45 @@ export class SettingsPanel extends LitElement {
     const copy = structuredClone(this.draft) as Record<string, any>;
     mutator(copy);
     this.draft = copy as AppConfigView;
+    this.validationIssues = validateConfigDraft(this.draft);
+  }
+
+  private get isDirty(): boolean {
+    return isConfigDirty(this.draft, this.savedSnapshot);
+  }
+
+  private navLabel(labelKey: string): string {
+    return t(labelKey);
+  }
+
+  private persistenceBadge(kind: "server" | "browser" | "immediate") {
+    return html`<span class="persistence-badge ${kind}">${t(`ui.settings.badge.${kind}`)}</span>`;
+  }
+
+  private selectNav(id: SettingsNavId): void {
+    this.activeNav = id;
+    this.mobileCategory = categoryForNav(id);
+  }
+
+  private selectCategory(cat: SettingsCategory): void {
+    this.mobileCategory = cat;
+    const first = navItemsForCategory(cat)[0];
+    if (first) this.activeNav = first.id;
+  }
+
+  private openLoadSheddingTab(): void {
+    window.dispatchEvent(
+      new CustomEvent("solar-navigate-tab", { detail: "load_shedding", bubbles: true, composed: true }),
+    );
+  }
+
+  private toastRun(
+    fn: () => Promise<void>,
+    loadingKey: string,
+    successKey: string,
+    errorFallback?: string,
+  ): Promise<void> {
+    return this.run(fn, t(loadingKey), t(successKey), errorFallback);
   }
 
   private setField(section: string, key: string, value: unknown): void {
@@ -413,11 +784,16 @@ export class SettingsPanel extends LitElement {
 
   private async save(): Promise<void> {
     if (!this.draft) return;
+    this.validationIssues = validateConfigDraft(this.draft);
+    if (this.validationIssues.length) {
+      showToast({ message: t("ui.settings.validation.fixBeforeSave"), variant: "error" });
+      return;
+    }
     this.patchDraft((d) => {
       this.normalizeGridChargeForSave(d);
       this.normalizePriorityOrderForSave(d);
     });
-    await this.run(
+    await this.toastRun(
       async () => {
         const patch: Record<string, unknown> = {};
         const draftRec = this.draft as unknown as Record<string, unknown>;
@@ -427,38 +803,38 @@ export class SettingsPanel extends LitElement {
           }
         }
         const res = await api.putConfig(patch);
-        if (!res.ok) throw new Error(res.error || "validation failed");
+        if (!res.ok) throw new Error(res.error || t("ui.shed.validationFailed"));
       },
-      "Saving configuration…",
-      "Configuration saved and applied.",
+      "ui.settings.toastSaveLoading",
+      "ui.settings.toastSaveSuccess",
     );
   }
 
   private async applyRaw(): Promise<void> {
-    await this.run(
+    await this.toastRun(
       async () => {
         const parsed = JSON.parse(this.raw);
         const res = await api.putConfig(parsed);
-        if (!res.ok) throw new Error(res.error || "validation failed");
+        if (!res.ok) throw new Error(res.error || t("ui.shed.validationFailed"));
       },
-      "Applying configuration…",
-      "Raw configuration applied.",
+      "ui.settings.toastApplyLoading",
+      "ui.settings.toastApplySuccess",
     );
   }
 
   private async reset(): Promise<void> {
-    if (!confirm("Discard all UI overrides and revert to base defaults?")) return;
-    await this.run(
+    if (!confirm(t("ui.settings.revertConfirm"))) return;
+    await this.toastRun(
       async () => {
         await api.resetConfig();
       },
-      "Reverting configuration…",
-      "Reverted to base config.",
+      "ui.settings.toastRevertLoading",
+      "ui.settings.toastRevertSuccess",
     );
   }
 
   private async exportConfig(): Promise<void> {
-    await this.run(
+    await this.toastRun(
       async () => {
         const cfg = await api.config();
         const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: "application/json" });
@@ -468,8 +844,8 @@ export class SettingsPanel extends LitElement {
         a.click();
         URL.revokeObjectURL(a.href);
       },
-      "Exporting configuration…",
-      "Configuration exported.",
+      "ui.settings.toastExportConfigLoading",
+      "ui.settings.toastExportConfigSuccess",
     );
   }
 
@@ -478,20 +854,20 @@ export class SettingsPanel extends LitElement {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () =>
-      void this.run(
+      void this.toastRun(
         async () => {
           const data = JSON.parse(String(reader.result));
           const res = await api.putConfig(data);
-          if (!res.ok) throw new Error(res.error || "import failed");
+          if (!res.ok) throw new Error(res.error || t("ui.settings.importFailed"));
         },
-        "Importing configuration…",
-        "Configuration imported and applied.",
+        "ui.settings.toastImportConfigLoading",
+        "ui.settings.toastImportConfigSuccess",
       );
     reader.readAsText(file);
   }
 
   private async exportModel(): Promise<void> {
-    await this.run(
+    await this.toastRun(
       async () => {
         const model = await api.exportModel();
         const blob = new Blob([JSON.stringify(model, null, 2)], { type: "application/json" });
@@ -501,8 +877,8 @@ export class SettingsPanel extends LitElement {
         a.click();
         URL.revokeObjectURL(a.href);
       },
-      "Exporting model…",
-      "Model exported.",
+      "ui.settings.toastExportModelLoading",
+      "ui.settings.toastExportModelSuccess",
     );
   }
 
@@ -511,29 +887,29 @@ export class SettingsPanel extends LitElement {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () =>
-      void this.run(
+      void this.toastRun(
         async () => {
           const data = JSON.parse(String(reader.result));
           const res = await api.importModel(data);
-          if (!res.ok) throw new Error("import failed");
+          if (!res.ok) throw new Error(t("ui.settings.importFailed"));
         },
-        "Importing model…",
-        "Model imported; ML retrain paused until you click Retrain from telemetry.",
+        "ui.settings.toastImportModelLoading",
+        "ui.settings.toastImportModelSuccess",
       );
     reader.readAsText(file);
   }
 
   private async retrainModel(): Promise<void> {
-    await this.run(
+    await this.toastRun(
       async () => {
         const res = await api.retrainModel();
-        if (!res.ok) throw new Error("retrain failed");
+        if (!res.ok) throw new Error(t("ui.settings.retrainFailed"));
         if (!res.trained) {
-          throw new Error("insufficient telemetry history or ML not enabled");
+          throw new Error(t("ui.settings.insufficientTelemetry"));
         }
       },
-      "Retraining model…",
-      "ML model retrained from telemetry.",
+      "ui.settings.toastRetrainLoading",
+      "ui.settings.toastRetrainSuccess",
     );
   }
 
@@ -541,6 +917,7 @@ export class SettingsPanel extends LitElement {
     fn: () => Promise<void>,
     loading: string,
     success: string,
+    _errorFallback?: string,
   ): Promise<void> {
     this.busy = true;
     const ok = await runWithToast(fn, { loading, success });
@@ -555,7 +932,7 @@ export class SettingsPanel extends LitElement {
     return labelWithTip(fieldLabel(section, key), fieldHelp(section, key));
   }
 
-  private renderSection(name: string): unknown {
+  private renderSectionFields(name: string): unknown {
     const draftRec = this.draft as unknown as Record<string, Section> | null;
     const sec = draftRec?.[name];
     if (!sec) return null;
@@ -563,19 +940,27 @@ export class SettingsPanel extends LitElement {
       ([k, v]) => isScalar(v) && !HIDDEN_FIELDS.has(k),
     );
     return html`
-      <details>
-        <summary>
-          <span class="summary-label">
-            ${sectionTitle(name)}
-            ${sectionHelp(name)
-              ? html`<solar-info-tip .text=${sectionHelp(name)!}></solar-info-tip>`
-              : null}
-          </span>
-        </summary>
-        <div class="fields">
-          ${entries.map(([key, v]) => this.renderField(name, key, v as number | string | boolean))}
-        </div>
-      </details>
+      <div class="fields">
+        ${entries.map(([key, v]) => this.renderField(name, key, v as number | string | boolean))}
+      </div>
+    `;
+  }
+
+  private renderSectionPanel(
+    title: string,
+    help: string | undefined,
+    content: unknown,
+    badge: "server" | "browser" | "immediate" = "server",
+  ) {
+    return html`
+      <div class="section-panel">
+        <h4>
+          ${title}
+          ${this.persistenceBadge(badge)}
+          ${help ? html`<solar-info-tip .text=${help}></solar-info-tip>` : null}
+        </h4>
+        ${content}
+      </div>
     `;
   }
 
@@ -605,8 +990,8 @@ export class SettingsPanel extends LitElement {
           @change=${(e: Event) =>
             this.setField(section, key, (e.target as HTMLSelectElement).value)}
         >
-          <option value="open-meteo">Open-Meteo</option>
-          <option value="solcast">Solcast</option>
+          <option value="open-meteo">${t("ui.settings.openMeteo")}</option>
+          <option value="solcast">${t("ui.settings.solcast")}</option>
         </select>
       </div>`;
     }
@@ -673,8 +1058,8 @@ export class SettingsPanel extends LitElement {
             @change=${(e: Event) => this.setInverterFlag("invert_battery_power", (e.target as HTMLInputElement).checked)}
           />
           ${labelWithTip(
-            "Invert battery power sign",
-            "Enable if your inverter reports positive power when discharging. Does not change stored history.",
+            t("ui.settings.invertBatteryPower"),
+            t("ui.settings.invertBatteryHelp"),
           )}
         </label>
       </div>
@@ -688,47 +1073,17 @@ export class SettingsPanel extends LitElement {
     });
   }
 
-  private renderFailSafeSection() {
-    const d = this.draft as unknown as Record<string, any>;
-    const fs = (d.fail_safe ?? {}) as Record<string, unknown>;
-    const heartbeatEntity = (fs.heartbeat_entity ?? "") as string;
+  private renderLoadSheddingLink() {
     return html`
-      <details>
-        <summary>
-          <span class="summary-label">
-            ${sectionTitle("fail_safe")}
-            <solar-info-tip .text=${sectionHelp("fail_safe")!}></solar-info-tip>
-          </span>
-        </summary>
-        <p class="label">
-          Import the HA fail-safe package to create
-          <code>input_datetime.solar_optimizer_heartbeat</code>, or pick an existing
-          helper. Max grid charge current comes from Battery → Max grid charge current (A).
-        </p>
-        <div class="fields">
-          ${typeof fs.heartbeat_enabled === "boolean"
-            ? this.renderField("fail_safe", "heartbeat_enabled", fs.heartbeat_enabled)
-            : null}
-          <div class="field">
-            <label>${this.lbl("fail_safe", "heartbeat_entity")}</label>
-            <solar-entity-input
-              .entityId=${heartbeatEntity}
-              .entities=${this.entities}
-              .domains=${["input_datetime"]}
-              placeholder="input_datetime.solar_optimizer_heartbeat"
-              @entity-id-change=${(e: CustomEvent<string | null>) =>
-                this.setField("fail_safe", "heartbeat_entity", e.detail)}
-            />
-          </div>
-          ${typeof fs.shutdown_failsafe_enabled === "boolean"
-            ? this.renderField(
-                "fail_safe",
-                "shutdown_failsafe_enabled",
-                fs.shutdown_failsafe_enabled,
-              )
-            : null}
+      <div class="link-card">
+        <div>
+          <strong>${t("ui.settings.loadSheddingTitle")}</strong>
+          <p class="label" style="margin:4px 0 0">${t("ui.settings.loadSheddingIntro")}</p>
         </div>
-      </details>
+        <button type="button" @click=${() => this.openLoadSheddingTab()}>
+          ${t("ui.settings.openLoadShedding")} →
+        </button>
+      </div>
     `;
   }
 
@@ -736,21 +1091,17 @@ export class SettingsPanel extends LitElement {
     const d = this.draft as unknown as Record<string, any>;
     const ha = (d.ha ?? {}) as Record<string, unknown>;
     const hasToken = Boolean(ha.has_token);
-    return html`
-      <details>
-        <summary>
-          <span class="summary-label">
-            Home Assistant connection
-            <solar-info-tip .text=${sectionHelp("ha")!}></solar-info-tip>
-          </span>
-        </summary>
+    return this.renderSectionPanel(
+      t("ui.settings.haConnection"),
+      sectionHelp("ha"),
+      html`
         <div class="fields">
           ${this.renderField("ha", "base_url", String(ha.base_url ?? ""))}
           <div class="field">
             <label>${this.lbl("ha", "token")}</label>
             <input
               type="password"
-              placeholder=${hasToken ? "(stored — enter new value to replace)" : "long-lived access token"}
+              placeholder=${hasToken ? t("ui.settings.tokenStoredPlaceholder") : t("ui.settings.tokenNewPlaceholder")}
               .value=${String(ha.token ?? "")}
               @input=${(e: Event) =>
                 this.setField("ha", "token", (e.target as HTMLInputElement).value)}
@@ -760,15 +1111,15 @@ export class SettingsPanel extends LitElement {
             ? this.renderField("ha", "verify_ssl", ha.verify_ssl)
             : null}
         </div>
-      </details>
-    `;
+      `,
+    );
   }
 
   private renderDisplayPreferencesSection() {
-    return html`
-      <details>
-        <summary>${t("display.preferences")}</summary>
-        <p class="label">${t("display.preferencesIntro")}</p>
+    return this.renderSectionPanel(
+      t("display.preferences"),
+      t("display.preferencesIntro"),
+      html`
         <div class="fields">
           <div class="field">
             <label>${t("display.language")}</label>
@@ -801,18 +1152,21 @@ export class SettingsPanel extends LitElement {
             </select>
           </div>
         </div>
-      </details>
-    `;
+      `,
+      "browser",
+    );
   }
 
   private renderSecuritySection() {
-    return html`
-      <details>
-        <summary>API security (standalone)</summary>
+    return this.renderSectionPanel(
+      t("ui.settings.securityTitle"),
+      t("ui.settings.apiSecurityIntro"),
+      html`
         ${this.session?.auth_mode === "local"
           ? html`
               <p class="label">
-                Signed in as <strong>${this.session.display_name ?? this.session.username}</strong>.
+                ${t("ui.settings.signedInAs")}
+                <strong>${this.session.display_name ?? this.session.username}</strong>.
               </p>
               <div class="buttons">
                 <button
@@ -822,21 +1176,17 @@ export class SettingsPanel extends LitElement {
                     window.dispatchEvent(new Event("solar-logout"));
                   }}
                 >
-                  Sign out
+                  ${t("ui.settings.signOut")}
                 </button>
               </div>
             `
           : null}
-        <p class="label">
-          When the backend has <code>API_TOKEN</code> set, paste the same value here
-          so mutating requests (overrides, config save) are authorized.
-        </p>
         <div class="fields">
           <div class="field" style="grid-column: 1 / -1">
             <label>${labelWithTip("API token", fieldHelp("security", "api_token"))}</label>
             <input
               type="password"
-              placeholder="Bearer token (stored in this browser only)"
+              placeholder=${t("ui.settings.apiTokenPlaceholder")}
               .value=${this.apiToken}
               @input=${(e: Event) => {
                 this.apiToken = (e.target as HTMLInputElement).value;
@@ -845,8 +1195,9 @@ export class SettingsPanel extends LitElement {
             />
           </div>
         </div>
-      </details>
-    `;
+      `,
+      "browser",
+    );
   }
 
   private formatPublishedAt(iso: string | null): string {
@@ -859,7 +1210,7 @@ export class SettingsPanel extends LitElement {
     this.updateChecking = true;
     showToast({
       id: toastId,
-      message: "Checking for updates…",
+      message: t("ui.settings.checkingUpdates"),
       variant: "loading",
       persistent: true,
     });
@@ -872,15 +1223,18 @@ export class SettingsPanel extends LitElement {
       );
       dismissToast(toastId);
       if (!info.latest_version) {
-        showToast({ message: "Could not check for updates right now.", variant: "error" });
+        showToast({ message: t("ui.settings.checkUpdatesFailed"), variant: "error" });
       } else if (info.update_available) {
         showToast({
-          message: `v${info.latest_version} is available — you're on v${info.current_version}.`,
+          message: t("ui.settings.updateVersionAvailable", {
+            latest: info.latest_version,
+            current: info.current_version ?? "",
+          }),
           variant: "info",
         });
       } else {
         showToast({
-          message: `You're on the latest release (v${info.latest_version}).`,
+          message: t("ui.settings.onLatest"),
           variant: "success",
         });
       }
@@ -910,8 +1264,8 @@ export class SettingsPanel extends LitElement {
   }
 
   private progressToastMessage(progress?: UpdateProgress | null, healthWait?: boolean): string {
-    if (healthWait) return "Waiting for service to restart…";
-    if (!progress) return "Update in progress…";
+    if (healthWait) return t("ui.settings.waitingRestart");
+    if (!progress) return t("ui.settings.updateInProgress");
     let msg = stageLabel(progress.stage, progress);
     if (progress.stage === "pulling" && progress.pull_detail) {
       msg = `${msg} — ${progress.pull_detail}`;
@@ -1041,7 +1395,7 @@ export class SettingsPanel extends LitElement {
     let reloaded = false;
     showToast({
       id: toastId,
-      message: "Starting update…",
+      message: t("ui.settings.startingUpdate"),
       variant: "loading",
       persistent: true,
     });
@@ -1057,15 +1411,14 @@ export class SettingsPanel extends LitElement {
         });
         this.installRecoveryOffer = true;
       } else if (result.ok) {
-        updateToast(toastId, { message: "Update complete. Reloading…", variant: "success" });
+        updateToast(toastId, { message: t("ui.settings.updateCompleteReload"), variant: "success" });
         reloaded = true;
         window.location.reload();
       } else {
         this.installRecoveryOffer = true;
         dismissToast(toastId);
         showToast({
-          message:
-            "Update started but the service did not respond in time. Use Restore below to recover from the pre-install backup.",
+          message: t("ui.settings.updateStartedTimeout"),
           variant: "error",
           persistent: true,
         });
@@ -1104,7 +1457,7 @@ export class SettingsPanel extends LitElement {
     let reloaded = false;
     showToast({
       id: toastId,
-      message: "Starting restore…",
+      message: t("ui.settings.startingRestore"),
       variant: "loading",
       persistent: true,
     });
@@ -1119,13 +1472,13 @@ export class SettingsPanel extends LitElement {
           persistent: true,
         });
       } else if (result.ok) {
-        updateToast(toastId, { message: "Restore complete. Reloading…", variant: "success" });
+        updateToast(toastId, { message: t("ui.settings.restoreCompleteReload"), variant: "success" });
         reloaded = true;
         window.location.reload();
       } else {
         dismissToast(toastId);
         showToast({
-          message: "Restore started but the service did not respond in time. Check container logs on the host.",
+          message: t("ui.settings.restoreTimeout"),
           variant: "error",
           persistent: true,
         });
@@ -1239,8 +1592,7 @@ export class SettingsPanel extends LitElement {
     if (!failed && !this.installRecoveryOffer) return null;
     const backup = this.recoveryBackupName();
     const message =
-      failed?.message ??
-      "The service did not respond after the last install attempt. Restore the pre-install backup to recover.";
+      failed?.message ?? t("ui.settings.restoreHint");
     return html`
       <div class="recovery-banner">
         <p>${message}</p>
@@ -1253,7 +1605,7 @@ export class SettingsPanel extends LitElement {
                   ?disabled=${this.updateBusy || Boolean(this.updateInfo?.update_in_progress)}
                   @click=${() => void this.restoreBackup(backup)}
                 >
-                  Restore last backup
+                  ${t("ui.settings.restoreLastBackup")}
                 </button>
               </div>
             `
@@ -1268,9 +1620,9 @@ export class SettingsPanel extends LitElement {
     const expanded = this.expandedRelease === release.version;
     const badge =
       release.relation === "current"
-        ? html`<span class="release-badge current">current</span>`
+        ? html`<span class="release-badge current">${t("ui.settings.releaseCurrent")}</span>`
         : release.relation === "newer"
-          ? html`<span class="release-badge newer">newer</span>`
+          ? html`<span class="release-badge newer">${t("ui.settings.releaseNewer")}</span>`
           : null;
 
     return html`
@@ -1285,7 +1637,7 @@ export class SettingsPanel extends LitElement {
           ${release.release_notes
             ? html`
                 <button type="button" class="link" @click=${() => this.toggleReleaseNotes(release.version)}>
-                  ${expanded ? "Hide notes" : "Show notes"}
+                  ${expanded ? t("ui.settings.hideNotes") : t("ui.settings.showNotes")}
                 </button>
                 ${expanded
                   ? html`<div class="release-notes">${renderMarkdown(release.release_notes)}</div>`
@@ -1305,15 +1657,15 @@ export class SettingsPanel extends LitElement {
                   title=${belowMin ? `Requires v${minVer}+ for one-click install` : ""}
                   @click=${() => void this.applyUpdate(release.version)}
                 >
-                  Install
+                  ${t("ui.settings.install")}
                 </button>
               `
             : release.relation === "current"
-              ? html`<span class="label">Running</span>`
+              ? html`<span class="label">${t("ui.settings.running")}</span>`
               : belowMin
-                ? html`<span class="label">Below v${minVer}</span>`
+                ? html`<span class="label">${t("ui.settings.belowMin", { version: minVer ?? "" })}</span>`
                 : info.deployment === "addon"
-                  ? html`<span class="label">Use HA Supervisor</span>`
+                  ? html`<span class="label">${t("ui.settings.useHaSupervisor")}</span>`
                   : null}
         </td>
       </tr>
@@ -1326,35 +1678,33 @@ export class SettingsPanel extends LitElement {
     const latest = info?.latest_version;
     const releases = info?.releases ?? [];
     const upToDate = info && !info.update_available && latest;
-    const updatesOpen = this.updateBusy || Boolean(info?.update_in_progress);
 
-    return html`
-      <details ?open=${updatesOpen}>
-        <summary>
-          Software updates
-          ${info?.update_available
-            ? html`<span class="badge-update">v${latest} available</span>`
-            : null}
-        </summary>
+    return this.renderSectionPanel(
+      t("ui.settings.softwareUpdates"),
+      undefined,
+      html`
         <p class="label">
-          Running <strong>v${current}</strong>
+          ${t("ui.settings.runningVersion", { current })}
           ${info?.previous_version
-            ? html` · previously <strong>v${info.previous_version}</strong>`
+            ? t("ui.settings.previouslyVersion", { previous: info.previous_version })
             : null}
-          ${latest ? html` · latest release <strong>v${latest}</strong>` : null}
+          ${latest ? t("ui.settings.latestRelease", { latest }) : null}
         </p>
         ${upToDate
-          ? html`<p class="label">You are on the latest release.</p>`
+          ? html`<p class="label">${t("ui.settings.onLatest")}</p>`
           : info?.update_available
-            ? html`<p class="label">A newer release is available.</p>`
+            ? html`<p class="label">${t("ui.settings.newerAvailable")}</p>`
             : releases.length
               ? null
-              : html`<p class="label">Could not check for updates right now.</p>`}
+              : html`<p class="label">${t("ui.settings.checkUpdatesFailed")}</p>`}
         ${info?.deployment === "addon"
-          ? html`<p class="label">Install specific versions via Home Assistant Supervisor.</p>`
+          ? html`<p class="label">${t("ui.settings.haSupervisorNote")}</p>`
           : null}
         ${info?.deployment === "proxmox"
-          ? html`<p class="label">On Proxmox you can also run <code>update</code> inside the LXC for host-side upgrades.</p>`
+          ? html`<p class="label">${t("ui.settings.proxmoxNote")}</p>`
+          : null}
+        ${info?.update_available
+          ? html`<span class="badge-update">${t("ui.settings.updateAvailableBadge", { version: latest ?? "" })}</span>`
           : null}
         ${this.renderUpdateProgress()}
         ${this.renderRecoveryBanner()}
@@ -1363,8 +1713,8 @@ export class SettingsPanel extends LitElement {
               <table class="release-table">
                 <thead>
                   <tr>
-                    <th>Version</th>
-                    <th>Release notes</th>
+                    <th>${t("ui.settings.versionCol")}</th>
+                    <th>${t("ui.settings.releaseNotesCol")}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -1384,8 +1734,8 @@ export class SettingsPanel extends LitElement {
         ${info?.can_apply && info.backups && info.backups.length
           ? html`
               <details style="margin-top:12px">
-                <summary>Data backups (${info.backups.length})</summary>
-                <p class="label">Automatic backups created before each install.</p>
+                <summary>${t("ui.settings.dataBackups", { count: String(info.backups.length) })}</summary>
+                <p class="label">${t("ui.settings.backupsIntro")}</p>
                 ${info.backups.map(
                   (b) => html`
                     <div class="row" style="margin:6px 0">
@@ -1400,7 +1750,7 @@ export class SettingsPanel extends LitElement {
                         ?disabled=${this.updateBusy || Boolean(info.update_in_progress)}
                         @click=${() => void this.restoreBackup(b.name)}
                       >
-                        Restore
+                        ${t("ui.settings.restore")}
                       </button>
                     </div>
                   `,
@@ -1414,11 +1764,36 @@ export class SettingsPanel extends LitElement {
             ?disabled=${this.updateChecking || this.updateBusy}
             @click=${() => void this.refreshUpdateInfo()}
           >
-            ${this.updateChecking ? "Checking…" : "Check for updates"}
+            ${this.updateChecking ? t("ui.settings.checking") : t("ui.settings.checkUpdates")}
           </button>
         </div>
-      </details>
-    `;
+      `,
+      "immediate",
+    );
+  }
+
+  private renderSitePvSection() {
+    const d = this.draft as unknown as Record<string, any>;
+    const forecast = (d.forecast ?? {}) as Record<string, unknown>;
+    const provider = String(forecast.provider ?? "open-meteo");
+    const configured = this.status?.solcast_configured ?? false;
+    return this.renderSectionPanel(
+      t("ui.settings.nav.sitePv"),
+      sectionHelp("site"),
+      html`
+        ${this.renderSectionFields("site")}
+        ${typeof forecast.provider === "string" || forecast.provider === undefined
+          ? this.renderField("forecast", "provider", String(forecast.provider ?? "open-meteo"))
+          : null}
+        ${provider === "solcast"
+          ? html`<p class="label ${configured ? "" : "err"}">
+              ${t("ui.settings.solcastEnvNote")}
+              ${configured ? t("ui.settings.credentialsOk") : t("ui.settings.credentialsMissing")}
+            </p>`
+          : null}
+        ${this.renderPvArraysInner()}
+      `,
+    );
   }
 
   private setArray(i: number, key: string, value: unknown): void {
@@ -1445,66 +1820,79 @@ export class SettingsPanel extends LitElement {
     });
   }
 
-  private renderSolcastNote() {
-    const d = this.draft as unknown as Record<string, any>;
-    const provider = String(d.forecast?.provider ?? "open-meteo");
-    if (provider !== "solcast") return null;
-    const configured = this.status?.solcast_configured ?? false;
-    return html`
-      <p class="label ${configured ? "" : "err"}">
-        Solcast credentials (<code>SOLCAST_API_KEY</code>, <code>SOLCAST_RESOURCE_ID</code>)
-        are set via environment or HA add-on options — not stored in this config file.
-        ${configured ? "Credentials detected." : "Credentials missing or incomplete."}
-      </p>
-    `;
-  }
-
-  private renderPvArrays() {
+  private renderPvArraysInner() {
     const d = this.draft as unknown as Record<string, any>;
     const arrays = (d.forecast?.arrays ?? []) as Record<string, any>[];
     return html`
-      <details open>
-        <summary>
-          <span class="summary-label">
-            PV arrays
-            <solar-info-tip .text=${sectionHelp("pv_arrays")!}></solar-info-tip>
-          </span>
-        </summary>
-        <p class="label">Each array is forecast separately (tilt/azimuth/kWp). Set site latitude/longitude in the Site section above.</p>
-        ${arrays.map(
-          (a, i) => html`
-            <div class="fields" style="margin-bottom:8px">
-              <div class="field">
-                <label>${labelWithTip(pvLabel("name"), pvHelp("name"))}</label>
-                <input type="text" .value=${String(a.name ?? "")}
-                  @input=${(e: Event) => this.setArray(i, "name", (e.target as HTMLInputElement).value)} />
-              </div>
-              <div class="field">
-                <label>${labelWithTip(pvLabel("kwp"), pvHelp("kwp"))}</label>
-                <input type="number" step="any" .value=${String(a.kwp ?? "")}
-                  @input=${(e: Event) => this.setArray(i, "kwp", Number((e.target as HTMLInputElement).value))} />
-              </div>
-              <div class="field">
-                <label>${labelWithTip(pvLabel("tilt"), pvHelp("tilt"))}</label>
-                <input type="number" step="any" .value=${String(a.tilt ?? "")}
-                  @input=${(e: Event) => this.setArray(i, "tilt", Number((e.target as HTMLInputElement).value))} />
-              </div>
-              <div class="field">
-                <label>${labelWithTip(pvLabel("azimuth"), pvHelp("azimuth"))}</label>
-                <input type="number" step="any" .value=${String(a.azimuth ?? "")}
-                  @input=${(e: Event) => this.setArray(i, "azimuth", Number((e.target as HTMLInputElement).value))} />
-              </div>
-              <div class="field" style="justify-content:flex-end">
-                <button @click=${() => this.removeArray(i)}>Remove</button>
-              </div>
+      <p class="label" style="margin-top:12px">
+        ${t("ui.settings.pvArraysTitle")}
+        <solar-info-tip .text=${sectionHelp("pv_arrays")!}></solar-info-tip>
+      </p>
+      <p class="label">${t("ui.settings.pvArraysIntro")}</p>
+      ${arrays.map((a, i) => html`
+        <div class="pv-array-card">
+          <button
+            type="button"
+            class="pv-array-dismiss icon-btn"
+            title=${t("ui.settings.removeArray")}
+            @click=${() => this.removeArray(i)}
+          >×</button>
+          <div class="pv-array-title">${String(a.name ?? `Array ${i + 1}`)}</div>
+          <div class="fields">
+            <div class="field">
+              <label>${labelWithTip(pvLabel("name"), pvHelp("name"))}</label>
+              <input type="text" .value=${String(a.name ?? "")}
+                @input=${(e: Event) => this.setArray(i, "name", (e.target as HTMLInputElement).value)} />
             </div>
-          `,
-        )}
-        <div class="buttons">
-          <button @click=${() => this.addArray()}>Add array</button>
+            <div class="field">
+              <label>${labelWithTip(pvLabel("kwp"), pvHelp("kwp"))}</label>
+              <input type="number" step="any" .value=${String(a.kwp ?? "")}
+                @input=${(e: Event) => this.setArray(i, "kwp", Number((e.target as HTMLInputElement).value))} />
+            </div>
+            <div class="field">
+              <label>${labelWithTip(pvLabel("tilt"), pvHelp("tilt"))}</label>
+              <input type="number" step="any" .value=${String(a.tilt ?? "")}
+                @input=${(e: Event) => this.setArray(i, "tilt", Number((e.target as HTMLInputElement).value))} />
+            </div>
+            <div class="field">
+              <label>${labelWithTip(pvLabel("azimuth"), pvHelp("azimuth"))}</label>
+              <solar-azimuth-input
+                .value=${Number(a.azimuth ?? 180)}
+                @azimuth-change=${(e: CustomEvent<number>) => this.setArray(i, "azimuth", e.detail)}
+              ></solar-azimuth-input>
+            </div>
+          </div>
         </div>
-      </details>
+      `)}
+      <div class="buttons">
+        <button type="button" @click=${() => this.addArray()}>${t("ui.settings.addArray")}</button>
+      </div>
     `;
+  }
+
+  private onPriorityDragStart(i: number): void {
+    this.dragPriorityIndex = i;
+  }
+
+  private onPriorityDragOver(e: DragEvent): void {
+    e.preventDefault();
+  }
+
+  private onPriorityDrop(targetIndex: number, e: DragEvent): void {
+    e.preventDefault();
+    const from = this.dragPriorityIndex;
+    if (from == null || from === targetIndex) return;
+    this.patchDraft((d) => {
+      const list = this.priorityOrderFromDraft(d);
+      const [item] = list.splice(from, 1);
+      list.splice(targetIndex, 0, item);
+      d.engine = { ...(d.engine ?? {}), priority_order: list };
+    });
+    this.dragPriorityIndex = null;
+  }
+
+  private setEngineMode(mode: string): void {
+    this.setField("engine", "mode", mode);
   }
 
   private priorityOrderFromDraft(d: Record<string, unknown>): OptimizationPriorityKey[] {
@@ -1551,108 +1939,91 @@ export class SettingsPanel extends LitElement {
   private renderEngineSection() {
     const d = this.draft as unknown as Record<string, any>;
     const eng = (d.engine ?? {}) as Record<string, unknown>;
-    return html`
-      <details>
-        <summary>
-          <span class="summary-label">
-            ${sectionTitle("engine")}
-            <solar-info-tip .text=${sectionHelp("engine")!}></solar-info-tip>
-          </span>
-        </summary>
-        <p class="label">
-          Reorder to set which tradeoff wins when goals conflict. Savings means
-          opportunistic grid use when present — not tariff or time-of-use
-          optimization. Grid charge factor order (below) still applies; priorities
-          scale how strongly each factor bucket influences the cap chain. When ramp
-          is disabled, priorities affect reserve and risk only.
-        </p>
+    const mode = String(eng.mode ?? "rules");
+    return this.renderSectionPanel(
+      sectionTitle("engine"),
+      sectionHelp("engine"),
+      html`
+        <p class="label">${t("ui.settings.engineIntro")}</p>
         <div class="fields">
           <div class="field">
             <label>${this.lbl("engine", "mode")}</label>
-            <select
-              .value=${String(eng.mode ?? "rules")}
-              @change=${(e: Event) =>
-                this.setField("engine", "mode", (e.target as HTMLSelectElement).value)}
-            >
-              <option value="rules">Rules</option>
-              <option value="mpc">MPC</option>
-            </select>
+            <div class="mode-toggle" role="group">
+              <button
+                type="button"
+                class=${mode === "rules" ? "active" : ""}
+                @click=${() => this.setEngineMode("rules")}
+              >${t("ui.settings.rulesMode")}</button>
+              <button
+                type="button"
+                class=${mode === "mpc" ? "active" : ""}
+                @click=${() => this.setEngineMode("mpc")}
+              >${t("ui.settings.mpcMode")}</button>
+            </div>
           </div>
           ${typeof eng.mpc_horizon_hours === "number"
             ? this.renderField("engine", "mpc_horizon_hours", eng.mpc_horizon_hours)
             : null}
         </div>
-        <p class="label" style="margin-top:12px">Optimization priority (highest first)</p>
+        <p class="label" style="margin-top:12px">${t("ui.settings.optimizationPriority")}</p>
         ${this.priorityOrder().map(
           (key, i) => html`
-            <div class="row" style="margin-bottom:6px">
+            <div
+              class="priority-row ${this.dragPriorityIndex === i ? "dragging" : ""}"
+              draggable="true"
+              @dragstart=${() => this.onPriorityDragStart(i)}
+              @dragover=${this.onPriorityDragOver}
+              @drop=${(e: DragEvent) => this.onPriorityDrop(i, e)}
+            >
+              <span class="priority-handle" aria-hidden="true">≡</span>
               <span style="flex:1">
                 ${labelWithTip(
                   `${i + 1}. ${optimizationPriorityLabel(key)}`,
                   priorityEffectHelp(key),
                 )}
               </span>
-              <button type="button" ?disabled=${i === 0} @click=${() => this.movePriority(i, -1)}>
-                ↑
-              </button>
+              <button type="button" ?disabled=${i === 0} @click=${() => this.movePriority(i, -1)} aria-label="Move up">↑</button>
               <button
                 type="button"
                 ?disabled=${i === this.priorityOrder().length - 1}
                 @click=${() => this.movePriority(i, 1)}
-              >
-                ↓
-              </button>
+                aria-label="Move down"
+              >↓</button>
             </div>
           `,
         )}
-        <p class="label">
-          ${this.priorityOrder()
-            .map((key, i) => `${i + 1}. ${optimizationPriorityLabel(key)} — ${priorityRankBlurb(key)}`)
-            .join(" ")}
-        </p>
         ${eng.mode === "mpc" && !this.mpcAvailable
-          ? html`<p class="label" style="color:var(--warn)">
-              MPC is selected but PuLP is not installed in this image. Rebuild with
-              <code>INSTALL_EXTRAS=1</code> (default) or install <code>pulp</code> locally.
-              The app is running rules engine fallback.
-            </p>`
+          ? html`<p class="label" style="color:var(--warn)">${t("ui.settings.mpcUnavailable")}</p>`
           : null}
         ${this.mlLoadEnabled && !this.mlAvailable
-          ? html`<p class="label" style="color:var(--warn)">
-              ML load forecasting is enabled but scikit-learn is not available in this image.
-            </p>`
+          ? html`<p class="label" style="color:var(--warn)">${t("ui.settings.mlUnavailable")}</p>`
           : null}
-      </details>
-    `;
+        <p class="label" style="margin-top:14px;font-weight:600">${sectionTitle("control")}</p>
+        ${this.renderSectionFields("control")}
+      `,
+    );
   }
 
   private renderTemperature() {
     const d = this.draft as unknown as Record<string, any>;
-    const t = (d.forecast?.temperature ?? {}) as Record<string, any>;
+    const temp = (d.forecast?.temperature ?? {}) as Record<string, any>;
     const num = (key: string) => html`<div class="field">
       <label>${this.lbl("temperature", key)}</label>
-      <input type="number" step="any" .value=${String(t[key] ?? "")}
+      <input type="number" step="any" .value=${String(temp[key] ?? "")}
         @input=${(e: Event) =>
           this.setNested("forecast", "temperature", key, Number((e.target as HTMLInputElement).value))} />
     </div>`;
     const bool = (key: string) => html`<div class="field checkbox-row">
       <label>${this.lbl("temperature", key)}</label>
-      <input type="checkbox" .checked=${Boolean(t[key])}
+      <input type="checkbox" .checked=${Boolean(temp[key])}
         @change=${(e: Event) =>
           this.setNested("forecast", "temperature", key, (e.target as HTMLInputElement).checked)} />
     </div>`;
-    return html`
-      <details>
-        <summary>
-          <span class="summary-label">
-            Temperature (heating/cooling)
-            <solar-info-tip .text=${sectionHelp("temperature")!}></solar-info-tip>
-          </span>
-        </summary>
-        <p class="label">
-          Models heater/cooler load from outdoor temperature (Open-Meteo forecast +
-          history). Optionally bias-corrected by a Home Assistant sensor.
-        </p>
+    return this.renderSectionPanel(
+      t("ui.settings.temperatureTitle"),
+      sectionHelp("temperature"),
+      html`
+        <p class="label">${t("ui.settings.temperatureIntro")}</p>
         <div class="fields">
           ${bool("enabled")}
           ${this.entityInput("forecast", "temperature", "ha_entity", "sensor")}
@@ -1662,29 +2033,24 @@ export class SettingsPanel extends LitElement {
           ${num("min_load_fraction")}
           ${num("training_days")}
         </div>
-      </details>
-    `;
+      `,
+    );
   }
 
   private renderInverterMap() {
     const d = this.draft as unknown as Record<string, any>;
     const read = (d.inverter?.read ?? {}) as Record<string, unknown>;
-    return html`
-      <details open>
-        <summary>
-          <span class="summary-label">
-            Inverter entity map
-            <solar-info-tip .text=${sectionHelp("inverter")!}></solar-info-tip>
-          </span>
-        </summary>
+    return this.renderSectionPanel(
+      t("ui.settings.inverterMapTitle"),
+      sectionHelp("inverter"),
+      html`
         <p class="label">
           ${this.entitiesConnected
-            ? html`Start typing to pick from your Home Assistant entities.`
-            : html`Home Assistant not connected — set the connection above and
-                <button class="link" @click=${() => this.requestEntityReload()}>reload entities</button>
-                for autocomplete.`}
+            ? t("ui.settings.inverterConnectedHint")
+            : html`Home Assistant not connected —
+                <button class="link" @click=${() => this.requestEntityReload()}>${t("ui.settings.reloadEntities")}</button>`}
         </p>
-        <p class="label">Read sensors</p>
+        <p class="label">${t("ui.settings.readSensors")}</p>
         <div class="fields">
           ${INVERTER_READ_ENTITY_KEYS.map((k) =>
             k === "battery_power"
@@ -1692,14 +2058,14 @@ export class SettingsPanel extends LitElement {
               : this.entityInput("inverter", "read", k, READ_DOMAIN[k] ?? "sensor"),
           )}
         </div>
-        <p class="label">Write entities</p>
+        <p class="label">${t("ui.settings.writeEntities")}</p>
         <div class="fields">
           ${WRITE_ENTITY_KEYS.map((k) =>
             this.entityInput("inverter", "write", k, WRITE_DOMAIN[k] ?? "switch"),
           )}
         </div>
-      </details>
-    `;
+      `,
+    );
   }
 
   private gridChargeFactors(): string[] {
@@ -1766,19 +2132,11 @@ export class SettingsPanel extends LitElement {
     const d = this.draft as unknown as Record<string, any>;
     const gc = d.grid_charge ?? {};
     const factors = this.gridChargeFactors();
-    return html`
-      <details>
-        <summary>
-          <span class="summary-label">
-            ${sectionTitle("grid_charge")}
-            <solar-info-tip .text=${sectionHelp("grid_charge")!}></solar-info-tip>
-          </span>
-        </summary>
-        <p class="label">
-          All listed factors apply each cycle; the engine takes the lowest ceiling.
-          Reordering only changes how the rationale is logged. Ramp step limits how
-          fast amps change each cycle.
-        </p>
+    return this.renderSectionPanel(
+      sectionTitle("grid_charge"),
+      sectionHelp("grid_charge"),
+      html`
+        <p class="label">${t("ui.settings.gridChargeIntro")}</p>
         <div class="fields">
           <div class="field">
             <label>${this.lbl("grid_charge", "ramp_enabled")}</label>
@@ -1852,23 +2210,289 @@ export class SettingsPanel extends LitElement {
             />
           </div>
         </div>
-        <p class="label" style="margin-top:12px">Factor order (log display only)</p>
-        ${factors.map(
-          (key, i) => html`
-            <div class="row" style="margin-bottom:6px">
-              <span style="flex:1">${labelWithTip(gridChargeFactorLabel(key), fieldHelp("grid_charge", key))}</span>
-              <button type="button" ?disabled=${i === 0} @click=${() => this.moveGridChargeFactor(i, -1)}>↑</button>
-              <button
-                type="button"
-                ?disabled=${i === factors.length - 1}
-                @click=${() => this.moveGridChargeFactor(i, 1)}
-              >
-                ↓
-              </button>
+        <details style="margin-top:12px">
+          <summary>${t("ui.settings.gridChargeAdvanced")}: ${t("ui.settings.factorLogOrder")}</summary>
+          ${factors.map(
+            (key, i) => html`
+              <div class="row" style="margin-bottom:6px">
+                <span style="flex:1">${labelWithTip(gridChargeFactorLabel(key), fieldHelp("grid_charge", key))}</span>
+                <button type="button" ?disabled=${i === 0} @click=${() => this.moveGridChargeFactor(i, -1)}>↑</button>
+                <button
+                  type="button"
+                  ?disabled=${i === factors.length - 1}
+                  @click=${() => this.moveGridChargeFactor(i, 1)}
+                >↓</button>
+              </div>
+            `,
+          )}
+        </details>
+      `,
+    );
+  }
+
+  private renderConfigBackupSection() {
+    return this.renderSectionPanel(
+      t("ui.settings.configBackupTitle"),
+      t("ui.settings.configBackupIntro"),
+      html`
+        <div class="buttons">
+          <button type="button" @click=${() => void this.exportConfig()}>${t("ui.settings.exportConfig")}</button>
+          <label style="padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--border)">
+            ${t("ui.settings.importConfig")}
+            <input type="file" accept="application/json" hidden @change=${(e: Event) => this.importConfig(e)} />
+          </label>
+          <button type="button" @click=${() => void this.reset()}>${t("ui.settings.revertToFile")}</button>
+        </div>
+      `,
+      "immediate",
+    );
+  }
+
+  private renderModelSection() {
+    return this.renderSectionPanel(
+      t("ui.settings.trainedModelTitle"),
+      t("ui.settings.trainedModelIntro"),
+      html`
+        <div class="buttons">
+          <button type="button" @click=${() => void this.exportModel()}>${t("ui.settings.exportModel")}</button>
+          <label style="padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--border)">
+            ${t("ui.settings.importModel")}
+            <input type="file" accept="application/json" hidden @change=${(e: Event) => this.importModel(e)} />
+          </label>
+          <button type="button" @click=${() => void this.retrainModel()}>${t("ui.settings.retrainModel")}</button>
+        </div>
+      `,
+      "immediate",
+    );
+  }
+
+  private renderAdvancedSection() {
+    return this.renderSectionPanel(
+      t("ui.settings.advancedRawTitle"),
+      t("ui.settings.advancedRawIntro"),
+      html`
+        <p class="label" style="color:var(--warn)">${t("ui.settings.advancedRawWarning")}</p>
+        <textarea .value=${this.raw}
+          @input=${(e: Event) => (this.raw = (e.target as HTMLTextAreaElement).value)}></textarea>
+        <div class="buttons">
+          <button type="button" @click=${() => void this.applyRaw()}>${t("ui.settings.applyRawJson")}</button>
+        </div>
+      `,
+      "immediate",
+    );
+  }
+
+  private renderSafetySection() {
+    const d = this.draft as unknown as Record<string, any>;
+    const fs = (d.fail_safe ?? {}) as Record<string, unknown>;
+    const heartbeatEntity = (fs.heartbeat_entity ?? "") as string;
+    return this.renderSectionPanel(
+      t("ui.settings.nav.safety"),
+      sectionHelp("fail_safe"),
+      html`
+        <p class="label">${t("ui.settings.failSafeIntro")}</p>
+        <div class="fields">
+          ${typeof fs.heartbeat_enabled === "boolean"
+            ? this.renderField("fail_safe", "heartbeat_enabled", fs.heartbeat_enabled)
+            : null}
+          <div class="field">
+            <label>${this.lbl("fail_safe", "heartbeat_entity")}</label>
+            <solar-entity-input
+              .entityId=${heartbeatEntity}
+              .entities=${this.entities}
+              .domains=${["input_datetime"]}
+              placeholder="input_datetime.solar_optimizer_heartbeat"
+              @entity-id-change=${(e: CustomEvent<string | null>) =>
+                this.setField("fail_safe", "heartbeat_entity", e.detail)}
+            />
+          </div>
+          ${typeof fs.shutdown_failsafe_enabled === "boolean"
+            ? this.renderField(
+                "fail_safe",
+                "shutdown_failsafe_enabled",
+                fs.shutdown_failsafe_enabled,
+              )
+            : null}
+        </div>
+        ${this.renderLoadSheddingLink()}
+      `,
+    );
+  }
+
+  private renderValidationBanner() {
+    if (!this.validationIssues.length) return null;
+    return html`
+      <div class="validation-banner" role="alert">
+        <strong>${t("ui.settings.validation.fixBeforeSave")}</strong>
+        <ul>
+          ${this.validationIssues.map(
+            (issue) => html`
+              <li>
+                ${t(issue.messageKey)}
+                ${issue.navId
+                  ? html`<button type="button" class="link" @click=${() => this.selectNav(issue.navId!)}>${t("ui.settings.checklist.goTo")}</button>`
+                  : null}
+              </li>
+            `,
+          )}
+        </ul>
+      </div>
+    `;
+  }
+
+  private renderSetupChecklist() {
+    if (this.checklistDismissed || !this.draft) return null;
+    const items = buildSetupChecklist(this.status, this.draft, this.entitiesConnected);
+    if (!checklistNeedsAttention(items)) return null;
+    const required = items.filter((i) => !i.optional);
+    const done = required.filter((i) => i.done).length;
+    const pct = required.length ? Math.round((done / required.length) * 100) : 100;
+    return html`
+      <div class="checklist-banner">
+        <div class="checklist-header">
+          <h4>${t("ui.settings.checklist.title")}</h4>
+          <span class="label">${t("ui.settings.checklist.progress", { done: String(done), total: String(required.length) })}</span>
+          <button type="button" class="link" @click=${() => (this.checklistDismissed = true)}>${t("ui.settings.checklist.dismiss")}</button>
+        </div>
+        <div class="checklist-progress" aria-hidden="true">
+          <div class="checklist-progress-bar" style="width:${pct}%"></div>
+        </div>
+        ${items.map(
+          (item) => html`
+            <div class="checklist-row ${item.done ? "done" : ""}">
+              <span class="checklist-icon">${item.done ? "✓" : item.optional ? "○" : "→"}</span>
+              <span style="flex:1">${t(item.labelKey)}</span>
+              ${!item.done
+                ? html`<button type="button" class="link" @click=${() => this.selectNav(item.navId)}>${t("ui.settings.checklist.goTo")}</button>`
+                : null}
             </div>
           `,
         )}
-      </details>
+      </div>
+    `;
+  }
+
+  private renderNavDesktop() {
+    let lastCat: SettingsCategory | null = null;
+    return html`
+      <nav class="settings-nav settings-nav-desktop" aria-label=${t("ui.settings.title")}>
+        ${SETTINGS_NAV.map((item) => {
+          const showCat = item.category !== lastCat;
+          lastCat = item.category;
+          const label = this.navLabel(item.labelKey);
+          if (this.searchQuery.trim() && !matchesSettingsSearch(this.searchQuery, label)) {
+            return null;
+          }
+          return html`
+            ${showCat
+              ? html`<div class="nav-category-label">${t(`ui.settings.category.${item.category}`)}</div>`
+              : null}
+            <button
+              type="button"
+              class="nav-item ${this.activeNav === item.id ? "active" : ""}"
+              @click=${() => this.selectNav(item.id)}
+            >${label}</button>
+          `;
+        })}
+      </nav>
+    `;
+  }
+
+  private renderCategoryPills() {
+    return html`
+      <div class="category-pills" role="tablist">
+        ${SETTINGS_CATEGORIES.map(
+          (cat) => html`
+            <button
+              type="button"
+              role="tab"
+              class="nav-pill ${this.mobileCategory === cat ? "active" : ""}"
+              @click=${() => this.selectCategory(cat)}
+            >${t(`ui.settings.category.${cat}`)}</button>
+          `,
+        )}
+      </div>
+    `;
+  }
+
+  private renderNavPanel(id: SettingsNavId): unknown {
+    switch (id) {
+      case "setup_ha":
+        return this.renderHaSection();
+      case "setup_site":
+        return this.renderSitePvSection();
+      case "setup_inverter":
+        return this.renderInverterMap();
+      case "energy_battery":
+        return this.renderSectionPanel(
+          sectionTitle("battery"),
+          sectionHelp("battery"),
+          this.renderSectionFields("battery"),
+        );
+      case "energy_reserve":
+        return this.renderSectionPanel(
+          sectionTitle("reserve"),
+          sectionHelp("reserve"),
+          this.renderSectionFields("reserve"),
+        );
+      case "energy_grid":
+        return this.renderGridChargeSection();
+      case "engine":
+        return this.renderEngineSection();
+      case "forecast_temp":
+        return this.renderTemperature();
+      case "safety":
+        return this.renderSafetySection();
+      case "system":
+        return html`
+          ${this.renderDisplayPreferencesSection()}
+          ${this.renderSecuritySection()}
+          ${this.renderUpdatesSection()}
+          ${this.renderConfigBackupSection()}
+          ${this.renderModelSection()}
+          ${this.renderAdvancedSection()}
+        `;
+      default:
+        return null;
+    }
+  }
+
+  private renderNavContent() {
+    const q = this.searchQuery.trim();
+    if (q) {
+      const parts: unknown[] = [];
+      for (const item of SETTINGS_NAV) {
+        if (!matchesSettingsSearch(q, this.navLabel(item.labelKey))) continue;
+        parts.push(this.renderNavPanel(item.id));
+      }
+      return parts.length ? parts : html`<p class="label">${t("ui.settings.noSearchResults")}</p>`;
+    }
+
+    if (this.navWide) {
+      return this.renderNavPanel(this.activeNav);
+    }
+
+    const parts: unknown[] = [];
+    for (const item of navItemsForCategory(this.mobileCategory)) {
+      parts.push(this.renderNavPanel(item.id));
+    }
+    return parts;
+  }
+
+  private renderStickyBar() {
+    return html`
+      <div class="settings-sticky-bar">
+        <div class="dirty-indicator">
+          ${this.isDirty
+            ? html`<span class="dirty-dot" aria-hidden="true"></span>${t("ui.settings.unsavedChanges")}`
+            : html`<span class="label">${t("ui.settings.badge.server")}</span>`}
+        </div>
+        <div class="sticky-actions">
+          <button type="button" ?disabled=${!this.isDirty || this.busy} @click=${() => void this.reset()}>${t("ui.settings.revertToFile")}</button>
+          <button type="button" ?disabled=${this.busy} @click=${() => void this.exportConfig()}>${t("ui.settings.exportConfig")}</button>
+          <button class="primary" type="button" ?disabled=${!this.isDirty || this.busy} @click=${() => void this.save()}>${t("ui.settings.saveChanges")}</button>
+        </div>
+      </div>
     `;
   }
 
@@ -1878,53 +2502,25 @@ export class SettingsPanel extends LitElement {
     }
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
-        <h3>Settings (config from UI)</h3>
-        ${this.renderHaSection()}
-        ${this.renderFailSafeSection()}
-        ${this.renderSecuritySection()}
-        ${this.renderDisplayPreferencesSection()}
-        ${this.renderUpdatesSection()}
-        ${FORM_SECTIONS.map((s) => this.renderSection(s))}
-        ${this.renderSolcastNote()}
-        ${this.renderPvArrays()}
-        ${this.renderEngineSection()}
-        ${this.renderTemperature()}
-        ${this.renderInverterMap()}
-        ${this.renderGridChargeSection()}
-
-        <details>
-          <summary>Advanced: raw config + entity map (JSON)</summary>
-          <p class="label">Edit any section, including the inverter entity map, forecast arrays, and load-shedding tiers.</p>
-          <textarea .value=${this.raw}
-            @input=${(e: Event) => (this.raw = (e.target as HTMLTextAreaElement).value)}></textarea>
-          <div class="buttons">
-            <button @click=${() => void this.applyRaw()}>Apply raw JSON</button>
+        <div class="settings-header">
+          <h3 style="margin:0">${t("ui.settings.title")}</h3>
+          <div class="settings-search">
+            <input
+              type="search"
+              placeholder=${t("ui.settings.searchPlaceholder")}
+              .value=${this.searchQuery}
+              @input=${(e: Event) => (this.searchQuery = (e.target as HTMLInputElement).value)}
+            />
           </div>
-        </details>
-
-        <details>
-          <summary>Trained model (import / export)</summary>
-          <p class="label">The learned bias correction and load profile. Export to back up or move to another instance. Importing an ML model pauses automatic retraining until you click Retrain.</p>
-          <div class="buttons">
-            <button @click=${() => void this.exportModel()}>Export model</button>
-            <label class="primary" style="padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--border)">
-              Import model
-              <input type="file" accept="application/json" hidden @change=${(e: Event) => this.importModel(e)} />
-            </label>
-            <button @click=${() => void this.retrainModel()}>Retrain from telemetry</button>
-          </div>
-        </details>
-
-        <div class="buttons settings-footer">
-          <button class="primary" @click=${() => void this.save()}>Save changes</button>
-          <button @click=${() => void this.reset()}>Revert to file</button>
-          <button @click=${() => void this.exportConfig()}>Export config</button>
-          <label style="padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--border)">
-            Import config
-            <input type="file" accept="application/json" hidden @change=${(e: Event) => this.importConfig(e)} />
-          </label>
         </div>
-
+        ${this.renderSetupChecklist()}
+        ${this.renderValidationBanner()}
+        ${this.renderCategoryPills()}
+        <div class="settings-shell">
+          ${this.renderNavDesktop()}
+          <div class="settings-content">${this.renderNavContent()}</div>
+        </div>
+        ${this.renderStickyBar()}
       </div>
     `;
   }

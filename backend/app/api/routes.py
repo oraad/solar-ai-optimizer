@@ -176,6 +176,7 @@ def _config_view(cfg) -> dict:
     ha["has_token"] = bool(cfg.ha.token)
     return {
         "ha": ha,
+        "site": cfg.site.model_dump(),
         "battery": cfg.battery.model_dump(),
         "reserve": cfg.reserve.model_dump(),
         "forecast": cfg.forecast.model_dump(),

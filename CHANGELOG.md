@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.20] - 2026-06-26
+
+### Fixed
+
+- **Settings Site section:** `/api/config` now includes `site.timezone` so the Site accordion and timezone picker appear in the dashboard
+
 ## [0.5.19] - 2026-06-26
 
 ### Added

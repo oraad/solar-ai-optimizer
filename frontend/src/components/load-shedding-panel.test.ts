@@ -81,6 +81,24 @@ describe("LoadSheddingPanel collapse defaults", () => {
     host.remove();
   });
 
+  it("collapses tier when summary is clicked again after expand", async () => {
+    const { host, panel } = mountPanelInShadow();
+    await waitForTiers(panel);
+
+    const tierBlock = panel.shadowRoot!.querySelector(".tier-block") as HTMLDetailsElement;
+    const summary = tierBlock.querySelector(".tier-summary") as HTMLElement;
+
+    summary.click();
+    await panel.updateComplete;
+    expect(tierBlock.open).toBe(true);
+    expect(getComputedStyle(summary).display).not.toBe("none");
+
+    summary.click();
+    expect(tierBlock.open).toBe(false);
+
+    host.remove();
+  });
+
   it("keeps companion sections collapsed when companions exist", async () => {
     const { host, panel } = mountPanelInShadow(ENTITIES, TIER_WITH_COMPANIONS);
     await waitForTiers(panel);

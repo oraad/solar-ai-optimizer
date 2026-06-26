@@ -25,6 +25,7 @@
   },
   "settings": {
     "sections": {
+      "site": "Site",
       "battery": "Battery",
       "reserve": "Reserve",
       "forecast": "Forecast",
@@ -37,6 +38,9 @@
       "inverter": "Inverter"
     },
     "fields": {
+      "site": {
+        "timezone": "Timezone"
+      },
       "battery": {
         "capacity_kwh": "Capacity (kWh)",
         "nominal_voltage": "Nominal voltage (V)",
@@ -54,7 +58,6 @@
         "latitude": "Latitude",
         "longitude": "Longitude",
         "provider": "Solar forecast provider",
-        "timezone": "Timezone",
         "training_days": "Training history (days)",
         "min_load_fraction": "Minimum load fraction"
       },
@@ -143,6 +146,10 @@
       "resilience": "Resilience",
       "savings": "Savings",
       "self_sufficiency": "Self-sufficiency"
+    },
+    "timezone": {
+      "auto": "Auto (from coordinates)",
+      "resolved": "Resolved: {tz}"
     }
   },
   "help": {
@@ -164,9 +171,11 @@
         "latitude": "Site latitude for solar and weather forecasts (decimal degrees).",
         "longitude": "Site longitude for solar and weather forecasts (decimal degrees).",
         "provider": "Solar forecast source: Open-Meteo (free) or Solcast (API key required via environment).",
-        "timezone": "IANA timezone for aligning forecasts, or auto from coordinates.",
         "training_days": "Days of telemetry history used to train load bias and profile models.",
         "min_load_fraction": "Floor on predicted load as a fraction of recent peak (avoids near-zero forecasts)."
+      },
+      "site": {
+        "timezone": "IANA timezone for site-local day boundaries (forecasts, grid ramp, load profiles, and dashboard display). Choose Auto to detect from forecast coordinates."
       },
       "control": {
         "loop_interval_seconds": "How often the orchestrator reads telemetry and recomputes decisions.",

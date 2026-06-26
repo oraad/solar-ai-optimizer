@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.19] - 2026-06-26
+
+### Added
+
+- **Site timezone:** new **Site** section in Settings with searchable IANA timezone picker or **Auto** (resolved from Open-Meteo at forecast location); daily solar/load totals, load-profile buckets, temperature bias hours, grid ramp hints, and dashboard date formatting use site-local time
+- `timezone_config` and `timezone_resolved` on live status and `/health`
+- Config schema v4 migration moves legacy `forecast.timezone` to `site.timezone`
+
+### Changed
+
+- **Decision panel** groups shed actions and results by tier with consolidated labels and entity tooltips
+- **Load shedding** panel reuses shared tier-grouping display helpers
+
 ## [0.5.18] - 2026-06-25
 
 ### Added

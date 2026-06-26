@@ -136,6 +136,7 @@ export class HistoryView extends LitElement {
     super.connectedCallback();
     window.addEventListener("solar-theme-change", this.onTheme);
     window.addEventListener("solar-date-format-change", this.onDateFormat);
+    window.addEventListener("solar-site-timezone-change", this.onDateFormat);
     window.addEventListener("solar-locale-change", this.onLocale);
     void this.loadAll();
     this.pollTimer = window.setInterval(() => void this.loadAll(), 60_000);
@@ -145,6 +146,7 @@ export class HistoryView extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener("solar-theme-change", this.onTheme);
     window.removeEventListener("solar-date-format-change", this.onDateFormat);
+    window.removeEventListener("solar-site-timezone-change", this.onDateFormat);
     window.removeEventListener("solar-locale-change", this.onLocale);
     if (this.pollTimer) window.clearInterval(this.pollTimer);
     this.chartHandle?.destroy();

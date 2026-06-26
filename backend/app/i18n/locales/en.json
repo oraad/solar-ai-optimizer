@@ -19,6 +19,7 @@
     },
     "config": {
       "forecast_provider": "forecast.provider must be 'open-meteo' or 'solcast'",
+      "timezone": "site.timezone must be 'auto' or a valid IANA timezone name",
       "engine_mode": "engine.mode must be 'rules' or 'mpc'",
       "priority_order": "engine.priority_order must list each of resilience, savings, self_sufficiency exactly once",
       "tier_hysteresis": "load_shedding tier '{name}': restore_above_soc ({restore}) must be > shed_below_soc ({shed})"

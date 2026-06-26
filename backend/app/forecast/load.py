@@ -18,7 +18,10 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
 from ..models import LoadForecastPoint, Telemetry, utcnow
+from ..tz import to_site_local
 from .temperature import cdd, hdd
+
+from zoneinfo import ZoneInfo
 
 log = logging.getLogger("forecast.load")
 
@@ -46,6 +49,10 @@ class LoadForecaster:
         self._use_month_fallback = True
 
         self._temp_provider: TempLookup | None = None
+        self._site_tz: ZoneInfo = ZoneInfo("UTC")
+
+    def set_site_tz(self, tz: ZoneInfo) -> None:
+        self._site_tz = tz
 
     def configure(
         self,
@@ -74,7 +81,7 @@ class LoadForecaster:
         for t in history:
             if t.load_power is None:
                 continue
-            ts = t.ts.astimezone(timezone.utc)
+            ts = to_site_local(t.ts, self._site_tz)
             buckets[(ts.weekday(), ts.hour)].append(t.load_power)
             month_loads[ts.month].append(t.load_power)
             all_loads.append(t.load_power)
@@ -131,7 +138,7 @@ class LoadForecaster:
             temp = t.outdoor_temp if t.outdoor_temp is not None else temp_lookup(t.ts)
             if temp is None:
                 continue
-            ts = t.ts.astimezone(timezone.utc)
+            ts = to_site_local(t.ts, self._site_tz)
             base = self._profile.get((ts.weekday(), ts.hour))
             if base is None:
                 continue
@@ -210,8 +217,8 @@ class LoadForecaster:
         return self._fallback_w
 
     def _value_for(self, dt: datetime) -> float:
-        dt = dt.astimezone(timezone.utc)
-        baseline = self._baseline_for(dt)
+        local = to_site_local(dt, self._site_tz)
+        baseline = self._baseline_for(local)
         value = baseline
 
         temp = self._temp_provider(dt) if self._temp_provider else None
@@ -220,7 +227,7 @@ class LoadForecaster:
             value = baseline + self._k_heat * (hdd(temp, self._hdd_base) - self._mean_hdd)
             value += self._k_cool * (cdd(temp, self._cdd_base) - self._mean_cdd)
         elif self._use_month_fallback and self._month_factors:
-            value = baseline * self._month_factors.get(dt.month, 1.0)
+            value = baseline * self._month_factors.get(local.month, 1.0)
 
         # Resilience floor: never let a mild forecast shrink load too far.
         floor = self._min_load_fraction * baseline

@@ -11,11 +11,13 @@ import functools
 from pathlib import Path
 from enum import Enum
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .config_migration import migrate_config_data
 from .i18n import t
 
 ForecastProvider = Literal["open-meteo", "solcast"]
@@ -200,11 +202,30 @@ class TemperatureConfig(BaseModel):
     training_days: int = 45
 
 
+class SiteConfig(BaseModel):
+    timezone: str = "auto"
+
+    @field_validator("timezone", mode="before")
+    @classmethod
+    def _validate_timezone(cls, v: object) -> str:
+        if v is None:
+            return "auto"
+        s = str(v).strip()
+        if not s:
+            return "auto"
+        if s.lower() == "auto":
+            return "auto"
+        try:
+            ZoneInfo(s)
+        except (ZoneInfoNotFoundError, ValueError) as e:
+            raise ValueError("api.config.timezone") from e
+        return s
+
+
 class ForecastConfig(BaseModel):
     provider: ForecastProvider = "open-meteo"
     latitude: float = 0.0
     longitude: float = 0.0
-    timezone: str = "auto"
     arrays: list[PvArray] = Field(default_factory=lambda: [PvArray()])
     temperature: TemperatureConfig = Field(default_factory=TemperatureConfig)
 
@@ -430,6 +451,7 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     ha: HaConfig = Field(default_factory=HaConfig)
+    site: SiteConfig = Field(default_factory=SiteConfig)
     inverter: InverterConfig = Field(default_factory=InverterConfig)
     battery: BatteryConfig = Field(default_factory=BatteryConfig)
     reserve: ReserveConfig = Field(default_factory=ReserveConfig)
@@ -447,7 +469,7 @@ def load_app_config(path: str | Path) -> AppConfig:
     if not p.exists():
         return AppConfig()
     data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-    return AppConfig.model_validate(data)
+    return AppConfig.model_validate(migrate_config_data(data))
 
 
 @functools.lru_cache

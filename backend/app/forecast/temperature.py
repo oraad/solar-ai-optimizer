@@ -18,6 +18,7 @@ import httpx
 
 from ..config import ForecastConfig
 from ..dates import parse_datetime
+from ..tz import resolve_site_tz, to_site_local
 
 log = logging.getLogger("forecast.temperature")
 
@@ -72,8 +73,23 @@ class TemperatureBias:
 class TemperatureService:
     def __init__(self, cfg: ForecastConfig) -> None:
         self._cfg = cfg
+        self._site_timezone = "auto"
+        self._resolved_timezone: str | None = None
         self._by_hour_ts: dict[datetime, float] = {}
         self.bias = TemperatureBias()
+
+    def set_site_timezone(self, timezone: str) -> None:
+        self._site_timezone = timezone or "auto"
+
+    @property
+    def resolved_timezone(self) -> str | None:
+        return self._resolved_timezone
+
+    def _site_tz(self):
+        return resolve_site_tz(
+            self._site_timezone,
+            auto_hint=self._resolved_timezone,
+        )
 
     def update_config(self, cfg: ForecastConfig) -> None:
         self._cfg = cfg
@@ -102,7 +118,7 @@ class TemperatureService:
             "hourly": "temperature_2m",
             "past_days": past_days,
             "forecast_days": forecast_days,
-            "timezone": self._cfg.timezone or "auto",
+            "timezone": self._site_timezone or "auto",
         }
 
         async def _fetch(c: httpx.AsyncClient) -> dict:
@@ -115,6 +131,9 @@ class TemperatureService:
         else:
             async with httpx.AsyncClient(timeout=20.0) as owned:
                 data = await _fetch(owned)
+        tz_name = data.get("timezone")
+        if isinstance(tz_name, str) and tz_name.strip():
+            self._resolved_timezone = tz_name.strip()
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         temps = hourly.get("temperature_2m", [])
@@ -137,7 +156,8 @@ class TemperatureService:
         raw = self.raw_at(ts)
         if raw is None:
             return None
-        return raw + self.bias.offset(self._hour_align(ts).hour)
+        hour = to_site_local(ts, self._site_tz()).hour
+        return raw + self.bias.offset(hour)
 
     @property
     def available(self) -> bool:

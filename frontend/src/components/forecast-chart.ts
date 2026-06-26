@@ -77,6 +77,7 @@ export class ForecastChart extends LitElement {
     super.connectedCallback();
     window.addEventListener("solar-theme-change", this.onTheme);
     window.addEventListener("solar-date-format-change", this.onDateFormat);
+    window.addEventListener("solar-site-timezone-change", this.onDateFormat);
     window.addEventListener("solar-locale-change", this.onLocale);
   }
 
@@ -90,6 +91,7 @@ export class ForecastChart extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener("solar-theme-change", this.onTheme);
     window.removeEventListener("solar-date-format-change", this.onDateFormat);
+    window.removeEventListener("solar-site-timezone-change", this.onDateFormat);
     window.removeEventListener("solar-locale-change", this.onLocale);
     this.chartHandle?.destroy();
     this.chartHandle = undefined;

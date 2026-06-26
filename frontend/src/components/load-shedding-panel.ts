@@ -63,17 +63,13 @@ export class LoadSheddingPanel extends LitElement {
         margin-bottom: 12px;
       }
       .tier-block[open] {
-        padding: 12px;
-        padding-top: 40px;
+        padding: 12px 48px 12px 12px;
       }
       .tier-summary {
         cursor: pointer;
         list-style: none;
       }
       .tier-summary::-webkit-details-marker {
-        display: none;
-      }
-      .tier-block[open] > .tier-summary {
         display: none;
       }
       .tier-summary-text {

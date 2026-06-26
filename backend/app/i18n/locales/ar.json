@@ -19,6 +19,7 @@
     },
     "config": {
       "forecast_provider": "يجب أن يكون forecast.provider إما 'open-meteo' أو 'solcast'",
+      "timezone": "يجب أن يكون site.timezone إما 'auto' أو اسم منطقة زمنية IANA صالحًا",
       "engine_mode": "يجب أن يكون engine.mode إما 'rules' أو 'mpc'",
       "priority_order": "يجب أن يسرد engine.priority_order كل من resilience و savings و self_sufficiency مرة واحدة بالضبط",
       "tier_hysteresis": "مستوى load_shedding '{name}': يجب أن يكون restore_above_soc ({restore}) > shed_below_soc ({shed})"

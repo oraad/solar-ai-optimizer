@@ -131,6 +131,8 @@ export interface SystemStatus {
   force_grid_charge_override?: boolean | null;
   shadow_mode: boolean;
   paused: boolean;
+  timezone_config?: string;
+  timezone_resolved?: string | null;
   last_updated: string;
 }
 

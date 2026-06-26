@@ -289,9 +289,16 @@ def test_remaining_solar_respects_site_timezone(monkeypatch):
         load=[],
     )
     utc_ctx = _ctx(forecast=forecast, site_timezone="auto")
+    auto_ctx = _ctx(
+        forecast=forecast,
+        site_timezone="auto",
+        site_timezone_resolved="Africa/Johannesburg",
+    )
     local_ctx = _ctx(forecast=forecast, site_timezone="Africa/Johannesburg")
 
     utc_wh = _remaining_solar_wh(utc_ctx, now)
+    auto_wh = _remaining_solar_wh(auto_ctx, now)
     local_wh = _remaining_solar_wh(local_ctx, now)
     assert utc_wh == 1000.0
+    assert auto_wh == 0.0
     assert local_wh == 0.0

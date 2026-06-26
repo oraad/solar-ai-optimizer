@@ -19,12 +19,14 @@ reserve:
   solar_bridge_buffer_pct: 15.0
   cloudy_extra_buffer_pct: 15.0
 
+site:
+  timezone: auto
+
 forecast:
   provider: open-meteo
   # Set your site coordinates in Settings — 0,0 disables solar forecast until configured.
   latitude: 0.0
   longitude: 0.0
-  timezone: auto
   arrays:
     - name: array
       kwp: 5.0

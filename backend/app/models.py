@@ -226,6 +226,8 @@ class SystemStatus(BaseModel):
     force_grid_charge_override: bool | None = None
     shadow_mode: bool = True
     paused: bool = False
+    timezone_config: str = "auto"
+    timezone_resolved: str | None = None
     last_updated: datetime = Field(default_factory=utcnow)
 
 

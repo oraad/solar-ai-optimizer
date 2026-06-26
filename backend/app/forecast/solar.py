@@ -16,6 +16,7 @@ import httpx
 from ..config import ForecastConfig
 from ..dates import parse_datetime
 from ..models import SolarForecastPoint
+from ..tz import resolve_site_tz, to_site_local
 from .bias import BiasCorrector
 
 log = logging.getLogger("forecast.solar")
@@ -46,9 +47,18 @@ class SolarForecaster:
         self._bias = bias
         self._solcast_key = solcast_key
         self._solcast_resource = solcast_resource
+        self._site_timezone = "auto"
+        self._resolved_timezone: str | None = None
         # Cache of last raw (pre-bias) forecast keyed by hour timestamp, for the
         # bias learner to compare against actuals later.
         self.last_raw_by_ts: dict[datetime, float] = {}
+
+    def set_site_timezone(self, timezone: str) -> None:
+        self._site_timezone = timezone or "auto"
+
+    @property
+    def resolved_timezone(self) -> str | None:
+        return self._resolved_timezone
 
     def set_solcast_credentials(self, key: str, resource: str) -> None:
         self._solcast_key = key or ""
@@ -91,11 +101,14 @@ class SolarForecaster:
                     "tilt": array.tilt,
                     "azimuth": _to_openmeteo_azimuth(array.azimuth),
                     "forecast_days": 3,
-                    "timezone": self._cfg.timezone or "auto",
+                    "timezone": self._site_timezone or "auto",
                 }
                 resp = await c.get(OPEN_METEO_URL, params=params)
                 resp.raise_for_status()
                 data = resp.json()
+                tz_name = data.get("timezone")
+                if isinstance(tz_name, str) and tz_name.strip():
+                    self._resolved_timezone = tz_name.strip()
                 hourly = data.get("hourly", {})
                 times = hourly.get("time", [])
                 gti = hourly.get("global_tilted_irradiance", [])
@@ -168,7 +181,15 @@ class SolarForecaster:
         points: list[SolarForecastPoint] = []
         ordered = sorted(power_by_ts.items())
         for ts, raw_w in ordered:
-            corrected = raw_w * self._bias.factor(ts.astimezone(timezone.utc).hour)
+            corrected = raw_w * self._bias.factor(
+                to_site_local(
+                    ts,
+                    resolve_site_tz(
+                        self._site_timezone,
+                        auto_hint=self._resolved_timezone,
+                    ),
+                ).hour
+            )
             # 1h step energy (Wh). Trapezoidal would need neighbours; hourly ~ W*1h.
             points.append(
                 SolarForecastPoint(

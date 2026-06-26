@@ -25,6 +25,7 @@
   },
   "settings": {
     "sections": {
+      "site": "Site",
       "battery": "Batterie",
       "reserve": "Réserve",
       "forecast": "Prévision",
@@ -37,6 +38,9 @@
       "inverter": "Onduleur"
     },
     "fields": {
+      "site": {
+        "timezone": "Fuseau horaire"
+      },
       "battery": {
         "capacity_kwh": "Capacité (kWh)",
         "nominal_voltage": "Tension nominale (V)",
@@ -54,7 +58,6 @@
         "latitude": "Latitude",
         "longitude": "Longitude",
         "provider": "Fournisseur de prévisions solaires",
-        "timezone": "Fuseau horaire",
         "training_days": "Historique de formation (jours)",
         "min_load_fraction": "Fraction de charge minimale"
       },
@@ -143,6 +146,10 @@
       "resilience": "Résilience",
       "savings": "Économies",
       "self_sufficiency": "Autosuffisance"
+    },
+    "timezone": {
+      "auto": "Auto (depuis les coordonnées)",
+      "resolved": "Résolu : {tz}"
     }
   },
   "help": {
@@ -164,9 +171,11 @@
         "latitude": "Latitude du site pour les prévisions solaires et météorologiques (degrés décimaux).",
         "longitude": "Longitude du site pour les prévisions solaires et météorologiques (degrés décimaux).",
         "provider": "Source de prévisions solaires : Open-Meteo (gratuit) ou Solcast (clé API requise via l'environnement).",
-        "timezone": "Fuseau horaire IANA pour aligner les prévisions ou automatiquement à partir des coordonnées.",
         "training_days": "Jours d'historique de télémétrie utilisés pour entraîner des modèles de biais de charge et de profil.",
         "min_load_fraction": "Plancher sur la charge prévue en fraction du pic récent (évite les prévisions proches de zéro)."
+      },
+      "site": {
+        "timezone": "Fuseau horaire IANA pour les limites de jour du site (prévisions, rampe réseau, profils de charge et affichage). Choisissez Auto pour détecter depuis les coordonnées de prévision."
       },
       "control": {
         "loop_interval_seconds": "À quelle fréquence l’orchestrateur lit la télémétrie et recalcule les décisions.",

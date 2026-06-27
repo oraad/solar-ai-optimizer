@@ -1,0 +1,52 @@
+---
+description: Dashboard UX — roles, navigation, a11y, mobile ingress, i18n
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# Frontend UX patterns
+
+## Single dashboard, role-gated UI
+
+One app for admin and viewer; hide tabs/controls by role — never separate apps or URLs. Admin: 6 tabs; viewer: Overview, Forecast, History only. See feature matrix in [`docs/frontend-manual.md`](docs/frontend-manual.md).
+
+## Navigation
+
+- Sticky topbar: brand + live status strip + theme toggle
+- Horizontal tab nav with **labels** (not icon-only); scroll-snap on mobile
+- Settings: desktop sidebar from `SETTINGS_NAV` (`settings-nav.ts`); mobile category pills + search
+- Cross-panel links via `solar-navigate-tab` custom events
+
+## Operator safety
+
+Kill switch and destructive actions require explicit confirmation. Unsaved-changes guard on tab leave (load shedding pattern).
+
+## Accessibility (required for new UI)
+
+- Tab pattern: `role="tablist/tab/tabpanel"`, `aria-selected`, `aria-controls`, `aria-labelledby`
+- `:focus-visible` + `--ring`; toasts `aria-live="polite"`; validation banners `role="alert"`
+- Respect `prefers-reduced-motion: reduce`
+- **44px min tap targets** on mobile; info tips tap-to-toggle on coarse pointers (`solar-info-tip`)
+
+## Mobile / HA ingress
+
+Respect `env(safe-area-inset-*)`; no double scrollbars; status pills collapse to overflow menu ≤600px. Validate against [`docs/mobile-ingress-qa.md`](docs/mobile-ingress-qa.md).
+
+## i18n
+
+- All user-visible strings in `frontend/src/locales/*.json`; use `t()` only
+- New locale: copy `en.json` → add `LocaleMeta` + loader in `manifest.ts` → pass locale parity test (`docker compose run --rm frontend-test`)
+- Send `X-Solar-Locale` on API calls; reconnect WebSocket on `solar-locale-change`
+- Arabic = RTL via `dir` on `<html>`
+
+## Boot experience
+
+Boot splash until session resolves (`GET /api/me`); avoid blank iframe flash on HA ingress.
+
+## Visual QA
+
+After significant UI changes: `cd frontend && npm run docs:screenshots`; update `docs/images/frontend/` if layout changed.
+
+## Keep this rule current
+
+Update when you change role/tab matrix, settings nav schema, locale manifest, mobile layout breakpoints, or accessibility patterns. Full UX spec: [`docs/frontend-manual.md`](docs/frontend-manual.md).

@@ -16,8 +16,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -30,6 +30,7 @@ from .api import (
     ws_router,
 )
 from .api.auth import AuthGateMiddleware, UserContextMiddleware
+from .compressed_static import CompressedStaticFiles
 from .config import get_settings
 from .config_store import ConfigStore
 from .ha.users import HAAdminResolver
@@ -155,6 +156,7 @@ def create_app() -> FastAPI:
     app.add_middleware(AuthGateMiddleware)
     app.add_middleware(LocaleMiddleware)
     app.add_middleware(UserContextMiddleware)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_handler(request: Request, exc: RequestValidationError):  # noqa: ANN001
@@ -174,7 +176,7 @@ def create_app() -> FastAPI:
     # Serve the built dashboard if it was bundled into the image.
     static_path = Path(STATIC_DIR)
     if static_path.is_dir():
-        app.mount("/", StaticFiles(directory=str(static_path), html=True), name="ui")
+        app.mount("/", CompressedStaticFiles(directory=str(static_path), html=True), name="ui")
         log.info("Serving dashboard from %s", static_path)
     else:
         @app.get("/")

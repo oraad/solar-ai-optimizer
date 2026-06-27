@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 
 import httpx
 
@@ -14,6 +15,43 @@ from ..i18n.serialize import msg_text
 from ..models import Override
 
 SYSTEM_PROMPT_BASE_KEY = "assistant.system.base"
+
+log = logging.getLogger("assistant")
+
+_KILL_SWITCH_RE = re.compile(
+    r"\b(kill switch|emergency|grid charge at max|charge at max)\b"
+)
+_PAUSE_RULES: tuple[tuple[re.Pattern[str], Callable[[Override], None]], ...] = (
+    (re.compile(r"\bpause\b.*\bshed"), lambda ov: setattr(ov, "pause_shedding", True)),
+    (re.compile(r"\bpause\b.*\bgrid"), lambda ov: setattr(ov, "pause_grid_charge", True)),
+    (re.compile(r"\bpause\b.*\boptim"), lambda ov: setattr(ov, "pause_optimization", True)),
+    (re.compile(r"\bpause\b"), lambda ov: setattr(ov, "pause_engine", True)),
+)
+_RESUME_RULES: tuple[tuple[re.Pattern[str], Callable[[Override], None]], ...] = (
+    (re.compile(r"\b(resume|unpause|continue)\b.*\bshed"), lambda ov: setattr(ov, "pause_shedding", False)),
+    (re.compile(r"\b(resume|unpause|continue)\b.*\bgrid"), lambda ov: setattr(ov, "pause_grid_charge", False)),
+    (re.compile(r"\b(resume|unpause|continue)\b.*\boptim"), lambda ov: setattr(ov, "pause_optimization", False)),
+    (re.compile(r"\b(resume|unpause|continue)\b"), lambda ov: setattr(ov, "pause_engine", False)),
+)
+_INDEPENDENT_RULES: tuple[tuple[re.Pattern[str], Callable[[Override], None]], ...] = (
+    (re.compile(r"\b(force|start).*(grid )?charg"), lambda ov: setattr(ov, "force_grid_charge", True)),
+    (re.compile(r"\b(stop|cancel|release).*(grid )?charg"), lambda ov: setattr(ov, "force_grid_charge", False)),
+    (re.compile(r"\b(live|enable control|go live)\b"), lambda ov: setattr(ov, "shadow_mode", False)),
+    (re.compile(r"\b(shadow|observe only|dry run)\b"), lambda ov: setattr(ov, "shadow_mode", True)),
+)
+_RESERVE_RE = re.compile(r"reserve\D{0,12}(\d{1,3})\s*%?")
+
+
+def _apply_first_match(
+    q: str,
+    ov: Override,
+    rules: tuple[tuple[re.Pattern[str], Callable[[Override], None]], ...],
+) -> bool:
+    for pattern, apply in rules:
+        if pattern.search(q):
+            apply(ov)
+            return True
+    return False
 
 
 class Assistant:
@@ -27,30 +65,20 @@ class Assistant:
     def parse_intent(self, question: str) -> Override | None:
         """Deterministically map common control phrases to an Override."""
         q = question.lower().strip()
+        if _KILL_SWITCH_RE.search(q):
+            return Override(kill_switch=True)
+
         ov = Override()
         matched = False
-
-        if re.search(r"\b(kill switch|emergency|grid charge at max|charge at max)\b", q):
-            return Override(kill_switch=True)
-        if re.search(r"\b(force|start).*(grid )?charg", q):
-            ov.force_grid_charge = True
+        for pattern, apply in _INDEPENDENT_RULES:
+            if pattern.search(q):
+                apply(ov)
+                matched = True
+        if _apply_first_match(q, ov, _PAUSE_RULES):
             matched = True
-        if re.search(r"\b(stop|cancel|release).*(grid )?charg", q):
-            ov.force_grid_charge = False
+        if _apply_first_match(q, ov, _RESUME_RULES):
             matched = True
-        if re.search(r"\bpause\b", q):
-            ov.pause_engine = True
-            matched = True
-        if re.search(r"\b(resume|unpause|continue)\b", q):
-            ov.pause_engine = False
-            matched = True
-        if re.search(r"\b(live|enable control|go live)\b", q):
-            ov.shadow_mode = False
-            matched = True
-        if re.search(r"\b(shadow|observe only|dry run)\b", q):
-            ov.shadow_mode = True
-            matched = True
-        m = re.search(r"reserve\D{0,12}(\d{1,3})\s*%?", q)
+        m = _RESERVE_RE.search(q)
         if m:
             ov.reserve_soc = max(0.0, min(100.0, float(m.group(1))))
             matched = True

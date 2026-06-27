@@ -85,6 +85,10 @@ class MPCEngine:
         reactive: ReactiveGrid,
         telemetry_stale: bool = False,
         last_grid_charge_amps: float | None = None,
+        *,
+        plan_optimization: bool = True,
+        plan_grid_charge: bool = True,
+        plan_shedding: bool = True,
     ) -> Decision:
         # Build the action set with the rule engine, but pin the reserve target
         # to the MPC-optimised value (unless the operator pinned their own).
@@ -93,7 +97,7 @@ class MPCEngine:
         mpc_reserve, unserved_wh, feasible = self._solve(telemetry, forecast)
 
         eff_override = Override(**(override.model_dump() if override else {}))
-        if eff_override.reserve_soc is None and mpc_reserve is not None:
+        if plan_optimization and eff_override.reserve_soc is None and mpc_reserve is not None:
             eff_override.reserve_soc = mpc_reserve
 
         decision = rule.decide(
@@ -104,23 +108,27 @@ class MPCEngine:
             shadow_mode,
             telemetry_stale=telemetry_stale,
             last_grid_charge_amps=last_grid_charge_amps,
+            plan_optimization=plan_optimization,
+            plan_grid_charge=plan_grid_charge,
+            plan_shedding=plan_shedding,
         )
 
         # Enrich risk + summary with MPC survivability result.
-        if not feasible or unserved_wh > 1.0:
+        if plan_optimization and (not feasible or unserved_wh > 1.0):
             decision.blackout_risk = BlackoutRisk.CRITICAL
             decision.blackout_risk_score = max(decision.blackout_risk_score, 0.9)
-        decision.summary = Msg(
-            key=decision.summary.key,
-            params={
-                **decision.summary.params,
-                "has_mpc": "yes",
-                "horizon": self._engine_cfg.mpc_horizon_hours,
-                "reserve": int(mpc_reserve) if mpc_reserve is not None else "",
-                "survivable": "yes" if feasible and unserved_wh <= 1.0 else "no",
-                "kwh": f"{unserved_wh/1000:.1f}",
-            },
-        )
+        if plan_optimization:
+            decision.summary = Msg(
+                key=decision.summary.key,
+                params={
+                    **decision.summary.params,
+                    "has_mpc": "yes",
+                    "horizon": self._engine_cfg.mpc_horizon_hours,
+                    "reserve": int(mpc_reserve) if mpc_reserve is not None else "",
+                    "survivable": "yes" if feasible and unserved_wh <= 1.0 else "no",
+                    "kwh": f"{unserved_wh/1000:.1f}",
+                },
+            )
         decision.ts = utcnow()
         return decision
 

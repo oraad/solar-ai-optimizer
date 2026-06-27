@@ -21,6 +21,7 @@ Key sections (all editable in Settings):
 - Battery specs and reserve policy
 - Forecast provider, PV arrays, temperature model
 - Control timing and engine mode (`rules` or `mpc`)
+- **Subsystem enables** — `engine.enabled` (reserve/MPC/forecast), `grid_charge.enabled` (inverter grid-charge writes), `load_shedding.enabled` (tier switches); each can be toggled independently in Settings or the Load shedding tab
 - Fail-safe heartbeat
 
 **Load shedding** is configured in the dedicated **Load shedding** tab (not Settings).

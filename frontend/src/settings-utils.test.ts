@@ -56,4 +56,14 @@ describe("settings-utils", () => {
     expect(items.find((i) => i.id === "inverter")?.done).toBe(true);
     expect(checklistNeedsAttention(items)).toBe(false);
   });
+
+  it("marks PV optional and requires tiers in shed-primary mode", () => {
+    const cfg = baseConfig();
+    cfg.grid_charge = { enabled: false };
+    cfg.engine = { mode: "rules", enabled: false };
+    cfg.load_shedding = { enabled: true, tiers: [] };
+    const items = buildSetupChecklist(null, cfg, true);
+    expect(items.find((i) => i.id === "pv")?.optional).toBe(true);
+    expect(items.find((i) => i.id === "shed_tiers")?.done).toBe(false);
+  });
 });

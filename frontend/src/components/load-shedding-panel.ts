@@ -14,32 +14,14 @@ import { runWithToast, showToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
 import type { AppConfigView, CompanionEntity, EntityInfo, ShedResult, SystemStatus } from "../types.js";
+import {
+  normalizeTiersForSave,
+  stateEntitiesMap,
+  tierDeviceCount,
+  tierSwitches,
+  validateLoadSheddingTiers,
+} from "../load-shedding-utils.js";
 import { groupShedResultsByTier } from "../shed-display.js";
-
-function tierSwitches(t: Record<string, unknown>): string[] {
-  if (Array.isArray(t.switches)) {
-    const list = t.switches.map((s) => String(s ?? ""));
-    return list.length ? list : [""];
-  }
-  const legacy = String(t.switch ?? "").trim();
-  return legacy ? [legacy] : [""];
-}
-
-function tierDeviceCount(t: Record<string, unknown>): number {
-  return tierSwitches(t)
-    .map((s) => s.trim())
-    .filter(Boolean).length;
-}
-
-function stateEntitiesMap(t: Record<string, unknown>): Record<string, string[]> {
-  const raw = t.state_entities;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const out: Record<string, string[]> = {};
-  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-    if (Array.isArray(v)) out[k] = v.map(String);
-  }
-  return out;
-}
 
 @customElement("solar-load-shedding-panel")
 export class LoadSheddingPanel extends LitElement {
@@ -228,11 +210,11 @@ export class LoadSheddingPanel extends LitElement {
   @state() private companionMeta: Record<string, CompanionEntity[]> = {};
   @state() private expandedTier: number | null = null;
   @state() private snapshots: Array<{ entity: string; was_on: boolean; companion_count: number; captured_at: string }> = [];
+  @state() private advisoryReserve = false;
   private savedSnapshot = "";
 
   connectedCallback(): void {
     super.connectedCallback();
-    void this.loadConfig();
     void this.loadSnapshots();
   }
 
@@ -256,20 +238,23 @@ export class LoadSheddingPanel extends LitElement {
     this.emitDirty(snap !== this.savedSnapshot);
   }
 
-  updated(changed: Map<string, unknown>): void {
-    if (changed.has("config") && this.config && !this.draft) {
+  private syncFromConfig(): void {
+    if (!this.config) return;
+    const snap = JSON.stringify(this.config.load_shedding ?? {});
+    const dirty = this.draft != null && JSON.stringify(this.draft) !== this.savedSnapshot;
+    if (!this.draft || !dirty) {
       this.draft = structuredClone(this.config.load_shedding ?? {}) as Record<string, unknown>;
+      this.savedSnapshot = snap;
+      this.emitDirty(false);
     }
+    const eng = this.config.engine as Record<string, unknown> | undefined;
+    const gc = this.config.grid_charge as Record<string, unknown> | undefined;
+    this.advisoryReserve = eng?.enabled !== false && gc?.enabled === false;
   }
 
-  private async loadConfig(): Promise<void> {
-    try {
-      const cfg = await api.config();
-      this.draft = structuredClone(cfg.load_shedding ?? {}) as Record<string, unknown>;
-      this.savedSnapshot = JSON.stringify(this.draft);
-      this.emitDirty(false);
-    } catch {
-      /* non-fatal */
+  updated(changed: Map<string, unknown>): void {
+    if (changed.has("config")) {
+      this.syncFromConfig();
     }
   }
 
@@ -296,26 +281,11 @@ export class LoadSheddingPanel extends LitElement {
   }
 
   private validateTiers(): string | null {
-    const tiers = (this.draft?.tiers ?? []) as Record<string, unknown>[];
-    for (let i = 0; i < tiers.length; i++) {
-      const tier = tiers[i]!;
-      const name = String(tier.name ?? "").trim();
-      const entities = tierSwitches(tier).map((s) => s.trim()).filter(Boolean);
-      if (!name) return t("ui.loadShedding.validationTierName", { n: String(i + 1) });
-      if (!entities.length) {
-        return t("ui.loadShedding.validationTierEntities", { name });
-      }
-    }
-    return null;
+    return validateLoadSheddingTiers(this.draft, t);
   }
 
   private normalizeForSave(d: Record<string, unknown>): void {
-    const tiers = (d.tiers ?? []) as Record<string, unknown>[];
-    d.tiers = tiers.map((t) => {
-      const switches = tierSwitches(t).map((s) => s.trim()).filter(Boolean);
-      const { switch: _legacy, ...rest } = t as Record<string, unknown> & { switch?: string };
-      return { ...rest, switches };
-    });
+    normalizeTiersForSave(d);
   }
 
   private async save(): Promise<void> {
@@ -335,15 +305,89 @@ export class LoadSheddingPanel extends LitElement {
       { loading: t("ui.loadShedding.toastSaveLoading"), success: t("ui.loadShedding.toastSaveSuccess") },
     );
     if (ok) {
-      await this.loadConfig();
+      this.savedSnapshot = JSON.stringify(this.draft);
+      this.emitDirty(false);
       void this.loadSnapshots();
+      window.dispatchEvent(new Event("solar-plan-refresh"));
     }
     this.busy = false;
   }
 
-  private async reset(): Promise<void> {
+  private async applyShedOnlyPreset(advisory: boolean): Promise<void> {
+    this.patch((d) => {
+      d.enabled = true;
+    });
+    this.advisoryReserve = advisory;
+    this.busy = true;
+    const ok = await runWithToast(
+      async () => {
+        const res = await api.putConfig({
+          load_shedding: { ...this.draft, enabled: true },
+          grid_charge: { enabled: false },
+          engine: { enabled: advisory },
+        });
+        if (!res.ok) throw new Error(res.error || "validation failed");
+      },
+      { loading: t("ui.loadShedding.toastSaveLoading"), success: t("ui.loadShedding.toastPresetSuccess") },
+    );
+    if (ok) {
+      this.savedSnapshot = JSON.stringify(this.draft);
+      this.emitDirty(false);
+      window.dispatchEvent(new Event("solar-plan-refresh"));
+    }
+    this.busy = false;
+  }
+
+  private deploymentProfileLabel(): string {
+    const p = this.status?.deployment_profile ?? "full";
+    if (p === "shed_primary") return t("ui.loadShedding.profileShedPrimary");
+    if (p === "shed_advisory") return t("ui.loadShedding.profileShedAdvisory");
+    if (p === "custom") return t("ui.loadShedding.profileCustom");
+    return t("ui.loadShedding.profileFull");
+  }
+
+  private renderPresetCard(): ReturnType<typeof html> {
+    const profile = this.status?.deployment_profile ?? "full";
+    const isShedMode = profile === "shed_primary" || profile === "shed_advisory";
+    return html`
+      <div class="wizard-banner">
+        <strong>${t("ui.loadShedding.presetTitle")}</strong>
+        <p style="margin:6px 0 0">${t("ui.loadShedding.presetIntro")}</p>
+        <div class="preset-row">
+          <button type="button" ?disabled=${this.busy} @click=${() => void this.applyShedOnlyPreset(false)}>
+            ${t("ui.loadShedding.presetApply")}
+          </button>
+          ${isShedMode
+            ? html`<span class="pill">${this.deploymentProfileLabel()}</span>`
+            : null}
+        </div>
+        ${isShedMode
+          ? html`
+              <div class="field checkbox-row" style="margin-top:10px">
+                <label>${t("ui.loadShedding.advisoryReserve")}</label>
+                <input
+                  type="checkbox"
+                  .checked=${this.advisoryReserve}
+                  @change=${(e: Event) => {
+                    this.advisoryReserve = (e.target as HTMLInputElement).checked;
+                    void this.applyShedOnlyPreset(this.advisoryReserve);
+                  }}
+                />
+              </div>
+              <p class="label">${t("ui.loadShedding.presetRequirements")}</p>
+            `
+          : null}
+      </div>
+    `;
+  }
+
+  private reset(): void {
     if (!confirm(t("ui.loadShedding.revertConfirm"))) return;
-    await this.loadConfig();
+    if (this.config) {
+      this.draft = structuredClone(this.config.load_shedding ?? {}) as Record<string, unknown>;
+      this.savedSnapshot = JSON.stringify(this.draft);
+      this.emitDirty(false);
+    }
     this.companionMeta = {};
     this.expandedTier = null;
   }
@@ -377,13 +421,20 @@ export class LoadSheddingPanel extends LitElement {
     const actions = this.status?.decision?.shed_actions ?? [];
     const results = groupShedResultsByTier(this.shedResults);
     const hasLive = actions.length > 0 || results.length > 0 || this.snapshots.length > 0;
+    const profilePill = this.status?.deployment_profile
+      ? html`<span class="pill">${this.deploymentProfileLabel()}</span>`
+      : null;
     if (!hasLive) {
-      return html`<div class="live-block"><div class="label">${t("ui.loadShedding.noLiveStatus")}</div></div>`;
+      return html`<div class="live-block">
+        <div class="live-row">${profilePill}</div>
+        <div class="label">${t("ui.loadShedding.noLiveStatus")}</div>
+      </div>`;
     }
     return html`
       <div class="live-block">
         <div class="label">${t("ui.loadShedding.liveStatus")}</div>
         <div class="live-row">
+          ${profilePill}
           ${results.length
             ? results.map(
                 (r) => html`<span class="pill ${r.desired_on ? "good" : "bad"}">${r.tier}: ${r.desired_on ? t("common.on") : t("ui.decision.shed")} (${r.entities.length})</span>`,
@@ -566,6 +617,7 @@ export class LoadSheddingPanel extends LitElement {
           <solar-info-tip .text=${sectionHelp("load_shedding")!}></solar-info-tip>
         </h3>
         <p class="intro">${t("ui.loadShedding.intro")}</p>
+        ${this.renderPresetCard()}
         ${this.renderLiveStatus()}
         <div class="fields">
           <div class="field checkbox-row">

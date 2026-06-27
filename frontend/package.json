@@ -1,6 +1,6 @@
 {
   "name": "solar-ai-optimizer-dashboard",
-  "version": "0.5.23",
+  "version": "0.6.0",
   "description": "Lit dashboard for the Solar AI Optimizer",
   "type": "module",
   "engines": {
@@ -12,7 +12,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "docs:screenshots": "tsx scripts/capture-screenshots.mts",
-    "test:charts-visual": "tsx scripts/verify-charts.mts"
+    "docs:screenshots:docker": "docker compose -f ../docker-compose.yml --profile docs run --rm docs-screenshots",
+    "test:charts-visual": "tsx scripts/verify-charts.mts",
+    "test:charts-visual:docker": "docker compose -f ../docker-compose.yml --profile docs run --rm docs-screenshots npm run test:charts-visual"
   },
   "dependencies": {
     "dompurify": "^3.4.11",
@@ -26,6 +28,7 @@
     "tsx": "^4.22.0",
     "typescript": "^5.9.0",
     "vite": "^8.1.0",
+    "vite-plugin-compression2": "^2.5.3",
     "vitest": "^4.1.0"
   }
 }

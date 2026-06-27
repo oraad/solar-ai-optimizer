@@ -226,6 +226,14 @@ class SystemStatus(BaseModel):
     force_grid_charge_override: bool | None = None
     shadow_mode: bool = True
     paused: bool = False
+    shedding_enabled: bool = False
+    grid_charge_enabled: bool = True
+    engine_enabled: bool = True
+    paused_shedding: bool = False
+    paused_grid_charge: bool = False
+    paused_optimization: bool = False
+    grid_charge_writes_available: bool = False
+    deployment_profile: str = "full"
     timezone_config: str = "auto"
     timezone_resolved: str | None = None
     last_updated: datetime = Field(default_factory=utcnow)
@@ -238,4 +246,7 @@ class Override(BaseModel):
     force_grid_charge: bool | None = None
     reserve_soc: float | None = None     # pin reserve target (None = auto)
     pause_engine: bool | None = None
+    pause_shedding: bool | None = None
+    pause_grid_charge: bool | None = None
+    pause_optimization: bool | None = None
     kill_switch: bool | None = None      # grid charge at max; pause engine (orchestrator)

@@ -13,7 +13,7 @@ import {
   type TierShedResultSummary,
 } from "../shed-display.js";
 import { sharedStyles } from "../styles.js";
-import type { Decision, ExecutionResult, GridChargePlan, ShedResult } from "../types.js";
+import type { Decision, ExecutionResult, GridChargePlan, ShedResult, SystemStatus } from "../types.js";
 
 @customElement("solar-decision-panel")
 export class DecisionPanel extends LitElement {
@@ -85,6 +85,7 @@ export class DecisionPanel extends LitElement {
   @property({ attribute: false }) decision: Decision | null = null;
   @property({ attribute: false }) results: ExecutionResult[] = [];
   @property({ attribute: false }) shedResults: ShedResult[] = [];
+  @property({ attribute: false }) status: SystemStatus | null = null;
   @property({ type: String }) role: "admin" | "viewer" = "admin";
 
   private riskStatClass(score: number): string {
@@ -196,13 +197,15 @@ export class DecisionPanel extends LitElement {
   render() {
     const d = this.decision;
     if (!d) return html`<div class="card"><h3>${t("ui.decision.title")}</h3><p class="label">${t("ui.decision.waiting")}</p></div>`;
+    const engineOn = this.status?.engine_enabled !== false;
+    const gridOn = this.status?.grid_charge_enabled !== false;
     const gc = d.grid_charge ?? null;
     const applied = this.appliedGridChargeAmps();
-    const showAutonomy = d.reserve.autonomy_floor_soc !== d.reserve.target_soc;
+    const showAutonomy = engineOn && d.reserve.autonomy_floor_soc !== d.reserve.target_soc;
     const hasDetails =
-      d.reserve.rationale ||
-      gc?.rationale ||
-      d.actions.length > 0 ||
+      (engineOn && d.reserve.rationale) ||
+      (gridOn && gc?.rationale) ||
+      (gridOn && d.actions.length > 0) ||
       (d.shed_actions?.length ?? 0) > 0 ||
       this.results.length > 0 ||
       this.shedResults.length > 0 ||
@@ -212,18 +215,28 @@ export class DecisionPanel extends LitElement {
       <div class="card">
         <h3>${t("ui.decision.title")}</h3>
         <div class="summary">${d.summary}</div>
-        <div class="stats">
-          <div class="stat"><div class="label">${t("ui.decision.targetSoc")}</div><div class="v">${d.reserve.target_soc.toFixed(0)}%</div></div>
-          <div class="stat"><div class="label">${t("ui.decision.solarBridge")}</div><div class="v">${d.reserve.solar_bridge_soc.toFixed(0)}%</div></div>
-          <div class="stat ${gc?.enabled ? "risk-low" : ""}">
+        ${engineOn || gridOn
+          ? html`<div class="stats">
+          ${engineOn
+            ? html`
+                <div class="stat"><div class="label">${t("ui.decision.targetSoc")}</div><div class="v">${d.reserve.target_soc.toFixed(0)}%</div></div>
+                <div class="stat"><div class="label">${t("ui.decision.solarBridge")}</div><div class="v">${d.reserve.solar_bridge_soc.toFixed(0)}%</div></div>
+              `
+            : null}
+          ${gridOn
+            ? html`<div class="stat ${gc?.enabled ? "risk-low" : ""}">
             <div class="label">${t("ui.decision.gridCharge")}</div>
             <div class="v">${this.gridChargeLabel(gc)}</div>
             ${applied != null && gc?.enabled
               ? html`<div class="label" style="margin-top:4px">${t("ui.decision.applied", { amps: applied.toFixed(0) })}</div>`
               : null}
-          </div>
-          <div class="stat ${this.riskStatClass(d.blackout_risk_score)}"><div class="label">${t("ui.decision.riskScore")}</div><div class="v">${(d.blackout_risk_score * 100).toFixed(0)}%</div></div>
-        </div>
+          </div>`
+            : null}
+          ${engineOn
+            ? html`<div class="stat ${this.riskStatClass(d.blackout_risk_score)}"><div class="label">${t("ui.decision.riskScore")}</div><div class="v">${(d.blackout_risk_score * 100).toFixed(0)}%</div></div>`
+            : null}
+        </div>`
+          : null}
 
         ${hasDetails
           ? html`
@@ -239,20 +252,24 @@ export class DecisionPanel extends LitElement {
                       <div class="rationale">${gc.rationale}</div>
                     `
                   : null}
-                <div class="subhead">${t("ui.decision.actions")}</div>
-                <div class="chips">
-                  ${d.actions.length === 0
-                    ? html`<span class="label">${t("ui.decision.noActions")}</span>`
-                    : d.actions.map(
-                        (a) => html`
-                          <span class="chip" title=${a.reason}>
-                            <span class="cap">${capabilityLabel(a.capability)}</span>
-                            <span class="val">${String(a.value)}</span>
-                            <span class="why">${a.reason}</span>
-                          </span>
-                        `,
-                      )}
-                </div>
+                ${gridOn
+                  ? html`
+                      <div class="subhead">${t("ui.decision.actions")}</div>
+                      <div class="chips">
+                        ${d.actions.length === 0
+                          ? html`<span class="label">${t("ui.decision.noActions")}</span>`
+                          : d.actions.map(
+                              (a) => html`
+                                <span class="chip" title=${a.reason}>
+                                  <span class="cap">${capabilityLabel(a.capability)}</span>
+                                  <span class="val">${String(a.value)}</span>
+                                  <span class="why">${a.reason}</span>
+                                </span>
+                              `,
+                            )}
+                      </div>
+                    `
+                  : null}
                 ${this.renderShedSection(d)}
                 ${this.results.length
                   ? html`

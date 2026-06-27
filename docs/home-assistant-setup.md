@@ -18,7 +18,7 @@ After connecting, complete [entity mapping](#inverter-entity-discovery) and opti
 
 ---
 
-## Long-lived access token
+## Long-lived access token {#long-lived-access-token}
 
 Required for Docker and Proxmox deployments (the add-on uses the Supervisor token automatically when fields are left empty).
 
@@ -36,7 +36,7 @@ Rotate tokens periodically and revoke unused tokens from the same Security page.
 
 ---
 
-## Supervisor add-on
+## Supervisor add-on {#supervisor-add-on}
 
 1. **Supervisor → Add-on store → Repositories** → add:
    ```
@@ -61,7 +61,7 @@ See [Roles and access](ingress-auth.md) for admin vs viewer behavior.
 
 ---
 
-## Docker with hass_ingress
+## Docker with hass_ingress {#docker-with-hass_ingress}
 
 Use when the optimizer runs as a separate container but HA users should open it from the HA sidebar.
 
@@ -126,7 +126,7 @@ Full auth patterns: [Roles and access](ingress-auth.md).
 
 ---
 
-## Standalone Docker
+## Standalone Docker {#standalone-docker}
 
 ```bash
 docker compose up -d --build
@@ -139,11 +139,11 @@ Set HA URL and token in **Settings** — no ingress wrapper required.
 
 ---
 
-## Home Assistant packages
+## Home Assistant packages {#home-assistant-packages}
 
 Packages let you split YAML configuration into files under `config/packages/`.
 
-### Enable packages in configuration.yaml
+### Enable packages in configuration.yaml {#enable-packages-in-configurationyaml}
 
 If not already present:
 
@@ -184,7 +184,7 @@ Reload **helpers**, **templates**, and **automations**. Then configure the optim
 
 ---
 
-## Inverter entity discovery
+## Inverter entity discovery {#inverter-entity-discovery}
 
 The optimizer uses a **vendor-agnostic entity map** in Settings → Inverter entity map.
 Logical capabilities (battery SOC, PV power, grid charge enable, etc.) map to your HA
@@ -212,7 +212,7 @@ Use **Developer tools → States** to find entity IDs. The tables below are **st
 | `grid_charge_enable` | `switch.*_grid_charge` | integration-specific | `switch.*_grid_charge` |
 | `max_grid_charge_current` | `number.*_grid_charge_current` | `number.*_max_charge_current` | `number.*_max_grid_charge` |
 
-### Load shedding
+### Load shedding {#load-shedding}
 
 Each tier accepts **multiple switch entities** (pool pump + heater, AC power switch, etc.).
 Use `switch.*` or `input_boolean.*` entities for power control.
@@ -231,8 +231,9 @@ Per-tier options:
 
 Omit a key in `state_entities` to autodiscover companions; set `[]` for switch-only.
 
-Configure in the dashboard **Load shedding** tab. See
-[Dashboard user guide → Load-shedding tiers](frontend-manual.md#load-shedding-tiers).
+Configure in the dashboard **Load shedding** tab. Grid-charge **write** entities are not required for shedding-only deployments (use the shed-only preset on that tab). You still need inverter **read** sensors for battery SOC and grid presence.
+
+See [Dashboard user guide → Load-shedding tiers](frontend-manual.md#load-shedding-tiers).
 
 ### Outdoor temperature (optional)
 

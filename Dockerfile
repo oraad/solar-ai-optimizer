@@ -72,6 +72,14 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
 # Translates /data/options.json into env vars when present (add-on mode).
 ENTRYPOINT ["/app/run.sh"]
 
+# ---- Stage: docs screenshot runner (Playwright; not shipped in production) ----
+# Pin base image tag to playwright version in frontend/package.json.
+FROM mcr.microsoft.com/playwright:v1.61.1-noble AS docs-screenshots
+WORKDIR /ui
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
 # ---- Stage 3: test runner ----
 FROM app AS test
 COPY backend/requirements-dev.txt ./

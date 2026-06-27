@@ -351,6 +351,7 @@ _DEFAULT_FACTOR_ORDER = [
 
 
 class GridChargeConfig(BaseModel):
+    enabled: bool = True
     ramp_enabled: bool = True
     factor_order: list[GridChargeFactor] = Field(
         default_factory=lambda: list(_DEFAULT_FACTOR_ORDER)
@@ -393,6 +394,7 @@ _DEFAULT_PRIORITY_ORDER = [
 
 
 class EngineConfig(BaseModel):
+    enabled: bool = True
     mode: str = "rules"
     mpc_horizon_hours: int = 48
     priority_order: list[OptimizationPriority] = Field(

@@ -68,6 +68,16 @@ def test_viewer_can_pause_engine(guarded_client):
     assert res.status_code == 200
 
 
+def test_viewer_cannot_pause_shedding_only(guarded_client):
+    res = guarded_client.post(
+        "/api/override",
+        json={"pause_shedding": True},
+        headers={"X-Remote-User-Id": "viewer-1"},
+    )
+    assert res.status_code == 403
+    assert "Admin access required" in res.json()["detail"]
+
+
 def test_viewer_can_toggle_shadow(guarded_client):
     res = guarded_client.post(
         "/api/override",

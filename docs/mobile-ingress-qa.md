@@ -43,9 +43,15 @@ Use this checklist when validating the dashboard inside the HA Companion app ing
 With the demo stack running:
 
 ```bash
-cd frontend && npm run docs:screenshots
+docker compose --profile docs run --rm docs-screenshots
 ```
 
-Mobile captures (390×844) are written to `docs/images/frontend/mobile-*.png`.
+Or locally from `frontend/` after one-time `npm ci` and `npx playwright install chromium`:
 
-![Mobile Overview (390×844)](images/frontend/mobile-overview.png)
+```bash
+npm run docs:screenshots
+```
+
+Mobile captures (390px wide, content height) are written to `docs/images/frontend/mobile-*.png`.
+
+![Mobile Overview (390px wide)](images/frontend/mobile-overview.png)

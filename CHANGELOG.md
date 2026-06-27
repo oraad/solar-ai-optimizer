@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-27
+
+### Added
+
+- **Independent subsystems:** shedding, grid charge, and optimization can be enabled or disabled in Settings and paused independently from the Overrides **Advanced** section; **Pause all** / **Resume** still stops or restores every active subsystem
+- **Deployment profiles** on live status (`full`, `shed_primary`, `shed_advisory`, `custom`) derived from subsystem configuration
+- **Load shedding:** shed-only deployment preset (disables grid charge and optimization; optional advisory reserve)
+- **Settings:** **Engine enabled** and **Grid charge enabled** toggles under Engine and Grid charge sections
+- **Overview:** subsystem status pills (shedding, grid charge, optimization) alongside existing alerts
+- **Assistant:** deterministic pause/resume parsing for individual subsystems
+- **Static assets:** Brotli/gzip precompression at build time and `Accept-Encoding` negotiation in the backend
+- **Documentation i18n:** French and Arabic MkDocs builds via `mkdocs-static-i18n`; locale parity check in CI
+- Docs translated to `docs/*.fr.md` and `docs/*.ar.md`; refreshed frontend screenshots
+
+### Changed
+
+- Orchestrator, rule engine, and MPC honor `plan_optimization`, `plan_grid_charge`, and `plan_shedding` flags when subsystems are disabled or paused
+- Legacy single `paused` runtime state migrates to per-subsystem pause flags on load
+- **Overrides panel:** grouped Advanced controls for per-subsystem pause; force grid charge hidden when grid charge is disabled
+- **Viewer mode:** per-subsystem Advanced pause controls remain admin-only; viewers keep Pause all / Resume and kill switch
+- Frontend manual, ingress auth, installation, and related docs updated for subsystem controls and shed-only deployments
+
 ## [0.5.23] - 2026-06-26
 
 ### Added

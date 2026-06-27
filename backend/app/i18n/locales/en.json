@@ -12,7 +12,8 @@
     "override": {
       "kill_switch_confirm": "kill_switch requires confirm=true",
       "no_fields": "No override fields provided",
-      "assistant_kill_switch": "Kill switch requires explicit confirmation in your question (e.g. include \"confirm\")."
+      "assistant_kill_switch": "Kill switch requires explicit confirmation in your question (e.g. include \"confirm\").",
+      "grid_charge_disabled": "Grid charge control is disabled in settings."
     },
     "validation": {
       "field": "{loc}: {msg}"
@@ -60,7 +61,8 @@
       "heat_wave": " Heat wave: {cdh} cooling degree-hrs (24h) raising expected load.",
       "degraded_buffer": " Degraded/stale forecast — extra conservative buffer applied.",
       "driver_solar_bridge": "solar-bridge",
-      "driver_autonomy_floor": "autonomy-floor"
+      "driver_autonomy_floor": "autonomy-floor",
+      "optimization_disabled": "Optimization disabled — reserve target not computed."
     },
     "summary": {
       "main": "SOC {soc} vs reserve {target}% | {grid} | blackout risk: {risk}. {rationale}",
@@ -69,7 +71,8 @@
       "priorities_prefix": "Priorities: {order}. ",
       "grid_present": "grid PRESENT",
       "grid_absent": "grid absent",
-      "soc_unknown": "?"
+      "soc_unknown": "?",
+      "shedding_only": "Load shedding active — optimization disabled."
     },
     "advisory": {
       "surplus": "Surplus available ({kw} kW) with battery full: divert to deferrable loads (geyser/EV/pumps) instead of curtailing."

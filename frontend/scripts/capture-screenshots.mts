@@ -2,161 +2,129 @@
  * Capture dashboard screenshots for docs/frontend-manual.md.
  *
  * Prerequisite: demo stack running with seeded data.
- * Usage: npm run docs:screenshots
+ *
+ * Local (after one-time `npm ci` + `npx playwright install chromium`):
+ *   npm run docs:screenshots
+ *
+ * Docker (Playwright image + cached node_modules; from repo root or frontend):
+ *   docker compose --profile docs run --rm docs-screenshots
+ *   npm run docs:screenshots:docker
+ *
+ * First Docker use or after package-lock.json changes:
+ *   docker compose --profile docs run --rm docs-screenshots npm ci
  */
 import { mkdirSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { chromium, type Page } from "playwright";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = path.resolve(__dirname, "../../docs/images/frontend");
-const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:8000";
-const MOBILE_VIEWPORT = { width: 390, height: 844 };
-
-const VIEWER_HEADERS = {
-  "X-Remote-User-Id": "viewer-demo",
-  "X-Remote-User-Name": "viewer",
-  "X-Remote-User-Display-Name": "Demo Viewer",
-};
-
-function app(page: Page) {
-  return page.locator("solar-app");
-}
-
-async function waitForDashboard(page: Page): Promise<void> {
-  await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  await page.evaluate(() => {
-    localStorage.setItem("solar-theme", "dark");
-    document.documentElement.setAttribute("data-theme", "dark");
-  });
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await app(page).getByRole("tablist").waitFor({ timeout: 60_000 });
-  await page.waitForTimeout(1500);
-}
-
-async function clickMainTab(page: Page, label: string): Promise<void> {
-  await app(page).getByRole("tab", { name: label }).click();
-  await page.waitForTimeout(900);
-}
-
-async function shot(page: Page, name: string): Promise<void> {
-  const file = path.join(OUT_DIR, name);
-  await app(page).locator(".layout").first().screenshot({ path: file });
-  console.log(`wrote ${file}`);
-}
-
-async function shotFull(page: Page, name: string): Promise<void> {
-  const file = path.join(OUT_DIR, name);
-  await page.screenshot({ path: file, fullPage: true });
-  console.log(`wrote ${file}`);
-}
-
-async function expandDetails(page: Page, summaryText: string): Promise<void> {
-  const summary = app(page).locator("solar-settings-panel details summary").filter({
-    hasText: summaryText,
-  }).first();
-  const details = summary.locator("xpath=ancestor::details[1]");
-  const open = await details.evaluate((el) => (el as HTMLDetailsElement).open);
-  if (!open) {
-    await summary.click();
-    await page.waitForTimeout(300);
-  }
-}
+import {
+  app,
+  assertDemoPreflight,
+  BASE_URL,
+  clickMainTab,
+  clickSettingsNav,
+  createScreenshotContext,
+  initDashboard,
+  MOBILE_VIEWPORT,
+  OUT_DIR,
+  selectSettingsCategory,
+  shotApp,
+  shotFull,
+  shotLayout,
+  shotLocator,
+  VIEWER_HEADERS,
+  waitForHistoryDecisionsReady,
+  waitForOverviewReady,
+  waitForSettingsReady,
+} from "./screenshot-utils.mjs";
 
 async function captureAdmin(page: Page): Promise<void> {
-  await waitForDashboard(page);
+  await initDashboard(page);
 
   await clickMainTab(page, "Overview");
-  await shot(page, "overview.png");
+  await shotLayout(page, OUT_DIR, "overview.png");
 
   await clickMainTab(page, "Forecast");
-  await shot(page, "forecast.png");
+  await shotLayout(page, OUT_DIR, "forecast.png");
 
   await clickMainTab(page, "History");
-  await shot(page, "history-chart.png");
+  await shotLayout(page, OUT_DIR, "history-chart.png");
   await app(page)
     .locator("solar-history-view .tabs button")
     .filter({ hasText: "Decisions" })
     .click();
-  await page.waitForTimeout(500);
-  await shot(page, "history-decisions.png");
+  await waitForHistoryDecisionsReady(page);
+  await shotLayout(page, OUT_DIR, "history-decisions.png");
 
   await clickMainTab(page, "Assistant");
-  await shot(page, "assistant.png");
+  await shotLayout(page, OUT_DIR, "assistant.png");
 
   await clickMainTab(page, "Load shedding");
-  await shot(page, "load-shedding.png");
-  const tierBlock = app(page).locator("solar-load-shedding-panel .tier-block").first();
-  await tierBlock.locator("summary").click();
-  await tierBlock.screenshot({ path: path.join(OUT_DIR, "settings-load-shedding.png") });
-  console.log(`wrote ${path.join(OUT_DIR, "settings-load-shedding.png")}`);
+  await shotLayout(page, OUT_DIR, "load-shedding.png");
+  const tierCard = app(page).locator("solar-load-shedding-panel .tier-card").first();
+  await tierCard.locator(".tier-head").click();
+  await tierCard.locator(".tier-body").waitFor({ state: "visible", timeout: 30_000 });
+  await shotLocator(tierCard, OUT_DIR, "settings-load-shedding.png");
 
   await clickMainTab(page, "Settings");
-  await expandDetails(page, "Home Assistant");
-  await expandDetails(page, "Engine");
-  await shotFull(page, "settings.png");
+  await clickSettingsNav(page, "Engine");
+  await waitForSettingsReady(page);
+  await shotFull(page, OUT_DIR, "settings.png");
 
   await clickMainTab(page, "Overview");
-  await app(page)
-    .locator("solar-overrides-panel")
-    .first()
-    .screenshot({ path: path.join(OUT_DIR, "overrides.png") });
-  console.log(`wrote ${path.join(OUT_DIR, "overrides.png")}`);
+  await waitForOverviewReady(page);
+  await shotLocator(app(page).locator("solar-overrides-panel").first(), OUT_DIR, "overrides.png");
 }
 
 async function captureViewer(page: Page): Promise<void> {
-  await waitForDashboard(page);
+  await initDashboard(page);
+  await app(page).locator(".pill.warn").filter({ hasText: "VIEWER" }).waitFor({ state: "visible", timeout: 30_000 });
   await clickMainTab(page, "Overview");
-  await shot(page, "viewer-overview.png");
+  await shotLayout(page, OUT_DIR, "viewer-overview.png");
 }
 
 async function captureMobile(page: Page): Promise<void> {
-  await waitForDashboard(page);
+  await initDashboard(page);
 
   await clickMainTab(page, "Overview");
-  await shotFull(page, "mobile-overview.png");
+  await shotApp(page, OUT_DIR, "mobile-overview.png");
 
   await clickMainTab(page, "History");
-  await shot(page, "mobile-history-chart.png");
+  await shotLayout(page, OUT_DIR, "mobile-history-chart.png");
   await app(page)
     .locator("solar-history-view .tabs button")
     .filter({ hasText: "Decisions" })
     .click();
-  await page.waitForTimeout(500);
-  await shot(page, "mobile-history-decisions.png");
+  await waitForHistoryDecisionsReady(page);
+  await shotLayout(page, OUT_DIR, "mobile-history-decisions.png");
 
   await clickMainTab(page, "Shedding");
-  await shotFull(page, "mobile-load-shedding.png");
+  await shotApp(page, OUT_DIR, "mobile-load-shedding.png");
 
   await clickMainTab(page, "Settings");
-  await expandDetails(page, "Home Assistant");
-  await shotFull(page, "mobile-settings.png");
+  await selectSettingsCategory(page, "Engine");
+  await waitForSettingsReady(page);
+  await shotApp(page, OUT_DIR, "mobile-settings.png");
 }
 
 async function main(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });
+  await assertDemoPreflight(BASE_URL);
+
   const browser = await chromium.launch();
 
-  const adminContext = await browser.newContext({
-    locale: "en-US",
-    timezoneId: "UTC",
+  const adminContext = await createScreenshotContext(browser, {
     viewport: { width: 1280, height: 900 },
   });
   const adminPage = await adminContext.newPage();
 
-  const viewerContext = await browser.newContext({
-    locale: "en-US",
-    timezoneId: "UTC",
+  const viewerContext = await createScreenshotContext(browser, {
     viewport: { width: 1280, height: 900 },
     extraHTTPHeaders: VIEWER_HEADERS,
   });
   const viewerPage = await viewerContext.newPage();
 
-  const mobileContext = await browser.newContext({
-    locale: "en-US",
-    timezoneId: "UTC",
+  const mobileContext = await createScreenshotContext(browser, {
     viewport: MOBILE_VIEWPORT,
     isMobile: true,
     hasTouch: true,

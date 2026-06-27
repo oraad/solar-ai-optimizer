@@ -19,7 +19,7 @@ import { t } from "../i18n.js";
 import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import { runWithToast } from "../toast.js";
-import type { ForecastBundle } from "../types.js";
+import type { ForecastBundle, SystemStatus } from "../types.js";
 
 @customElement("solar-forecast-chart")
 export class ForecastChart extends LitElement {
@@ -86,6 +86,7 @@ export class ForecastChart extends LitElement {
   ];
 
   @property({ attribute: false }) forecast: ForecastBundle | null = null;
+  @property({ attribute: false }) status: SystemStatus | null = null;
   @property({ type: String }) role: "admin" | "viewer" = "admin";
   @property({ type: Number }) forecastLastUpdate = 0;
   @property({ type: Number }) now = Date.now();
@@ -286,6 +287,9 @@ export class ForecastChart extends LitElement {
               : null}
           </div>
         </div>
+        ${this.status?.engine_enabled === false
+          ? html`<p class="label" style="color:var(--muted);margin-bottom:12px">${t("ui.forecast.engineInactive")}</p>`
+          : null}
         <div class="metrics">
           <div class="metric-card">
             <div class="label">${t("ui.forecast.today")}</div>

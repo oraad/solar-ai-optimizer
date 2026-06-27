@@ -29,7 +29,7 @@ python -c "import bcrypt; print(bcrypt.hashpw(b'your-password', bcrypt.gensalt()
 
 The browser shows a login page until `POST /api/auth/login` succeeds. Sign out from **Settings → API security**. The login form supports browser password save and autofill (Chrome, Edge, Firefox).
 
-### Reset local admin password
+### Reset local admin password {#reset-local-admin-password}
 
 Credentials can be reset without editing env files manually. The reset script writes to `$DATA_DIR/local_auth.env` on the data volume; `run.sh` loads that file on startup, overriding container env for auth keys.
 
@@ -144,7 +144,7 @@ ADMIN_USER_IDS=abc123,def456
 3. Ensure the HA long-lived token (env `HA_TOKEN` or **Settings → Home Assistant connection**) was created from an admin/owner account — the user list API requires admin credentials on the token.
 4. Break-glass: set `ADMIN_USER_IDS=<your-user-id>` (copy `user_id` from `/api/me`) and restart the container.
 
-### Blank iframe or HA UI flashes inside the panel on first load
+### Blank iframe or HA UI flashes inside the panel on first load {#blank-iframe-or-ha-ui-flashes-inside-the-panel-on-first-load}
 
 **Blank iframe before Solar AI appears:** current builds show a branded boot splash (“Verifying access…”) as soon as the ingress iframe loads HTML, before JavaScript runs. Upgrade to **v0.5.7+** if you still see a white gap.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
+from typing import Literal
 
 from sqlalchemy import delete, select
 
@@ -105,14 +106,20 @@ async def save_grid_event(ev: GridEvent) -> None:
         await s.commit()
 
 
-async def get_grid_events_since(since: datetime) -> list[GridEvent]:
+async def get_grid_events_since(
+    since: datetime, *, order: Literal["asc", "desc"] = "asc"
+) -> list[GridEvent]:
     sm = get_sessionmaker()
     async with sm() as s:
         rows = (
             await s.execute(
                 select(GridEventRow)
                 .where(GridEventRow.ts >= since)
-                .order_by(GridEventRow.ts.asc())
+                .order_by(
+                    GridEventRow.ts.asc()
+                    if order == "asc"
+                    else GridEventRow.ts.desc()
+                )
             )
         ).scalars().all()
     return [GridEvent(ts=as_utc(r.ts), grid_present=r.grid_present) for r in rows]
@@ -131,22 +138,45 @@ async def get_last_grid_event() -> GridEvent | None:
     return GridEvent(ts=as_utc(row.ts), grid_present=row.grid_present)
 
 
+def _decision_row_fields(d: Decision) -> dict[str, str | float | bool]:
+    """Audit payload persisted to decisions (excludes ts)."""
+    return {
+        "target_soc": d.reserve.target_soc,
+        "blackout_risk": d.blackout_risk.value,
+        "blackout_risk_score": d.blackout_risk_score,
+        "shadow_mode": d.shadow_mode,
+        "summary": (
+            encode_msg(d.summary) if isinstance(d.summary, Msg) else str(d.summary)
+        ),
+        "reserve_rationale": encode_msg(d.reserve.rationale),
+        "actions_json": json.dumps([a.model_dump(mode="json") for a in d.actions]),
+        "shed_actions_json": json.dumps(
+            [a.model_dump(mode="json") for a in d.shed_actions]
+        ),
+    }
+
+
+def decisions_audit_equal(prev: Decision | None, cur: Decision) -> bool:
+    if prev is None:
+        return False
+    return _decision_row_fields(prev) == _decision_row_fields(cur)
+
+
 async def save_decision(d: Decision) -> None:
     sm = get_sessionmaker()
+    fields = _decision_row_fields(d)
     async with sm() as s:
         s.add(
             DecisionRow(
                 ts=d.ts,
-                target_soc=d.reserve.target_soc,
-                blackout_risk=d.blackout_risk.value,
-                blackout_risk_score=d.blackout_risk_score,
-                shadow_mode=d.shadow_mode,
-                summary=encode_msg(d.summary) if isinstance(d.summary, Msg) else str(d.summary),
-                reserve_rationale=encode_msg(d.reserve.rationale),
-                actions_json=json.dumps([a.model_dump(mode="json") for a in d.actions]),
-                shed_actions_json=json.dumps(
-                    [a.model_dump(mode="json") for a in d.shed_actions]
-                ),
+                target_soc=fields["target_soc"],  # type: ignore[arg-type]
+                blackout_risk=fields["blackout_risk"],  # type: ignore[arg-type]
+                blackout_risk_score=fields["blackout_risk_score"],  # type: ignore[arg-type]
+                shadow_mode=fields["shadow_mode"],  # type: ignore[arg-type]
+                summary=fields["summary"],  # type: ignore[arg-type]
+                reserve_rationale=fields["reserve_rationale"],  # type: ignore[arg-type]
+                actions_json=fields["actions_json"],  # type: ignore[arg-type]
+                shed_actions_json=fields["shed_actions_json"],  # type: ignore[arg-type]
             )
         )
         await s.commit()

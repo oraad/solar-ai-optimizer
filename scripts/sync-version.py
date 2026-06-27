@@ -12,6 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VERSION_FILE = ROOT / "VERSION"
 CONFIG_YAML = ROOT / "solar_ai_optimizer" / "config.yaml"
+ADDON_ICON = ROOT / "solar_ai_optimizer" / "icon.png"
+ADDON_LOGO = ROOT / "solar_ai_optimizer" / "logo.png"
 PACKAGE_JSON = ROOT / "frontend" / "package.json"
 
 
@@ -102,6 +104,15 @@ def check_version(label: str, path: Path, actual: str, expected: str) -> bool:
     return False
 
 
+def check_addon_store_assets() -> bool:
+    ok = True
+    for label, path in (("icon.png", ADDON_ICON), ("logo.png", ADDON_LOGO)):
+        if not path.is_file():
+            print(f"Missing HA app store asset: {path}", file=sys.stderr)
+            ok = False
+    return ok
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -118,6 +129,7 @@ def main() -> int:
         ok &= check_version(
             "frontend/package.json", PACKAGE_JSON, read_package_json_version(), expected
         )
+        ok &= check_addon_store_assets()
         if not ok:
             return 1
         print(f"All version files match {expected}")

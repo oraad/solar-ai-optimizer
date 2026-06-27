@@ -8,10 +8,9 @@ set -e
 OPTIONS=/data/options.json
 
 # Add-ons get a writable /data; use it for persistence + the supervisor DB path.
-if [ -d /data ]; then
-  export DATA_DIR="${DATA_DIR:-/data}"
-  export DATABASE_URL="${DATABASE_URL:-sqlite+aiosqlite:////data/solar.db}"
-fi
+# Force /data (not image default /app/data) when the Supervisor mount exists.
+# shellcheck disable=SC1091
+. "$(dirname "$0")/scripts/lib/addon-data-dir.sh"
 
 if [ -f "$OPTIONS" ]; then
   echo "Home Assistant add-on options detected; applying."

@@ -2,6 +2,7 @@ import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
 import { batteryEtaLine } from "../duration.js";
+import { socFillStyle } from "../soc-bar.js";
 import { formatRiskFromLevel } from "../blackout-risk.js";
 import { statusHelp } from "../field-help.js";
 import { t } from "../i18n.js";
@@ -74,7 +75,7 @@ export class StatusCards extends LitElement {
         margin-top: 8px;
         overflow: hidden;
       }
-      .soc-fill { height: 100%; background: linear-gradient(90deg, var(--good), var(--accent)); }
+      .soc-fill { height: 100%; }
       .reserve-mark {
         position: absolute; top: -2px; width: 2px; height: 14px; background: var(--accent-2);
       }
@@ -149,6 +150,7 @@ export class StatusCards extends LitElement {
       : "var(--muted)";
 
     const battSpec = this.status?.battery_summary ?? this.battery;
+    const minSoc = battSpec?.min_soc_floor ?? 20;
     const eta =
       battSpec && soc != null && battP != null
         ? batteryEtaLine({
@@ -210,7 +212,7 @@ export class StatusCards extends LitElement {
             ${this.tileHead(STATUS_ICONS.battery, t("ui.status.battery"), "battery")}
             <div class="metric">${soc != null ? `${soc.toFixed(0)}%` : "--"}</div>
             <div class="soc-bar">
-              <div class="soc-fill" style="width:${soc ?? 0}%"></div>
+              <div class="soc-fill" style=${socFillStyle(soc, minSoc)}></div>
               ${reserve != null
                 ? html`<div class="reserve-mark" style="left:${reserve}%" title=${t("ui.status.reserveMarkTitle")}></div>`
                 : null}

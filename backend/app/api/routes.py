@@ -165,7 +165,7 @@ async def history_grid_events(
     request: Request, days: int = Query(default=7, ge=1, le=90)
 ) -> list[dict]:
     since = utcnow() - timedelta(days=days)
-    events = await repo.get_grid_events_since(since)
+    events = await repo.get_grid_events_since(since, order="desc")
     return [e.model_dump(mode="json") for e in events]
 
 

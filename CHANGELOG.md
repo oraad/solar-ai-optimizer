@@ -7,10 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-06-27
+
+### Added
+
+- Shared `soc-bar` helper for battery SoC fill styling (min-floor gradient ramp) with unit tests
+- Home Assistant app store assets (`icon.png`, `logo.png`) in `solar_ai_optimizer/`
+- Decision audit deduplication tests (`test_decision_audit.py`)
+
 ### Changed
 
 - Home Assistant app store: fix `repository.yaml` validation; app manifest in `solar_ai_optimizer/` pulls `ghcr.io/oraad/solar-ai-optimizer` (no on-host build)
-- Installation and HA setup docs: Add-ons → Apps terminology
+- Installation and HA setup docs: Add-ons → Apps terminology; document Supervisor `/data` persistence
+- `run.sh`: force `DATA_DIR=/data` via shared `scripts/lib/addon-data-dir.sh` (includes one-time migration from `/app/data`)
+- Dockerfile: copy full `solar_ai_optimizer/` directory (manifest + store assets)
+- Overview hero and status cards: SoC bar uses min-floor gradient ramp; hero mobile layout tweaks
+- `sync-version.py --check`: verify HA app store `icon.png` / `logo.png` exist
+- CI: verify HA app data-dir wiring (`scripts/test-run-sh-data-dir.sh`)
+- Refreshed frontend doc screenshots under `docs/images/frontend/`
+
+### Fixed
+
+- Decision history: skip duplicate DB writes when audit payload unchanged
+- Grid events history: API returns newest-first; remove redundant client sort
 
 ## [0.6.3] - 2026-06-27
 

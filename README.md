@@ -100,7 +100,7 @@ uvicorn app.main:app --reload
 pytest
 ```
 
-Frontend (Node **24+**):
+Frontend (Node **26+**):
 
 ```bash
 cd frontend

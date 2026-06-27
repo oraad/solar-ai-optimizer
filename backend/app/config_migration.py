@@ -10,7 +10,7 @@ import yaml
 
 log = logging.getLogger("config_migration")
 
-CURRENT_SCHEMA_VERSION = 5
+CURRENT_SCHEMA_VERSION = 6
 SCHEMA_VERSION_KEY = "schema_version"
 OVERRIDES_KEY = "overrides"
 
@@ -153,12 +153,32 @@ def migrate_v4_to_v5(overrides: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _strip_grid_charge_factor_order(data: dict[str, Any]) -> dict[str, Any]:
+    """Remove deprecated grid_charge.factor_order from a config/overrides dict."""
+    out = dict(data)
+    grid_charge = out.get("grid_charge")
+    if not isinstance(grid_charge, dict):
+        return out
+    grid_charge = dict(grid_charge)
+    if "factor_order" in grid_charge:
+        del grid_charge["factor_order"]
+        log.info("Removed deprecated grid_charge.factor_order")
+        out["grid_charge"] = grid_charge
+    return out
+
+
+def migrate_v5_to_v6(overrides: dict[str, Any]) -> dict[str, Any]:
+    """Drop removed grid_charge.factor_order (order is fixed in ramp engine)."""
+    return _strip_grid_charge_factor_order(overrides)
+
+
 def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
     """Apply structural migrations to base YAML / merged config dicts."""
     if not data:
         return {}
     data = migrate_v3_to_v4(dict(data))
-    return migrate_v4_to_v5(data)
+    data = migrate_v4_to_v5(data)
+    return migrate_v5_to_v6(data)
 
 
 MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = [
@@ -167,6 +187,7 @@ MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = 
     (2, 3, migrate_v2_to_v3),
     (3, 4, migrate_v3_to_v4),
     (4, 5, migrate_v4_to_v5),
+    (5, 6, migrate_v5_to_v6),
 ]
 
 

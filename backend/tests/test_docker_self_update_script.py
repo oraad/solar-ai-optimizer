@@ -28,6 +28,9 @@ def test_update_script_exists_with_core_guards():
     assert "recreate_from_inspect.py" in text
     assert "recreate_container" in text
     assert "run_solar_container" in text
+    assert "cleanup_old_images" in text
+    assert "PREVIOUS_IMAGE_ID" in text
+    assert "IMAGE_RETENTION" in text
 
 
 def test_pull_progress_layer_parser():
@@ -83,6 +86,7 @@ def test_build_helper_argv_update(monkeypatch, tmp_path):
     assert f"{settings.self_update_data_volume}:{settings.self_update_data_path}" in joined
     assert "/opt/solar-ai-optimizer:/opt/solar-ai-optimizer:ro" in joined
     assert "TARGET_IMAGE=ghcr.io/oraad/solar-ai-optimizer:0.5.11" in joined
+    assert "IMAGE_RETENTION=2" in joined
 
 
 def test_build_helper_argv_restore(monkeypatch, tmp_path):

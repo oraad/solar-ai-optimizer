@@ -140,3 +140,20 @@ def test_migrate_v4_to_v5_keeps_existing_site_coordinates():
     assert version == CURRENT_SCHEMA_VERSION
     assert overrides["site"]["latitude"] == -34.0
     assert overrides["site"]["longitude"] == 19.0
+
+
+def test_migrate_v5_to_v6_removes_factor_order():
+    overrides, version = migrate_overrides(
+        {
+            "schema_version": 5,
+            "overrides": {
+                "grid_charge": {
+                    "factor_order": ["soc_gap", "grid_window"],
+                    "max_grid_charge_a": 60.0,
+                },
+            },
+        }
+    )
+    assert version == CURRENT_SCHEMA_VERSION
+    assert "factor_order" not in overrides["grid_charge"]
+    assert overrides["grid_charge"]["max_grid_charge_a"] == 60.0

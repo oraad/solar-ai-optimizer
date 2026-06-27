@@ -20,6 +20,8 @@ BACKUP_NAME="${BACKUP_NAME:-}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-120}"
 BACKUP_DIR="${BACKUP_DIR:-.update-backups}"
 BACKUP_RETENTION="${BACKUP_RETENTION:-3}"
+IMAGE_RETENTION="${IMAGE_RETENTION:-2}"
+IMAGE_CLEANUP="${IMAGE_CLEANUP:-1}"
 LOCK_FILE="${LOCK_FILE:-.update_in_progress}"
 PENDING_FILE="${PENDING_FILE:-.update_pending.json}"
 FAILED_FILE="${FAILED_FILE:-.update_failed.json}"
@@ -159,6 +161,49 @@ remove_stale_old() {
     echo "Removing stale ${CONTAINER_OLD}"
     docker rm -f "$CONTAINER_OLD" 2>/dev/null || true
   fi
+}
+
+image_repo_from_ref() {
+  local ref="${1:-}"
+  ref="${ref%%@*}"
+  if [[ "$ref" == *:* ]]; then
+    echo "${ref%:*}"
+  else
+    echo "$ref"
+  fi
+}
+
+capture_previous_image_id() {
+  PREVIOUS_IMAGE_ID=""
+  if docker inspect "$CONTAINER" >/dev/null 2>&1; then
+    PREVIOUS_IMAGE_ID="$(docker inspect -f '{{.Image}}' "$CONTAINER" 2>/dev/null || echo "")"
+  fi
+}
+
+cleanup_old_images() {
+  case "${IMAGE_CLEANUP}" in
+    0 | false | FALSE) return 0 ;;
+  esac
+
+  local repo current_id image_id
+  repo="$(image_repo_from_ref "$TARGET_IMAGE")"
+  [ -z "$repo" ] && return 0
+
+  current_id="$(docker inspect -f '{{.Image}}' "$CONTAINER" 2>/dev/null || true)"
+
+  if [ -n "${PREVIOUS_IMAGE_ID:-}" ] && [ "$PREVIOUS_IMAGE_ID" != "$current_id" ]; then
+    echo "Removing superseded image ${PREVIOUS_IMAGE_ID}"
+    docker rmi "$PREVIOUS_IMAGE_ID" 2>/dev/null || true
+  fi
+
+  while IFS= read -r image_id; do
+    [ -z "$image_id" ] && continue
+    [ "$image_id" = "$current_id" ] && continue
+    echo "Removing old image ${image_id}"
+    docker rmi "$image_id" 2>/dev/null || true
+  done < <(docker images "$repo" --format '{{.ID}}' | tail -n +$((IMAGE_RETENTION + 1)))
+
+  docker image prune -f >/dev/null 2>&1 || true
 }
 
 resolve_env_args() {
@@ -363,6 +408,7 @@ cmd_update() {
   if docker inspect "$CONTAINER" >/dev/null 2>&1; then
     PREVIOUS_IMAGE="$(docker inspect -f '{{.Config.Image}}' "$CONTAINER" 2>/dev/null || echo "")"
   fi
+  capture_previous_image_id
 
   do_backup
   do_pull
@@ -370,6 +416,8 @@ cmd_update() {
   docker volume inspect "$DATA_VOL" >/dev/null 2>&1 || docker volume create "$DATA_VOL" >/dev/null
   atomic_swap "$TARGET_IMAGE"
 
+  write_progress "finishing" "Cleaning up old images"
+  cleanup_old_images
   write_progress "finishing" "Finalizing"
   write_deploy_state "$TO_VERSION" "$TARGET_IMAGE" "$FROM_VERSION" "$PREVIOUS_IMAGE" "$BACKUP" "false"
   success_cleanup
@@ -391,6 +439,7 @@ cmd_restore() {
   if docker inspect "$CONTAINER" >/dev/null 2>&1; then
     PREVIOUS_IMAGE="$(docker inspect -f '{{.Config.Image}}' "$CONTAINER" 2>/dev/null || echo "")"
   fi
+  capture_previous_image_id
 
   write_progress "stopping" "Stopping current container"
   if docker inspect "$CONTAINER" >/dev/null 2>&1; then
@@ -413,6 +462,8 @@ cmd_restore() {
 
   atomic_swap "$TARGET_IMAGE" false
 
+  write_progress "finishing" "Cleaning up old images"
+  cleanup_old_images
   write_progress "finishing" "Finalizing"
   write_deploy_state "$TO_VERSION" "$TARGET_IMAGE" "" "" "${BACKUP_DIR}/${BACKUP_NAME}" "true"
   success_cleanup

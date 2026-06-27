@@ -73,12 +73,16 @@ function update_script() {
 
   solar_write_update_command
 
-  local previous current env_patched=0
+  local previous current env_patched=0 previous_image_id=""
   previous="$(solar_installed_ref)"
 
   msg_info "Ensuring auth configuration"
   solar_ensure_env_auth
   env_patched="${SOLAR_ENV_PATCHED:-0}"
+
+  if docker inspect "$SOLAR_CONTAINER" >/dev/null 2>&1; then
+    previous_image_id="$(docker inspect -f '{{.Image}}' "$SOLAR_CONTAINER" 2>/dev/null || echo "")"
+  fi
 
   msg_info "Pulling latest image"
   $STD docker pull "$(solar_image_ref)"
@@ -105,6 +109,10 @@ function update_script() {
   else
     msg_warn "Health check timed out — check: docker logs ${SOLAR_CONTAINER}"
   fi
+
+  msg_info "Cleaning up old images"
+  solar_cleanup_old_images "$previous_image_id"
+  msg_ok "Old images cleaned up"
 
   solar_show_admin_credentials
 

@@ -70,15 +70,6 @@ load_shedding:
 grid_charge:
   enabled: true
   ramp_enabled: true
-  factor_order:  # all factors apply; order affects rationale log only
-    - soc_gap
-    - grid_window
-    - battery_power
-    - remaining_solar_today
-    - next_solar_power
-    - load_power
-    - solar_bridge
-    - blackout_risk
   max_grid_charge_a: 60.0
   min_grid_charge_a: 5.0
   ramp_step_a: 10.0

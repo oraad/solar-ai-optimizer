@@ -1,19 +1,23 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 
+import { sharedStyles } from "../styles.js";
+
 /** Compact azimuth compass (0° = north, 90° = east) beside a numeric input. */
 @customElement("solar-azimuth-input")
 export class AzimuthInput extends LitElement {
-  static styles = css`
+  static styles = [
+    sharedStyles,
+    css`
     :host {
       display: flex;
       align-items: center;
       gap: 10px;
+      width: 100%;
     }
     input[type="number"] {
       flex: 1;
       min-width: 0;
-      box-sizing: border-box;
     }
     .compass {
       flex-shrink: 0;
@@ -50,7 +54,8 @@ export class AzimuthInput extends LitElement {
       border-radius: 1px;
       background: var(--accent);
     }
-  `;
+  `,
+  ];
 
   @property({ type: Number }) value = 180;
 

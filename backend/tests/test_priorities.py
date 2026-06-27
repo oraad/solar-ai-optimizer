@@ -118,12 +118,13 @@ def test_blend_ceiling_trim_strengthens_when_resilience_promoted():
     assert promoted < demoted
 
 
-def test_savings_first_raises_grid_window_ceiling():
-    battery = BatteryConfig()
-    grid_charge = GridChargeConfig(
-        max_grid_charge_a=60.0,
-        factor_order=[GridChargeFactor.grid_window],
+def test_savings_first_raises_grid_window_ceiling(monkeypatch):
+    monkeypatch.setattr(
+        "app.grid.ramp.GRID_CHARGE_FACTOR_ORDER",
+        [GridChargeFactor.grid_window],
     )
+    battery = BatteryConfig()
+    grid_charge = GridChargeConfig(max_grid_charge_a=60.0)
     reserve = ReserveTarget(
         target_soc=55.0,
         solar_bridge_soc=55.0,

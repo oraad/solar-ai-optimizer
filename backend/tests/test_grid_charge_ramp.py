@@ -80,21 +80,17 @@ def _ctx(**kwargs) -> RampContext:
     return RampContext(**defaults)
 
 
-def test_cap_chain_order_affects_output():
+def test_cap_chain_order_affects_output(monkeypatch):
+    monkeypatch.setattr(
+        "app.grid.ramp.GRID_CHARGE_FACTOR_ORDER",
+        [GridChargeFactor.soc_gap],
+    )
     high_soc = _ctx(
-        grid_charge=GridChargeConfig(
-            factor_order=[GridChargeFactor.soc_gap],
-            ramp_step_a=100.0,
-            min_grid_charge_a=0.0,
-        ),
+        grid_charge=GridChargeConfig(ramp_step_a=100.0, min_grid_charge_a=0.0),
         telemetry=_telemetry(battery_soc=50.0),
     )
     low_soc = _ctx(
-        grid_charge=GridChargeConfig(
-            factor_order=[GridChargeFactor.soc_gap],
-            ramp_step_a=100.0,
-            min_grid_charge_a=0.0,
-        ),
+        grid_charge=GridChargeConfig(ramp_step_a=100.0, min_grid_charge_a=0.0),
         telemetry=_telemetry(battery_soc=25.0),
     )
     high_plan = compute_ramp_plan(high_soc)
@@ -102,21 +98,17 @@ def test_cap_chain_order_affects_output():
     assert low_plan.target_amps > high_plan.target_amps
 
 
-def test_battery_power_lowers_ceiling():
+def test_battery_power_lowers_ceiling(monkeypatch):
+    monkeypatch.setattr(
+        "app.grid.ramp.GRID_CHARGE_FACTOR_ORDER",
+        [GridChargeFactor.battery_power],
+    )
     ctx = _ctx(
-        grid_charge=GridChargeConfig(
-            factor_order=[GridChargeFactor.battery_power],
-            ramp_step_a=100.0,
-            min_grid_charge_a=0.0,
-        ),
+        grid_charge=GridChargeConfig(ramp_step_a=100.0, min_grid_charge_a=0.0),
         telemetry=_telemetry(battery_power=2500.0),
     )
     idle = _ctx(
-        grid_charge=GridChargeConfig(
-            factor_order=[GridChargeFactor.battery_power],
-            ramp_step_a=100.0,
-            min_grid_charge_a=0.0,
-        ),
+        grid_charge=GridChargeConfig(ramp_step_a=100.0, min_grid_charge_a=0.0),
         telemetry=_telemetry(battery_power=-200.0),
     )
     charging = compute_ramp_plan(ctx)
@@ -207,23 +199,12 @@ def test_remaining_solar_lowers_when_plentiful():
         load=[LoadForecastPoint(ts=now, load_power_w=500.0)],
     )
     ctx = _ctx(
-        grid_charge=GridChargeConfig(
-            factor_order=[
-                GridChargeFactor.soc_gap,
-                GridChargeFactor.remaining_solar_today,
-            ],
-            ramp_step_a=100.0,
-            min_grid_charge_a=0.0,
-        ),
+        grid_charge=GridChargeConfig(ramp_step_a=100.0, min_grid_charge_a=0.0),
         forecast=forecast,
         telemetry=_telemetry(battery_soc=50.0),
     )
     without_solar = _ctx(
-        grid_charge=GridChargeConfig(
-            factor_order=[GridChargeFactor.soc_gap],
-            ramp_step_a=100.0,
-            min_grid_charge_a=0.0,
-        ),
+        grid_charge=GridChargeConfig(ramp_step_a=100.0, min_grid_charge_a=0.0),
         telemetry=_telemetry(battery_soc=50.0),
     )
     with_solar = compute_ramp_plan(ctx)

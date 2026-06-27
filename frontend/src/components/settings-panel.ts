@@ -1,8 +1,8 @@
-import { LitElement, css, html } from "lit";
+import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { api, getApiToken, setApiToken } from "../api.js";
-import { entityLabel, fieldLabel, gridChargeFactorLabel, INVERTER_READ_ENTITY_KEYS, optimizationPriorityLabel, pvLabel, sectionTitle } from "../field-labels.js";
+import { entityLabel, fieldLabel, INVERTER_READ_ENTITY_KEYS, optimizationPriorityLabel, pvLabel, sectionTitle } from "../field-labels.js";
 import { entityHelp, fieldHelp, priorityEffectHelp, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
 import { formatDateTime, getDateFormat, setDateFormat, type DateDisplayFormat } from "../date-format.js";
@@ -44,19 +44,6 @@ import {
 } from "../update-progress.js";
 
 type Section = Record<string, unknown>;
-
-const DEFAULT_GRID_CHARGE_FACTORS = [
-  "soc_gap",
-  "grid_window",
-  "battery_power",
-  "remaining_solar_today",
-  "next_solar_power",
-  "load_power",
-  "solar_bridge",
-  "blackout_risk",
-] as const;
-
-const ALL_GRID_CHARGE_FACTORS = [...DEFAULT_GRID_CHARGE_FACTORS] as const;
 
 const DEFAULT_PRIORITY_ORDER = [
   "resilience",
@@ -384,6 +371,9 @@ export class SettingsPanel extends LitElement {
         .category-pills { display: none; }
       }
       .settings-content { min-width: 0; }
+      .settings-nav-target {
+        scroll-margin-top: 72px;
+      }
       .section-panel {
         border: 1px solid var(--border);
         border-radius: 8px;
@@ -596,8 +586,11 @@ export class SettingsPanel extends LitElement {
   @state() private dragPriorityIndex: number | null = null;
 
   private savedSnapshot = "";
-  private navWide = true;
-  private resizeObserver: ResizeObserver | null = null;
+  private layoutWide = false;
+  private layoutMedia: MediaQueryList | null = null;
+  private pendingScrollNav: SettingsNavId | null = null;
+  private suppressScrollSpy = false;
+  private sectionObserver: IntersectionObserver | null = null;
   private updateWatchToken = 0;
   private onBeforeUnload = (e: BeforeUnloadEvent) => {
     if (this.isDirty) {
@@ -612,6 +605,10 @@ export class SettingsPanel extends LitElement {
     this.locale = getLocale();
     this.requestUpdate();
   };
+  private onLayoutMediaChange = () => {
+    this.layoutWide = this.layoutMedia?.matches ?? false;
+    this.requestUpdate();
+  };
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -620,24 +617,24 @@ export class SettingsPanel extends LitElement {
     window.addEventListener("solar-date-format-change", this.onDateFormatChange);
     window.addEventListener("solar-locale-change", this.onLocaleChange);
     window.addEventListener("beforeunload", this.onBeforeUnload);
+    this.layoutMedia = window.matchMedia("(min-width: 900px)");
+    this.layoutWide = this.layoutMedia.matches;
+    this.layoutMedia.addEventListener("change", this.onLayoutMediaChange);
     this.apiToken = getApiToken();
     if (this.config) this.setDraft(this.config);
     void this.loadConfig();
     void this.loadCapabilities();
     this.maybeResumeUpdateWatch();
-    this.resizeObserver = new ResizeObserver(() => {
-      this.navWide = this.offsetWidth >= 900;
-      this.requestUpdate();
-    });
-    this.resizeObserver.observe(this);
   }
 
   disconnectedCallback(): void {
     window.removeEventListener("solar-date-format-change", this.onDateFormatChange);
     window.removeEventListener("solar-locale-change", this.onLocaleChange);
     window.removeEventListener("beforeunload", this.onBeforeUnload);
-    this.resizeObserver?.disconnect();
-    this.resizeObserver = null;
+    this.layoutMedia?.removeEventListener("change", this.onLayoutMediaChange);
+    this.layoutMedia = null;
+    this.sectionObserver?.disconnect();
+    this.sectionObserver = null;
     super.disconnectedCallback();
   }
 
@@ -645,6 +642,25 @@ export class SettingsPanel extends LitElement {
     if (changed.has("updateInfo")) {
       this.maybeResumeUpdateWatch();
     }
+    if (this.pendingScrollNav) {
+      const id = this.pendingScrollNav;
+      this.pendingScrollNav = null;
+      this.suppressScrollSpy = true;
+      requestAnimationFrame(() => {
+        const el = this.renderRoot.querySelector(`#settings-section-${id}`);
+        if (el instanceof HTMLElement) {
+          const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+          el.focus({ preventScroll: true });
+          window.setTimeout(() => {
+            this.suppressScrollSpy = false;
+          }, reduceMotion ? 0 : 500);
+        } else {
+          this.suppressScrollSpy = false;
+        }
+      });
+    }
+    this.syncSectionObserver();
   }
 
   private maybeResumeUpdateWatch(): void {
@@ -747,12 +763,51 @@ export class SettingsPanel extends LitElement {
   private selectNav(id: SettingsNavId): void {
     this.activeNav = id;
     this.mobileCategory = categoryForNav(id);
+    this.pendingScrollNav = id;
   }
 
   private selectCategory(cat: SettingsCategory): void {
     this.mobileCategory = cat;
     const first = navItemsForCategory(cat)[0];
-    if (first) this.activeNav = first.id;
+    if (first) {
+      this.activeNav = first.id;
+      this.pendingScrollNav = first.id;
+    }
+  }
+
+  private syncSectionObserver(): void {
+    if (!this.layoutWide) {
+      this.sectionObserver?.disconnect();
+      this.sectionObserver = null;
+      return;
+    }
+    if (!this.sectionObserver) {
+      this.sectionObserver = new IntersectionObserver(
+        (entries) => {
+          if (this.suppressScrollSpy) return;
+          let best: IntersectionObserverEntry | null = null;
+          for (const entry of entries) {
+            if (
+              entry.isIntersecting &&
+              (!best || entry.intersectionRatio > best.intersectionRatio)
+            ) {
+              best = entry;
+            }
+          }
+          if (!best) return;
+          const id = best.target.id.replace(/^settings-section-/, "") as SettingsNavId;
+          if (SETTINGS_NAV.some((n) => n.id === id) && this.activeNav !== id) {
+            this.activeNav = id;
+            this.mobileCategory = categoryForNav(id);
+          }
+        },
+        { rootMargin: "-72px 0px -60% 0px", threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] },
+      );
+    }
+    this.sectionObserver.disconnect();
+    this.renderRoot.querySelectorAll(".settings-nav-target").forEach((el) => {
+      this.sectionObserver!.observe(el);
+    });
   }
 
   private openLoadSheddingTab(): void {
@@ -2118,58 +2173,16 @@ export class SettingsPanel extends LitElement {
     );
   }
 
-  private gridChargeFactors(): string[] {
-    const d = this.draft as unknown as Record<string, any>;
-    const raw = d.grid_charge?.factor_order;
-    if (!Array.isArray(raw) || raw.length === 0) {
-      return [...DEFAULT_GRID_CHARGE_FACTORS];
-    }
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const item of raw) {
-      const key = String(item);
-      if (!ALL_GRID_CHARGE_FACTORS.includes(key as (typeof ALL_GRID_CHARGE_FACTORS)[number])) continue;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(key);
-    }
-    return out.length ? out : [...DEFAULT_GRID_CHARGE_FACTORS];
-  }
-
   private setGridChargeField(key: string, value: unknown): void {
     this.patchDraft((d) => {
       d.grid_charge = { ...(d.grid_charge ?? {}), [key]: value };
     });
   }
 
-  private moveGridChargeFactor(i: number, dir: -1 | 1): void {
-    this.patchDraft((d) => {
-      const raw = (d.grid_charge as Record<string, unknown> | undefined)?.factor_order;
-      const list =
-        Array.isArray(raw) && raw.length
-          ? [...raw.map(String)]
-          : [...DEFAULT_GRID_CHARGE_FACTORS];
-      const j = i + dir;
-      if (j < 0 || j >= list.length) return;
-      [list[i], list[j]] = [list[j], list[i]];
-      d.grid_charge = { ...(d.grid_charge ?? {}), factor_order: list };
-    });
-  }
-
   private normalizeGridChargeForSave(draft: Record<string, unknown>): void {
     const gc = draft.grid_charge as Record<string, unknown> | undefined;
     if (!gc) return;
-    const seen = new Set<string>();
-    const order: string[] = [];
-    const raw = Array.isArray(gc.factor_order) ? gc.factor_order : [];
-    for (const item of raw) {
-      const key = String(item);
-      if (!ALL_GRID_CHARGE_FACTORS.includes(key as (typeof ALL_GRID_CHARGE_FACTORS)[number])) continue;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      order.push(key);
-    }
-    gc.factor_order = order.length ? order : [...DEFAULT_GRID_CHARGE_FACTORS];
+    delete gc.factor_order;
     const maxA = Number(gc.max_grid_charge_a ?? 60);
     const minA = Number(gc.min_grid_charge_a ?? 5);
     if (Number.isFinite(maxA) && Number.isFinite(minA)) {
@@ -2181,7 +2194,6 @@ export class SettingsPanel extends LitElement {
   private renderGridChargeSection() {
     const d = this.draft as unknown as Record<string, any>;
     const gc = d.grid_charge ?? {};
-    const factors = this.gridChargeFactors();
     const gcEnabled = gc.enabled !== false;
     return this.renderSectionPanel(
       sectionTitle("grid_charge"),
@@ -2277,22 +2289,6 @@ export class SettingsPanel extends LitElement {
             />
           </div>
         </div>
-        </details>
-        <details style="margin-top:12px">
-          <summary>${t("ui.settings.gridChargeAdvanced")}: ${t("ui.settings.factorLogOrder")}</summary>
-          ${factors.map(
-            (key, i) => html`
-              <div class="row" style="margin-bottom:6px">
-                <span style="flex:1">${labelWithTip(gridChargeFactorLabel(key), fieldHelp("grid_charge", key))}</span>
-                <button type="button" ?disabled=${i === 0} @click=${() => this.moveGridChargeFactor(i, -1)}>↑</button>
-                <button
-                  type="button"
-                  ?disabled=${i === factors.length - 1}
-                  @click=${() => this.moveGridChargeFactor(i, 1)}
-                >↓</button>
-              </div>
-            `,
-          )}
         </details>
       `,
     );
@@ -2458,6 +2454,7 @@ export class SettingsPanel extends LitElement {
             <button
               type="button"
               class="nav-item ${this.activeNav === item.id ? "active" : ""}"
+              aria-current=${this.activeNav === item.id ? "page" : nothing}
               @click=${() => this.selectNav(item.id)}
             >${label}</button>
           `;
@@ -2480,6 +2477,16 @@ export class SettingsPanel extends LitElement {
           `,
         )}
       </div>
+    `;
+  }
+
+  private renderNavSection(id: SettingsNavId): unknown {
+    const content = this.renderNavPanel(id);
+    if (content == null) return null;
+    return html`
+      <section id="settings-section-${id}" class="settings-nav-target" tabindex="-1">
+        ${content}
+      </section>
     `;
   }
 
@@ -2531,18 +2538,18 @@ export class SettingsPanel extends LitElement {
       const parts: unknown[] = [];
       for (const item of SETTINGS_NAV) {
         if (!matchesSettingsSearch(q, this.navLabel(item.labelKey))) continue;
-        parts.push(this.renderNavPanel(item.id));
+        parts.push(this.renderNavSection(item.id));
       }
       return parts.length ? parts : html`<p class="label">${t("ui.settings.noSearchResults")}</p>`;
     }
 
-    if (this.navWide) {
-      return this.renderNavPanel(this.activeNav);
+    if (this.layoutWide) {
+      return SETTINGS_NAV.map((item) => this.renderNavSection(item.id));
     }
 
     const parts: unknown[] = [];
     for (const item of navItemsForCategory(this.mobileCategory)) {
-      parts.push(this.renderNavPanel(item.id));
+      parts.push(this.renderNavSection(item.id));
     }
     return parts;
   }

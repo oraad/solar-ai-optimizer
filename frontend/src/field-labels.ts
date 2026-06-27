@@ -24,10 +24,6 @@ export function capabilityLabel(key: string): string {
   return t(`settings.capabilities.${key}`, undefined, entityLabel(key));
 }
 
-export function gridChargeFactorLabel(key: string): string {
-  return t(`settings.fields.grid_charge.${key}`, undefined, titleCaseSnake(key));
-}
-
 export function optimizationPriorityLabel(key: string): string {
   return t(`settings.priorities.${key}`, undefined, titleCaseSnake(key));
 }

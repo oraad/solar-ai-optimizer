@@ -275,6 +275,44 @@ solar_recreate_container() {
   solar_run_container
 }
 
+solar_image_repo_from_ref() {
+  local ref="${1:-}"
+  ref="${ref%%@*}"
+  if [[ "$ref" == *:* ]]; then
+    echo "${ref%:*}"
+  else
+    echo "$ref"
+  fi
+}
+
+solar_cleanup_old_images() {
+  local previous_image_id="${1:-}"
+  local image_cleanup="${IMAGE_CLEANUP:-1}"
+  local image_retention="${IMAGE_RETENTION:-2}"
+
+  case "$image_cleanup" in
+    0 | false | FALSE) return 0 ;;
+  esac
+
+  local repo current_id image_id
+  repo="$(solar_image_repo_from_ref "$(solar_image_ref)")"
+  [[ -z "$repo" ]] && return 0
+
+  current_id="$(docker inspect -f '{{.Image}}' "$SOLAR_CONTAINER" 2>/dev/null || true)"
+
+  if [[ -n "$previous_image_id" && "$previous_image_id" != "$current_id" ]]; then
+    docker rmi "$previous_image_id" 2>/dev/null || true
+  fi
+
+  while IFS= read -r image_id; do
+    [[ -z "$image_id" ]] && continue
+    [[ "$image_id" == "$current_id" ]] && continue
+    docker rmi "$image_id" 2>/dev/null || true
+  done < <(docker images "$repo" --format '{{.ID}}' | tail -n +$((image_retention + 1)))
+
+  docker image prune -f >/dev/null 2>&1 || true
+}
+
 solar_save_version() {
   local ref
   ref="$(solar_current_image_ref)"

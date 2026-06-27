@@ -203,7 +203,7 @@ Major sections:
 | **Engine** | Rules vs MPC mode; **optimization priority** order (resilience, savings, self-sufficiency) |
 | **Temperature** | Heating/cooling load model and outdoor sensor |
 | **Inverter entity map** | HA entities for read sensors and write controls |
-| **Grid charge** | Ramp and factor order for grid charging |
+| **Grid charge** | Ramp settings for grid charging |
 
 Configure **load shedding** in the dedicated **Load shedding** tab (not Settings).
 
@@ -226,9 +226,8 @@ Under **Engine**, choose **Rules** or **MPC**, then reorder **optimization prior
 3. **Self-sufficiency** — stronger solar-trim in grid-charge ramp; prefers PV over grid top-up
 
 The summary under the list reflects the active order. Default order matches the
-product stance: resilience → savings → self-sufficiency. Grid charge **factor order**
-(in the Grid charge section) still applies; priorities scale how strongly each factor
-bucket influences the cap chain.
+product stance: resilience → savings → self-sufficiency. Priorities scale how
+strongly each factor bucket influences the grid-charge cap chain.
 
 ### Load-shedding tiers {#load-shedding-tiers}
 

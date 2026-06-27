@@ -79,6 +79,9 @@ The Settings panel shows step-by-step progress (including image pull %). The ser
 the previous container is restored automatically. On failure, check
 `/app/data/.update-logs/latest.log` on the data volume.
 
+After a successful upgrade, old Solar images are pruned automatically (default: keep 2).
+Set `IMAGE_RETENTION` on the helper environment to retain more, or `IMAGE_CLEANUP=0` to disable.
+
 !!! note "Image version"
     One-click install requires **v0.5.5 or newer** (the image includes the Docker CLI via
     `docker-cli`). Releases below v0.5.5 cannot be installed via the dashboard picker.

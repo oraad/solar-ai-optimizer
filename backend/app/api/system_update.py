@@ -42,6 +42,7 @@ DEPLOY_STATE_FILE = ".deploy_state.json"
 PROXMOX_ENV_PREFIX = "/opt/solar-ai-optimizer"
 BACKUP_DIR = ".update-backups"
 BACKUP_RETENTION = 3
+IMAGE_RETENTION = 2
 UPDATE_LOCK_MAX_AGE_SECONDS = 30 * 60
 MIN_SELF_UPDATE_VERSION = "0.5.10"
 UPDATE_SCRIPT = "/app/scripts/docker-self-update.sh"
@@ -548,6 +549,8 @@ def _helper_env(settings: Settings, **extra: str) -> list[str]:
         f"BACKUP_DIR={BACKUP_DIR}",
         "-e",
         f"BACKUP_RETENTION={BACKUP_RETENTION}",
+        "-e",
+        f"IMAGE_RETENTION={IMAGE_RETENTION}",
         "-e",
         f"LOCK_FILE={UPDATE_LOCK_FILE}",
         "-e",

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-06-27
+
+### Added
+
+- **Self-update:** prune old Solar Docker images after successful dashboard upgrades and Proxmox `update` runs (default: keep 2 images); override with `IMAGE_RETENTION` or disable with `IMAGE_CLEANUP=0`
+
+### Changed
+
+- **Grid charge:** factor cap-chain order is fixed in the ramp engine; removed `grid_charge.factor_order` from config and Settings (schema v6 migration strips legacy overrides)
+- **Settings:** sidebar navigation uses scroll spy and improved wide-layout behavior
+- **Azimuth compass:** layout uses shared form styles for consistent width
+- Frontend manual and installation docs updated for fixed cap-chain order and image retention env vars
+
 ## [0.6.1] - 2026-06-28
 
 ### Added

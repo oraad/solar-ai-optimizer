@@ -338,46 +338,14 @@ class GridChargeFactor(str, Enum):
     solar_bridge = "solar_bridge"
 
 
-_DEFAULT_FACTOR_ORDER = [
-    GridChargeFactor.soc_gap,
-    GridChargeFactor.grid_window,
-    GridChargeFactor.battery_power,
-    GridChargeFactor.remaining_solar_today,
-    GridChargeFactor.next_solar_power,
-    GridChargeFactor.load_power,
-    GridChargeFactor.solar_bridge,
-    GridChargeFactor.blackout_risk,
-]
-
-
 class GridChargeConfig(BaseModel):
     enabled: bool = True
     ramp_enabled: bool = True
-    factor_order: list[GridChargeFactor] = Field(
-        default_factory=lambda: list(_DEFAULT_FACTOR_ORDER)
-    )
     max_grid_charge_a: float = 60.0
     min_grid_charge_a: float = 5.0
     ramp_step_a: float = 10.0
     off_threshold_a: float = 1.0
     next_solar_horizon_hours: int = 6
-
-    @field_validator("factor_order", mode="before")
-    @classmethod
-    def _normalize_factor_order(cls, v: object) -> list[GridChargeFactor]:
-        if not v:
-            return list(_DEFAULT_FACTOR_ORDER)
-        seen: set[GridChargeFactor] = set()
-        out: list[GridChargeFactor] = []
-        for item in v:
-            try:
-                factor = GridChargeFactor(str(item))
-            except ValueError:
-                continue
-            if factor not in seen:
-                seen.add(factor)
-                out.append(factor)
-        return out or list(_DEFAULT_FACTOR_ORDER)
 
 
 class OptimizationPriority(str, Enum):

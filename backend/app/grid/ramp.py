@@ -260,6 +260,17 @@ _EVALUATORS = {
     GridChargeFactor.solar_bridge: _eval_solar_bridge,
 }
 
+GRID_CHARGE_FACTOR_ORDER = [
+    GridChargeFactor.soc_gap,
+    GridChargeFactor.grid_window,
+    GridChargeFactor.battery_power,
+    GridChargeFactor.remaining_solar_today,
+    GridChargeFactor.next_solar_power,
+    GridChargeFactor.load_power,
+    GridChargeFactor.solar_bridge,
+    GridChargeFactor.blackout_risk,
+]
+
 
 def compute_ramp_plan(ctx: RampContext) -> GridChargePlan:
     """Cap-chain factor pipeline with optional per-cycle ramp smoothing."""
@@ -292,7 +303,7 @@ def compute_ramp_plan(ctx: RampContext) -> GridChargePlan:
     weights = ctx.priority_weights or {
         k.value: v for k, v in resolve_weights().items()
     }
-    for factor in cfg.factor_order:
+    for factor in GRID_CHARGE_FACTOR_ORDER:
         evaluator = _EVALUATORS.get(factor)
         if evaluator is None:
             continue

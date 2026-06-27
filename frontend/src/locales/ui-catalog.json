@@ -321,7 +321,6 @@
     "temperatureIntro": "Models heater/cooler load from outdoor temperature (Open-Meteo forecast + history). Optionally bias-corrected by a Home Assistant sensor.",
     "gridChargeIntro": "All listed factors apply each cycle; the engine takes the lowest ceiling. Ramp step limits how fast amps change each cycle.",
     "gridChargeAdvanced": "Advanced",
-    "factorLogOrder": "Factor log order (does not change behavior)",
     "advancedRawTitle": "Advanced: raw config (JSON)",
     "advancedRawIntro": "Edit any section, including load-shedding tiers. Invalid JSON or schema errors are rejected on apply.",
     "advancedRawWarning": "Power-user mode — changes apply immediately without Save.",

@@ -6,7 +6,7 @@ describe("fieldHelp", () => {
   it("returns help for known settings", () => {
     expect(fieldHelp("reserve", "critical_load_w")).toContain("reserve");
     expect(fieldHelp("load_shedding", "shed_below_soc")).toContain("SOC");
-    expect(fieldHelp("grid_charge", "battery_power")).toContain("charging");
+    expect(fieldHelp("grid_charge", "ramp_step_a")).toContain("cycle");
   });
 
   it("returns undefined for unknown keys", () => {

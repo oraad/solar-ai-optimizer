@@ -5,7 +5,6 @@ import {
   capabilityLabel,
   entityLabel,
   fieldLabel,
-  gridChargeFactorLabel,
   optimizationPriorityLabel,
   sectionTitle,
 } from "./field-labels.js";
@@ -22,7 +21,7 @@ describe("fieldLabel", () => {
     expect(fieldLabel("reserve", "critical_load_w")).toBe("Critical load (W)");
     expect(fieldLabel("control", "loop_interval_seconds")).toBe("Control loop interval (s)");
     expect(fieldLabel("load_shedding", "shed_below_soc")).toBe("Shed below SOC (%)");
-    expect(fieldLabel("grid_charge", "battery_power")).toBe("Battery charge rate");
+    expect(fieldLabel("grid_charge", "ramp_step_a")).toBe("Ramp step (A per cycle)");
     expect(fieldLabel("battery", "round_trip_efficiency")).toBe("Round-trip efficiency");
     expect(fieldLabel("reserve", "cloudy_extra_buffer_pct")).toBe("Cloudy extra buffer (%)");
   });
@@ -95,18 +94,6 @@ describe("capabilityLabel", () => {
 
   it("returns human labels for write capabilities", () => {
     expect(capabilityLabel("max_grid_charge_current")).toBe("Max grid charge current (A)");
-  });
-});
-
-describe("gridChargeFactorLabel", () => {
-  beforeEach(async () => {
-    localStorage.clear();
-    await initI18n();
-    await setLocale("en");
-  });
-
-  it("returns factor labels", () => {
-    expect(gridChargeFactorLabel("soc_gap")).toBe("SOC gap to reserve");
   });
 });
 

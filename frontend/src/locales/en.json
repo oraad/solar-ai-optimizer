@@ -91,15 +91,7 @@
         "min_grid_charge_a": "Min grid charge current (A)",
         "ramp_step_a": "Ramp step (A per cycle)",
         "off_threshold_a": "Off threshold (A)",
-        "next_solar_horizon_hours": "Next solar horizon (hours)",
-        "soc_gap": "SOC gap to reserve",
-        "remaining_solar_today": "Remaining solar today",
-        "next_solar_power": "Next solar window",
-        "load_power": "Load vs PV",
-        "battery_power": "Battery charge rate",
-        "grid_window": "Grid availability window",
-        "blackout_risk": "Blackout risk",
-        "solar_bridge": "Solar-bridge deficit"
+        "next_solar_horizon_hours": "Next solar horizon (hours)"
       },
       "engine": {
         "enabled": "Reserve & forecast optimization",
@@ -204,20 +196,12 @@
       },
       "grid_charge": {
         "enabled": "When off, the optimizer does not plan or write grid-charge commands. Independent of load shedding.",
-        "ramp_enabled": "When enabled, grid charge current ramps up/down using the factor cap chain below. When off, uses legacy max-or-off charging.",
+        "ramp_enabled": "When enabled, grid charge current ramps up/down using the factor cap chain. When off, uses legacy max-or-off charging.",
         "max_grid_charge_a": "Ceiling for grid charge current in amps. The ramp engine writes up to this value via the max grid charge current entity.",
         "min_grid_charge_a": "Minimum amps when grid charge is enabled. If the cap chain yields a value below this (but above off threshold), it is bumped up to avoid flickering at very low currents.",
         "ramp_step_a": "Maximum change in grid charge amps per control cycle.",
         "off_threshold_a": "If the cap chain result is below this value, grid charge is disabled.",
-        "next_solar_horizon_hours": "Hours ahead to look for imminent solar when evaluating the next solar window factor.",
-        "soc_gap": "Maps SOC deficit vs reserve target to an urgency ceiling — larger gap allows higher current.",
-        "remaining_solar_today": "Lowers grid charge when forecast solar today can cover the energy needed to reach reserve.",
-        "next_solar_power": "Lowers grid charge when significant solar is expected in the next few hours.",
-        "load_power": "Adjusts ceiling based on net load minus PV — less import need allows lower current.",
-        "battery_power": "Reduces grid charge when the battery is already charging from solar (+ = charging).",
-        "grid_window": "Short historical grid windows raise urgency; long windows allow slower charging.",
-        "blackout_risk": "Higher blackout risk score allows a higher ceiling within the cap chain.",
-        "solar_bridge": "Larger gap between current SOC and solar-bridge target allows higher current."
+        "next_solar_horizon_hours": "Hours ahead to look for imminent solar when evaluating the next solar window factor."
       },
       "engine": {
         "enabled": "When off, reserve targets, MPC, and forecast refresh are skipped. Load shedding and grid charge can still run independently.",
@@ -786,7 +770,6 @@
       "gridChargeIntro": "All listed factors apply each cycle; the engine takes the lowest ceiling. Ramp step limits how fast amps change each cycle.",
       "gridChargeDisabled": "Grid charge control is disabled — ramp settings are not used.",
       "gridChargeAdvanced": "Advanced",
-      "factorLogOrder": "Factor log order (does not change behavior)",
       "advancedRawTitle": "Advanced: raw config (JSON)",
       "advancedRawIntro": "Edit any section, including load-shedding tiers. Invalid JSON or schema errors are rejected on apply.",
       "advancedRawWarning": "Power-user mode — changes apply immediately without Save.",

@@ -1,4 +1,4 @@
 # Dev/test dependencies (installed in the Docker test image only).
 pytest>=9.1.1
 pytest-asyncio>=1.4.0
-httpx2>=2.0.0
+httpx2>=2.5.0

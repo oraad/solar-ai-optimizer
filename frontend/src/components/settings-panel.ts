@@ -160,6 +160,7 @@ export class SettingsPanel extends LitElement {
       }
       .release-badge.current { color: var(--good, #6c6); background: color-mix(in srgb, var(--good, #6c6) 18%, transparent); }
       .release-badge.newer { color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+      .release-badge.prerelease { color: var(--warn, #c90); background: color-mix(in srgb, var(--warn, #c90) 18%, transparent); }
       .settings-footer {
         margin-top: 16px;
         padding-top: 12px;
@@ -1390,9 +1391,10 @@ export class SettingsPanel extends LitElement {
     const isDowngrade = release?.relation === "older";
     const downgradeWarning = info.downgrade_warning ?? "";
     const schemaNote = isDowngrade ? `\n\n${SCHEMA_DOWNGRADE_NOTE}` : "";
+    const betaNote = release?.prerelease ? `\n\n${t("ui.settings.betaInstallConfirm")}` : "";
     const confirmMsg = isDowngrade
-      ? `Install v${target}? This is an older release.\n\n${downgradeWarning}${schemaNote}`
-      : `Install v${target} now? The service will restart and this page may disconnect briefly.`;
+      ? `Install v${target}? This is an older release.\n\n${downgradeWarning}${schemaNote}${betaNote}`
+      : `Install v${target} now? The service will restart and this page may disconnect briefly.${betaNote}`;
     if (!window.confirm(confirmMsg)) return;
 
     const toastId = "update-apply";
@@ -1622,6 +1624,19 @@ export class SettingsPanel extends LitElement {
     `;
   }
 
+  private async setIncludePrereleases(enabled: boolean): Promise<void> {
+    if (this.updateChecking || this.updateBusy) return;
+    try {
+      await api.updatePreferences(enabled);
+      await this.refreshUpdateInfo();
+    } catch (e) {
+      showToast({
+        message: e instanceof Error ? e.message : String(e),
+        variant: "error",
+      });
+    }
+  }
+
   private renderReleaseRow(release: ReleaseSummary, info: UpdateInfo) {
     const minVer = info.min_self_update_version;
     const belowMin = this.versionBelowMin(release.version, minVer);
@@ -1632,11 +1647,14 @@ export class SettingsPanel extends LitElement {
         : release.relation === "newer"
           ? html`<span class="release-badge newer">${t("ui.settings.releaseNewer")}</span>`
           : null;
+    const prereleaseBadge = release.prerelease
+      ? html`<span class="release-badge prerelease">${t("ui.settings.releasePrerelease")}</span>`
+      : null;
 
     return html`
       <tr>
         <td>
-          <strong>v${release.version}</strong>${badge}
+          <strong>v${release.version}</strong>${badge}${prereleaseBadge}
           ${release.published_at
             ? html`<div class="label">${this.formatPublishedAt(release.published_at)}</div>`
             : null}
@@ -1711,6 +1729,21 @@ export class SettingsPanel extends LitElement {
         ${info?.deployment === "proxmox"
           ? html`<p class="label">${t("ui.settings.proxmoxNote")}</p>`
           : null}
+        <label class="field" style="margin-top:10px">
+          <span style="display:inline-flex;align-items:center;gap:6px">
+            <input
+              type="checkbox"
+              .checked=${Boolean(info?.include_prereleases)}
+              ?disabled=${this.updateChecking || this.updateBusy}
+              @change=${(e: Event) => {
+                const checked = (e.target as HTMLInputElement).checked;
+                void this.setIncludePrereleases(checked);
+              }}
+            />
+            ${t("ui.settings.includePrereleases")}
+            <solar-info-tip .text=${t("ui.settings.includePrereleasesHelp")}></solar-info-tip>
+          </span>
+        </label>
         ${info?.update_available
           ? html`<span class="badge-update">${t("ui.settings.updateAvailableBadge", { version: latest ?? "" })}</span>`
           : null}

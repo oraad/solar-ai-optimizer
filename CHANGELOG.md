@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-28
+
+### Added
+
+- **Software updates:** optional **Include beta releases** toggle (server-persisted); pre-releases appear in the release table with install support on self-update hosts; update notifications remain stable-only
+- **Self-update:** recreate containers from `docker inspect` so dashboard **Install** preserves custom `docker run` ports, volumes, networks, and environment (Watchtower-style); falls back to the previous template when inspect recreate fails
+
+### Changed
+
+- Settings Software updates section documents beta opt-in and stable-only notification behavior
+- Installation docs clarify that one-click install keeps existing container configuration
+
 ## [0.6.0] - 2026-06-27
 
 ### Added

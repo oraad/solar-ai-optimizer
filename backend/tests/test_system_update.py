@@ -25,10 +25,12 @@ from app.api.system_update import (
     _is_newer,
     _is_proxmox_deployment,
     _load_update_progress,
+    _normalize_version,
     _parse_backup_filename,
     _parse_version,
     _resolve_image,
     _resolve_restore_image,
+    _save_update_preferences,
     _write_update_progress,
     router as system_update_router,
 )
@@ -146,6 +148,7 @@ def test_get_update_info_newer_release(mock_fetch, mock_list, update_client):
     assert data["apply_instructions"]
     assert len(data["releases"]) == 4
     assert all(r["version"] != "0.5.3-beta" for r in data["releases"])
+    assert data["include_prereleases"] is False
     assert data["min_self_update_version"] == "0.5.10"
     assert data["downgrade_warning"]
 
@@ -208,6 +211,7 @@ def test_post_update_accepted_latest(
     mock_spawn.assert_called_once()
     mock_list.assert_called()
     assert mock_list.call_args.kwargs.get("force") is True
+    assert mock_list.call_args.kwargs.get("include_prereleases") is False
 
 
 @patch("app.api.system_update._spawn_updater")
@@ -693,3 +697,159 @@ def test_clear_stale_lock_clears_progress(monkeypatch, tmp_path):
     assert not lock.exists()
     assert not progress.exists()
     _clear_update_progress(settings)
+
+
+def test_normalize_version_prerelease():
+    assert _normalize_version("v0.6.1-beta.1") == "0.6.1-beta.1"
+    assert _normalize_version("0.6.1-rc.2") == "0.6.1-rc.2"
+    assert _normalize_version("not-a-version") is None
+
+
+def test_parse_backup_filename_prerelease_target():
+    meta = _parse_backup_filename("pre-from-0.5.10-to-0.6.1-beta.1-1710000000.tar.gz")
+    assert meta == {
+        "before_version": "0.5.10",
+        "target_version": "0.6.1-beta.1",
+    }
+
+
+@patch("app.api.system_update._fetch_releases", new_callable=AsyncMock)
+@patch("app.api.system_update._fetch_latest_release", new_callable=AsyncMock)
+def test_get_includes_prereleases_when_enabled(
+    mock_fetch, mock_list, update_client, monkeypatch, tmp_path
+):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    settings = get_settings()
+    _save_update_preferences(settings, True)
+
+    mock_fetch.return_value = (
+        {
+            "tag_name": f"v{__version__}",
+            "body": "Current",
+            "html_url": "https://example.com",
+            "published_at": "2026-06-21T12:00:00Z",
+        },
+        False,
+    )
+    mock_list.return_value = (SAMPLE_RELEASES, False)
+
+    res = update_client.get(
+        "/api/system/update",
+        headers={"X-Remote-User-Id": "admin-1"},
+    )
+    data = res.json()
+    assert data["include_prereleases"] is True
+    assert any(r["version"] == "0.5.3-beta" for r in data["releases"])
+    beta = next(r for r in data["releases"] if r["version"] == "0.5.3-beta")
+    assert beta["prerelease"] is True
+    mock_list.assert_called()
+    assert mock_list.call_args.kwargs.get("include_prereleases") is True
+
+
+@patch("app.api.system_update._fetch_releases", new_callable=AsyncMock)
+@patch("app.api.system_update._fetch_latest_release", new_callable=AsyncMock)
+def test_get_no_update_notification_when_only_beta_newer(
+    mock_fetch, mock_list, update_client, monkeypatch, tmp_path
+):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    settings = get_settings()
+    _save_update_preferences(settings, True)
+
+    mock_fetch.return_value = (
+        {
+            "tag_name": f"v{__version__}",
+            "body": "Current stable",
+            "html_url": "https://example.com",
+            "published_at": "2026-06-21T12:00:00Z",
+        },
+        False,
+    )
+    mock_list.return_value = (
+        [
+            {
+                "tag_name": "v0.6.1-beta.1",
+                "body": "Beta only",
+                "html_url": "https://example.com/beta",
+                "published_at": "2026-06-22T12:00:00Z",
+                "prerelease": True,
+                "draft": False,
+            },
+            {
+                "tag_name": f"v{__version__}",
+                "body": "Current",
+                "html_url": "https://example.com",
+                "published_at": "2026-06-21T12:00:00Z",
+                "prerelease": False,
+                "draft": False,
+            },
+        ],
+        False,
+    )
+
+    res = update_client.get(
+        "/api/system/update",
+        headers={"X-Remote-User-Id": "admin-1"},
+    )
+    data = res.json()
+    assert data["update_available"] is False
+    assert data["latest_version"] == __version__
+    beta = next(r for r in data["releases"] if r["version"] == "0.6.1-beta.1")
+    assert beta["relation"] == "newer"
+
+
+def test_patch_update_preferences(update_client, tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+
+    res = update_client.patch(
+        "/api/system/update/preferences",
+        headers={"X-Remote-User-Id": "admin-1"},
+        json={"include_prereleases": True},
+    )
+    assert res.status_code == 200
+    assert res.json()["include_prereleases"] is True
+
+
+@patch("app.api.system_update._spawn_updater")
+@patch("app.api.system_update._fetch_releases", new_callable=AsyncMock)
+@patch("app.api.system_update._docker_cli_available", return_value=True)
+@patch("app.api.system_update._docker_socket_available", return_value=True)
+def test_post_update_with_beta_version(
+    mock_socket, mock_cli, mock_list, mock_spawn, update_client, monkeypatch
+):
+    monkeypatch.setenv("SELF_UPDATE_ENABLED", "true")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    mock_list.return_value = (
+        [
+            {
+                "tag_name": "v9.9.10-beta",
+                "body": "Beta",
+                "html_url": "https://example.com/beta",
+                "published_at": "2026-06-22T12:00:00Z",
+                "prerelease": True,
+                "draft": False,
+            }
+        ],
+        False,
+    )
+
+    res = update_client.post(
+        "/api/system/update",
+        headers={"X-Remote-User-Id": "admin-1"},
+        json={"version": "9.9.10-beta"},
+    )
+    assert res.status_code == 202
+    assert res.json()["target_version"] == "9.9.10-beta"
+    mock_list.assert_called()
+    assert mock_list.call_args.kwargs.get("include_prereleases") is True
+    mock_spawn.assert_called_once()

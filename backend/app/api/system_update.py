@@ -37,6 +37,7 @@ UPDATE_LOCK_FILE = ".update_in_progress"
 UPDATE_PENDING_FILE = ".update_pending.json"
 UPDATE_FAILED_FILE = ".update_failed.json"
 UPDATE_PROGRESS_FILE = ".update_progress.json"
+UPDATE_PREFERENCES_FILE = ".update_preferences.json"
 DEPLOY_STATE_FILE = ".deploy_state.json"
 PROXMOX_ENV_PREFIX = "/opt/solar-ai-optimizer"
 BACKUP_DIR = ".update-backups"
@@ -50,9 +51,14 @@ RELEASE_CACHE_TTL_SECONDS = 15 * 60
 
 _release_cache: dict[str, Any] | None = None
 _release_cache_at: float = 0.0
-_releases_list_cache: list[dict[str, Any]] | None = None
-_releases_list_cache_at: float = 0.0
+_releases_list_cache: dict[bool, list[dict[str, Any]]] = {}
+_releases_list_cache_at: dict[bool, float] = {}
 _release_checked_at: datetime | None = None
+
+_VERSION_TAG_RE = re.compile(
+    r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$"
+)
+_BACKUP_VERSION_RE = r"\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?"
 
 DeploymentKind = Literal["addon", "docker", "compose", "proxmox", "unknown"]
 ReleaseRelation = Literal["current", "newer", "older"]
@@ -66,6 +72,10 @@ class RestoreBackupRequest(BaseModel):
     backup: str | None = None
 
 
+class UpdatePreferencesRequest(BaseModel):
+    include_prereleases: bool
+
+
 def _parse_version(version: str) -> tuple[int, int, int]:
     cleaned = version.lstrip("vV").strip()
     match = re.match(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?", cleaned)
@@ -76,7 +86,7 @@ def _parse_version(version: str) -> tuple[int, int, int]:
 
 def _normalize_version(tag: str) -> str | None:
     cleaned = str(tag).lstrip("vV").strip()
-    if not re.match(r"^\d+\.\d+\.\d+$", cleaned):
+    if not _VERSION_TAG_RE.match(cleaned):
         return None
     return cleaned
 
@@ -195,7 +205,7 @@ def _image_version(image: str) -> str | None:
 def _parse_backup_filename(name: str) -> dict[str, str | None]:
     """Parse backup metadata from filename."""
     m = re.match(
-        r"^pre-from-(\d+\.\d+\.\d+)-to-(\d+\.\d+\.\d+)-(\d+)\.tar\.gz$",
+        rf"^pre-from-({_BACKUP_VERSION_RE})-to-({_BACKUP_VERSION_RE})-(\d+)\.tar\.gz$",
         name,
     )
     if m:
@@ -203,7 +213,7 @@ def _parse_backup_filename(name: str) -> dict[str, str | None]:
             "before_version": m.group(1),
             "target_version": m.group(2),
         }
-    m = re.match(r"^pre-(\d+\.\d+\.\d+)-(\d+)\.tar\.gz$", name)
+    m = re.match(rf"^pre-({_BACKUP_VERSION_RE})-(\d+)\.tar\.gz$", name)
     if m:
         return {"before_version": None, "target_version": m.group(1)}
     return {"before_version": None, "target_version": None}
@@ -250,6 +260,22 @@ def _clear_update_failed(settings: Settings) -> None:
 
 def _load_deploy_state(settings: Settings) -> dict[str, Any] | None:
     return _read_json_file(_data_dir(settings) / DEPLOY_STATE_FILE)
+
+
+def _load_update_preferences(settings: Settings) -> bool:
+    data = _read_json_file(_data_dir(settings) / UPDATE_PREFERENCES_FILE)
+    if not data:
+        return False
+    return bool(data.get("include_prereleases"))
+
+
+def _save_update_preferences(settings: Settings, include_prereleases: bool) -> None:
+    data_dir = _data_dir(settings)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / UPDATE_PREFERENCES_FILE).write_text(
+        json.dumps({"include_prereleases": include_prereleases}, indent=2),
+        encoding="utf-8",
+    )
 
 
 def _list_backups(settings: Settings) -> list[dict[str, Any]]:
@@ -357,17 +383,39 @@ async def _fetch_latest_release(*, force: bool = False) -> tuple[dict[str, Any] 
     return data, False
 
 
-async def _fetch_releases(*, force: bool = False) -> tuple[list[dict[str, Any]], bool]:
-    """Return (stable_releases, from_cache)."""
+def _filter_github_releases(
+    data: list[Any],
+    *,
+    include_prereleases: bool,
+) -> list[dict[str, Any]]:
+    filtered = [
+        r
+        for r in data
+        if isinstance(r, dict)
+        and not r.get("draft")
+        and (include_prereleases or not r.get("prerelease"))
+        and _normalize_version(str(r.get("tag_name", "")))
+    ]
+    return filtered[:RELEASES_LIST_LIMIT]
+
+
+async def _fetch_releases(
+    *,
+    include_prereleases: bool = False,
+    force: bool = False,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Return (releases, from_cache). Stable-only when include_prereleases is False."""
     global _releases_list_cache, _releases_list_cache_at, _release_checked_at
 
     now = time.monotonic()
+    cached = _releases_list_cache.get(include_prereleases)
+    cached_at = _releases_list_cache_at.get(include_prereleases, 0.0)
     if (
         not force
-        and _releases_list_cache is not None
-        and now - _releases_list_cache_at < RELEASE_CACHE_TTL_SECONDS
+        and cached is not None
+        and now - cached_at < RELEASE_CACHE_TTL_SECONDS
     ):
-        return _releases_list_cache, True
+        return cached, True
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -379,26 +427,20 @@ async def _fetch_releases(*, force: bool = False) -> tuple[list[dict[str, Any]],
             data = response.json()
     except httpx.HTTPError as exc:
         log.warning("Failed to fetch GitHub releases list: %s", exc)
-        if _releases_list_cache is not None:
-            return _releases_list_cache, True
+        if cached is not None:
+            return cached, True
         return [], False
 
     if not isinstance(data, list):
-        return _releases_list_cache or [], _releases_list_cache is not None
+        if cached is not None:
+            return cached, True
+        return [], False
 
-    stable = [
-        r
-        for r in data
-        if isinstance(r, dict)
-        and not r.get("draft")
-        and not r.get("prerelease")
-        and _normalize_version(str(r.get("tag_name", "")))
-    ][:RELEASES_LIST_LIMIT]
-
-    _releases_list_cache = stable
-    _releases_list_cache_at = now
+    releases = _filter_github_releases(data, include_prereleases=include_prereleases)
+    _releases_list_cache[include_prereleases] = releases
+    _releases_list_cache_at[include_prereleases] = now
     _release_checked_at = datetime.now(UTC)
-    return stable, False
+    return releases, False
 
 
 def _build_release_summaries(
@@ -428,6 +470,7 @@ def _build_release_summaries(
             "relation": relation,
             "installable": installable,
             "image": _resolve_image(settings.self_update_image, version),
+            "prerelease": bool(release.get("prerelease")),
         }
         if not can_apply and deployment != "addon":
             summary["apply_instructions"] = _apply_instructions(
@@ -675,8 +718,12 @@ async def build_update_info(
     deployment = _detect_deployment(settings)
     can_apply = _can_apply(settings)
 
+    include_prereleases = _load_update_preferences(settings)
     release, release_from_cache = await _fetch_latest_release(force=force_release_refresh)
-    releases_raw, _ = await _fetch_releases(force=force_release_refresh)
+    releases_raw, _ = await _fetch_releases(
+        include_prereleases=include_prereleases,
+        force=force_release_refresh,
+    )
     release_summaries = _build_release_summaries(
         releases_raw, current, settings, can_apply, deployment
     )
@@ -688,7 +735,7 @@ async def build_update_info(
     update_available = False
 
     if release:
-        tag = str(release.get("tag_name", "")).lstrip("v")
+        tag = _normalize_version(str(release.get("tag_name", "")))
         if tag:
             latest_version = tag
             update_available = _is_newer(tag, current)
@@ -732,6 +779,7 @@ async def build_update_info(
         "release_checked_at": release_checked_at,
         "release_from_cache": release_from_cache,
         "releases": release_summaries,
+        "include_prereleases": include_prereleases,
         "previous_version": previous_version,
         "min_self_update_version": MIN_SELF_UPDATE_VERSION,
         "backups": _list_backups(settings),
@@ -747,6 +795,16 @@ async def get_update_info(
     refresh: bool = Query(False),
 ) -> dict[str, Any]:
     return await build_update_info(force_release_refresh=refresh)
+
+
+@router.patch("/update/preferences")
+async def patch_update_preferences(
+    body: UpdatePreferencesRequest,
+    _admin: SessionUser = Depends(require_admin),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, Any]:
+    _save_update_preferences(settings, body.include_prereleases)
+    return localize_payload({"include_prereleases": body.include_prereleases})
 
 
 @router.post("/update", status_code=202)
@@ -772,10 +830,12 @@ async def apply_update(
         raise api_error("api.update.already_in_progress", 409)
 
     current = __version__
-    releases_raw, _ = await _fetch_releases(force=True)
-    target_version = _resolve_target_version(
-        releases_raw, body.version if body else None, current
-    )
+    requested = body.version if body else None
+    if requested:
+        releases_raw, _ = await _fetch_releases(include_prereleases=True, force=True)
+    else:
+        releases_raw, _ = await _fetch_releases(include_prereleases=False, force=True)
+    target_version = _resolve_target_version(releases_raw, requested, current)
 
     if _parse_version(target_version) == _parse_version(current):
         raise api_error("api.update.already_running_version", 400)

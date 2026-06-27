@@ -170,6 +170,7 @@ export interface ReleaseSummary {
   relation: ReleaseRelation;
   installable: boolean;
   image: string;
+  prerelease?: boolean;
   apply_instructions?: string | null;
 }
 
@@ -223,6 +224,7 @@ export interface UpdateInfo {
   release_checked_at?: string | null;
   release_from_cache?: boolean;
   releases?: ReleaseSummary[];
+  include_prereleases?: boolean;
   previous_version?: string | null;
   min_self_update_version?: string;
   backups?: UpdateBackup[];

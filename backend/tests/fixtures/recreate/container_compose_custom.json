@@ -1,0 +1,39 @@
+{
+  "Id": "def456",
+  "Image": "sha256:oldimage",
+  "Config": {
+    "Image": "ghcr.io/oraad/solar-ai-optimizer:0.5.10",
+    "Entrypoint": ["/app/run.sh"],
+    "Cmd": [],
+    "Env": [
+      "PATH=/usr/local/bin:/usr/bin:/bin",
+      "SHADOW_MODE=true",
+      "DATA_DIR=/app/data"
+    ],
+    "Labels": {"com.docker.compose.project": "solar"},
+    "WorkingDir": "/app",
+    "User": "",
+    "ExposedPorts": {"8000/tcp": {}}
+  },
+  "HostConfig": {
+    "NetworkMode": "solar_default",
+    "PortBindings": {
+      "8000/tcp": [{"HostIp": "", "HostPort": "9000"}]
+    },
+    "Binds": [
+      "solar-data:/app/data",
+      "/host/config.yaml:/app/config/config.yaml:ro"
+    ],
+    "RestartPolicy": {"Name": "unless-stopped", "MaximumRetryCount": 0}
+  },
+  "NetworkSettings": {
+    "Networks": {
+      "solar_default": {
+        "Aliases": ["solar-optimizer", "abc123def456"],
+        "NetworkID": "net2",
+        "EndpointID": "ep2",
+        "IPAddress": "172.18.0.3"
+      }
+    }
+  }
+}

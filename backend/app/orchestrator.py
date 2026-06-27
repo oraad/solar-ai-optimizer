@@ -416,8 +416,9 @@ class Orchestrator:
         forecast = self.forecast.current
 
         decision = self._decide(telemetry, forecast, self._telemetry_stale(telemetry))
+        if not repo.decisions_audit_equal(self.latest_decision, decision):
+            await repo.save_decision(decision)
         self.latest_decision = decision
-        await repo.save_decision(decision)
 
         if self.grid_charge_active and decision.actions:
             try:

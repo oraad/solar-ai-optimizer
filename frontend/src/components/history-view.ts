@@ -304,8 +304,6 @@ export class HistoryView extends LitElement {
 
   private recentEvents(): string[] {
     return this.gridEvents
-      .slice()
-      .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
       .slice(0, 5)
       .map(
         (g) =>

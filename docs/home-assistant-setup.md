@@ -50,6 +50,8 @@ Rotate tokens periodically and revoke unused tokens from the same Security page.
 
 The app pulls `ghcr.io/oraad/solar-ai-optimizer` from GHCR (version tag from the app manifest); no build on the HA host.
 
+Settings, telemetry, and learned models persist on the Supervisor **`/data`** volume. `run.sh` forces `DATA_DIR=/data` on app startup (overriding the image default `/app/data`) so UI config survives restarts and upgrades.
+
 App options (Supervisor UI) map to environment variables via `run.sh`:
 
 | App option | Environment variable |

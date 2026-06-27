@@ -4,6 +4,7 @@ import { customElement, property } from "lit/decorators.js";
 import { formatRiskFromScore } from "../blackout-risk.js";
 import { t } from "../i18n.js";
 import { LocaleController } from "../locale-controller.js";
+import { socFillStyle } from "../soc-bar.js";
 import { sharedStyles } from "../styles.js";
 import type { SystemStatus } from "../types.js";
 
@@ -50,13 +51,22 @@ export class OverviewHero extends LitElement {
         background: var(--track);
         overflow: hidden;
       }
-      .soc-fill { height: 100%; background: linear-gradient(90deg, var(--good), var(--accent)); }
+      .soc-fill { height: 100%; }
       .reserve-mark {
         position: absolute; top: -2px; width: 2px; height: 14px; background: var(--accent-2);
       }
       @media (max-width: 700px) {
-        .hero { flex-direction: column; align-items: stretch; }
-        .battery-block { flex-direction: column; align-items: stretch; }
+        .hero {
+          flex-direction: column;
+          align-items: stretch;
+          justify-content: flex-start;
+          gap: 12px;
+        }
+        .battery-block {
+          flex-direction: column;
+          align-items: stretch;
+          flex: 0 0 auto;
+        }
       }
     `,
   ];
@@ -68,6 +78,7 @@ export class OverviewHero extends LitElement {
     const d = this.status?.decision ?? null;
     const engineOn = this.status?.engine_enabled !== false;
     const soc = telemetry?.battery_soc ?? null;
+    const minSoc = this.status?.battery_summary?.min_soc_floor ?? 20;
     const reserve = engineOn ? (d?.reserve.target_soc ?? null) : null;
     const riskScore = engineOn ? (d?.blackout_risk_score ?? null) : null;
     const risk = riskScore != null ? formatRiskFromScore(riskScore) : null;
@@ -79,7 +90,7 @@ export class OverviewHero extends LitElement {
           <div class="soc-bar-wrap">
             <div class="label">${t("ui.status.battery")}</div>
             <div class="soc-bar">
-              <div class="soc-fill" style="width:${soc ?? 0}%"></div>
+              <div class="soc-fill" style=${socFillStyle(soc, minSoc)}></div>
               ${reserve != null
                 ? html`<div class="reserve-mark" style="left:${reserve}%"></div>`
                 : null}

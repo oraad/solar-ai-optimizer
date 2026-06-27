@@ -1,10 +1,10 @@
 {
   "name": "solar-ai-optimizer-dashboard",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Lit dashboard for the Solar AI Optimizer",
   "type": "module",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "scripts": {
     "dev": "vite",

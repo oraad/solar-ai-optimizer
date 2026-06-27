@@ -326,7 +326,7 @@ npm run docs:screenshots
 docker run --rm --add-host=host.docker.internal:host-gateway \
   -v "$(pwd)/frontend:/ui" -v "$(pwd)/docs:/docs" \
   -e SCREENSHOT_BASE_URL=http://host.docker.internal:8000 \
-  -w /ui node:24-trixie \
+  -w /ui node:26-trixie \
   bash -lc "npm ci && npx playwright install --with-deps chromium && npm run docs:screenshots"
 ```
 

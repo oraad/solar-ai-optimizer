@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-06-27
+
+### Changed
+
+- Docker frontend build image: `node:24-trixie` → `node:26-trixie`
+- Backend dependencies: bcrypt `>=5.0.0`, websockets `>=16.0`, httpx2 `>=2.5.0`, fastapi `0.138.1`
+- CI: `actions/checkout` v7
+- Frontend manual and README updated for Node 26; local dev `engines.node` set to `>=26`
+
+### Fixed
+
+- Vitest/jsdom `localStorage` on Node 25+ (in-memory shim in test setup)
+
 ## [0.6.2] - 2026-06-27
 
 ### Added

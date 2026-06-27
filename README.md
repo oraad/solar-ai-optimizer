@@ -26,7 +26,7 @@ Full documentation: **https://oraad.github.io/solar-ai-optimizer/**
 
 | Topic | Guide |
 |-------|--------|
-| Install | [Installation](https://oraad.github.io/solar-ai-optimizer/installation/) — Docker, Compose, add-on, Proxmox |
+| Install | [Installation](https://oraad.github.io/solar-ai-optimizer/installation/) — Docker, Compose, HA app, Proxmox |
 | Dashboard | [User guide](https://oraad.github.io/solar-ai-optimizer/frontend-manual/) — admin and viewer |
 | Home Assistant | [HA setup](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/) · [Fail-safe](https://oraad.github.io/solar-ai-optimizer/home-assistant-failsafe/) |
 | Access | [Roles and access](https://oraad.github.io/solar-ai-optimizer/ingress-auth/) |
@@ -71,7 +71,7 @@ confirm the decisions look right, then switch to live control from the dashboard
 
 ### Other deployment paths
 
-- **Home Assistant add-on** — [HA setup guide](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/#supervisor-add-on)
+- **Home Assistant app** — [HA setup guide](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/#supervisor-add-on)
 - **Proxmox LXC** — [one-liner install](https://oraad.github.io/solar-ai-optimizer/proxmox/) (Debian or Alpine)
 
 ### Tests

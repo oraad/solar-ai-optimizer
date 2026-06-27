@@ -89,7 +89,7 @@ COPY VERSION ./VERSION
 COPY scripts ./scripts
 RUN sed -i 's/\r$//' /app/scripts/docker-self-update.sh /app/scripts/recreate_from_inspect.py /app/scripts/lib/pull-progress.sh \
     && chmod +x /app/scripts/docker-self-update.sh /app/scripts/recreate_from_inspect.py
-COPY config.yaml ./config.yaml
+COPY solar_ai_optimizer/config.yaml ./config.yaml
 COPY frontend/package.json ./frontend/package.json
 COPY backend/tests ./tests
 ENV PYTHONPATH=/app

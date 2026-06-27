@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION_FILE = ROOT / "VERSION"
-CONFIG_YAML = ROOT / "config.yaml"
+CONFIG_YAML = ROOT / "solar_ai_optimizer" / "config.yaml"
 PACKAGE_JSON = ROOT / "frontend" / "package.json"
 
 

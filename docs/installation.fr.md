@@ -14,7 +14,7 @@ activation du contrôle en direct à partir du panneau **Overrides** du tableau 
 |--------|----------|-------------|
 | [Docker Composer](#docker-compose-recommended)| Développeur, homelab, hôte Docker générique |`solar-data`volumes |
 | [Docker (image GHCR)](#docker-standalone-image)| Conteneur unique, pas de Compose |`solar-data`volumes |
-| [Module complémentaire Home Assistant](#home-assistant-add-on)| HAOS / Supervisé | Superviseur`/data` |
+| [Application Home Assistant](#home-assistant-add-on)| HAOS / Supervisé | Superviseur`/data` |
 | [Proxmox LXC](#proxmox-lxc)| Laboratoire domestique Proxmox VE | Volume Docker dans LXC |
 
 Voir aussi :[Configuration de l'assistant à domicile](home-assistant-setup.md) · [Configuration](configuration.md) · [`.env.example`](https://github.com/oraad/solar-ai-optimizer/blob/main/.env.example)
@@ -139,24 +139,29 @@ par installation en un clic - utiliser le manuel`docker pull`+ recréer pour ces
 
 ---
 
-## Module complémentaire Home Assistant {#home-assistant-add-on}
+## Application Home Assistant {#home-assistant-add-on}
 
 !!! tip "Meilleure intégration de Home Assistant"
 Panneau d'entrée natif, jeton de superviseur automatique et aucun câblage manuel d'URL HA lorsque
-les informations d'identification sont laissées vides dans les options du module complémentaire.
+les informations d'identification sont laissées vides dans les options de l'application.
 
-**Prérequis :** Système d'exploitation Home Assistant ou installation supervisée avec accès au magasin de modules complémentaires.
+**Prérequis :** Système d'exploitation Home Assistant ou installation supervisée avec accès à la boutique d'applications.
 
-1. **Superviseur → Boutique de modules complémentaires → Dépôts** → ajouter :
+[![Ouvrez votre instance Home Assistant et affichez la boîte de dialogue d'ajout de dépôt.](https://my.home-assistant.io/badges/redirect_repository.svg)](https://my.home-assistant.io/redirect/repository/?owner=oraad&repository=solar-ai-optimizer)
+
+1. **Paramètres → Applications → Boutique d'applications → ⋮ → Dépôts personnalisés** → ajouter :
    ```
    https://github.com/oraad/solar-ai-optimizer
    ```
-2. Installez **Solar AI Optimizer** depuis le magasin.
-3. Démarrez le module complémentaire et ouvrez le **panneau d'entrée** à partir de la barre latérale HA (icône : panneau solaire).
+2. Installez **Solar AI Optimizer** depuis la boutique.
+3. Démarrez l'application et ouvrez le **panneau d'entrée** à partir de la barre latérale HA (icône : panneau solaire).
 
-Le module complémentaire est construit à partir du référentiel`Dockerfile`et persiste dans son état sous`/data`
-(base de données, configuration d'exécution, modèle appris). Les options du module complémentaire sont mappées aux variables d'environnement
-via`run.sh`(mode shadow, niveau de journalisation, clés Solcast, jeton API, etc.).
+L'application télécharge l'image préconstruite `ghcr.io/oraad/solar-ai-optimizer` (étiquette correspondant à la
+`version` du manifeste) — pas de compilation sur l'hôte HA. L'état persiste sous `/data`
+(base de données, configuration d'exécution, modèle appris). Les options de l'application sont mappées aux variables d'environnement
+via `run.sh` (mode shadow, niveau de journalisation, clés Solcast, jeton API, etc.).
+
+La `version` du manifeste doit correspondre à une [version publiée](https://github.com/oraad/solar-ai-optimizer/releases) sur GHCR.
 
 Câblage HA complet (entités, packages, authentification d'entrée) :[Configuration de l'assistant à domicile](home-assistant-setup.md).
 

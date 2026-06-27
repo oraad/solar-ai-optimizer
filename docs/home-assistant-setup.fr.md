@@ -9,7 +9,7 @@ Choisissez votre chemin de déploiement :
 
 | Chemin | Quand utiliser |
 |------|-------------|
-| [Module complémentaire Superviseur](#supervisor-add-on)| HAOS ou Supervisé — recommandé pour la plupart des utilisateurs HA |
+| [Application Superviseur](#supervisor-add-on)| HAOS ou Supervisé — recommandé pour la plupart des utilisateurs HA |
 | [Docker + hass_ingress](#docker-with-hass_ingress)| Conteneur autonome sur le même réseau que HA |
 | [Docker autonome](#standalone-docker)| Direct`:8000`accéder; connexion facultative de l'administrateur local |
 
@@ -20,7 +20,7 @@ Après la connexion, complétez[mappage d'entité](#inverter-entity-discovery)et
 
 ## Jeton d'accès longue durée {#long-lived-access-token}
 
-Requis pour les déploiements Docker et Proxmox (le module complémentaire utilise automatiquement le jeton Supervisor lorsque les champs sont laissés vides).
+Requis pour les déploiements Docker et Proxmox (l'application HA utilise automatiquement le jeton Supervisor lorsque les champs sont laissés vides).
 
 1. Dans Home Assistant, ouvrez votre **Profil** (avatar en bas à gauche).
 2. Faites défiler jusqu'à **Sécurité** → **Jetons d'accès longue durée**.
@@ -30,15 +30,17 @@ Requis pour les déploiements Docker et Proxmox (le module complémentaire utili
 - **Jeton :** collez le jeton de longue durée
 - **Vérifier SSL :** activer si HA utilise HTTPS avec un certificat valide
 
-Pour le **module complémentaire**, laissez l'URL/le jeton vide pour l'utiliser`http://supervisor/core`et`SUPERVISOR_TOKEN`.
+Pour l'**application HA**, laissez l'URL/le jeton vide pour utiliser `http://supervisor/core` et `SUPERVISOR_TOKEN`.
 
 Faites pivoter périodiquement les jetons et révoquez les jetons inutilisés à partir de la même page de sécurité.
 
 ---
 
-## Module complémentaire Superviseur {#supervisor-add-on}
+## Application Superviseur {#supervisor-add-on}
 
-1. **Superviseur → Boutique de modules complémentaires → Dépôts** → ajouter :
+[![Ouvrez votre instance Home Assistant et affichez la boîte de dialogue d'ajout de dépôt.](https://my.home-assistant.io/badges/redirect_repository.svg)](https://my.home-assistant.io/redirect/repository/?owner=oraad&repository=solar-ai-optimizer)
+
+1. **Paramètres → Applications → Boutique d'applications → ⋮ → Dépôts personnalisés** → ajouter :
    ```
    https://github.com/oraad/solar-ai-optimizer
    ```
@@ -46,9 +48,11 @@ Faites pivoter périodiquement les jetons et révoquez les jetons inutilisés à
 3. Ouvrez le **panneau d'entrée** à partir de la barre latérale HA.
 4. Dans **Paramètres**, configurez la latitude/longitude, les panneaux photovoltaïques et[entités onduleurs](#inverter-entity-discovery).
 
-Les options complémentaires (interface utilisateur du superviseur) sont mappées aux variables d'environnement via`run.sh`:
+L'application télécharge `ghcr.io/oraad/solar-ai-optimizer` depuis GHCR (étiquette de version du manifeste) ; pas de build sur l'hôte HA.
 
-| Option complémentaire | Variable d'environnement |
+Les options de l'application (interface utilisateur du superviseur) sont mappées aux variables d'environnement via `run.sh` :
+
+| Option de l'application | Variable d'environnement |
 |---------------|---------------------|
 | `shadow_mode` | `SHADOW_MODE` |
 | `log_level` | `LOG_LEVEL` |
@@ -56,7 +60,7 @@ Les options complémentaires (interface utilisateur du superviseur) sont mappée
 | `solcast_api_key` | `SOLCAST_API_KEY` |
 | `api_token` | `API_TOKEN` |
 
-Ingress est automatiquement approuvé lors de son exécution en tant que module complémentaire (`SUPERVISOR_TOKEN`); ensemble`TRUST_INGRESS_HEADERS=true`pour les déploiements externes Docker/Proxmox. Cela permet l'identité de l'utilisateur mandaté et`X-Frame-Options: SAMEORIGIN`pour le panneau de la barre latérale.
+Ingress est automatiquement approuvé lors de son exécution en tant qu'application Superviseur (`SUPERVISOR_TOKEN`); ensemble `TRUST_INGRESS_HEADERS=true` pour les déploiements externes Docker/Proxmox. Cela permet l'identité de l'utilisateur mandaté et `X-Frame-Options: SAMEORIGIN` pour le panneau de la barre latérale.
 Voir[Rôles et accès](ingress-auth.md)pour le comportement de l'administrateur par rapport au spectateur.
 
 ---
@@ -262,7 +266,7 @@ Paramètres → Prévisions → Température → **Entité de capteur extérieur
 
 ## Guides associés
 
-- [Installation](installation.md)— Docker, module complémentaire, Proxmox
+- [Installation](installation.md)— Docker, application HA, Proxmox
 - [Sécurité intégrée de Home Assistant](home-assistant-failsafe.md)- réglage du rythme cardiaque
 - [Rôles et accès](ingress-auth.md)— administrateur contre spectateur
 - [Configuration](configuration.md)- variables d'environnement et persistance

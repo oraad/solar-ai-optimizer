@@ -1,18 +1,16 @@
-# Home Assistant add-on manifest.
+# Home Assistant app manifest.
 name: "Solar AI Optimizer"
 version: "0.6.3"
 slug: "solar_ai_optimizer"
 description: "Resilience-first, vendor-agnostic solar/battery optimizer."
-url: "https://github.com/oraad/solar-ai-optimizer"
+url: "https://github.com/oraad/solar-ai-optimizer/tree/main/solar_ai_optimizer"
 arch:
   - aarch64
   - amd64
 init: false
 startup: application
 boot: auto
-build:
-  .: .
-  dockerfile: Dockerfile
+image: ghcr.io/oraad/solar-ai-optimizer
 ingress: true
 ingress_port: 8000
 panel_icon: "mdi:solar-power-variant"

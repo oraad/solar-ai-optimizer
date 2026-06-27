@@ -14,7 +14,7 @@ start in **shadow mode** (observe-only; no inverter writes until you switch to l
 |--------|----------|-------------|
 | [Docker Compose](#docker-compose-recommended) | Dev, homelab, generic Docker host | `solar-data` volume |
 | [Docker (GHCR image)](#docker-standalone-image) | Single container, no Compose | `solar-data` volume |
-| [Home Assistant add-on](#home-assistant-add-on) | HAOS / Supervised | Supervisor `/data` |
+| [Home Assistant app](#home-assistant-add-on) | HAOS / Supervised | Supervisor `/data` |
 | [Proxmox LXC](#proxmox-lxc) | Proxmox VE homelab | Docker volume inside LXC |
 
 See also: [Home Assistant setup](home-assistant-setup.md) · [Configuration](configuration.md) · [`.env.example`](https://github.com/oraad/solar-ai-optimizer/blob/main/.env.example)
@@ -144,24 +144,29 @@ as long as the container was created with them.
 
 ---
 
-## Home Assistant add-on {#home-assistant-add-on}
+## Home Assistant app {#home-assistant-add-on}
 
 !!! tip "Best Home Assistant integration"
     Native ingress panel, automatic Supervisor token, and no manual HA URL wiring when
-    credentials are left empty in add-on options.
+    credentials are left empty in app options.
 
-**Prerequisites:** Home Assistant OS or Supervised installation with add-on store access.
+**Prerequisites:** Home Assistant OS or Supervised installation with App store access.
 
-1. **Supervisor → Add-on store → Repositories** → add:
+[![Open your Home Assistant instance and show the add repository dialog.](https://my.home-assistant.io/badges/redirect_repository.svg)](https://my.home-assistant.io/redirect/repository/?owner=oraad&repository=solar-ai-optimizer)
+
+1. **Settings → Apps → App store → ⋮ → Custom repositories** → add:
    ```
    https://github.com/oraad/solar-ai-optimizer
    ```
 2. Install **Solar AI Optimizer** from the store.
-3. Start the add-on and open the **ingress panel** from the HA sidebar (icon: solar panel).
+3. Start the app and open the **ingress panel** from the HA sidebar (icon: solar panel).
 
-The add-on builds from the repository `Dockerfile` and persists state under `/data`
-(database, runtime config, learned model). Add-on options map to environment variables
+The app pulls the pre-built image `ghcr.io/oraad/solar-ai-optimizer` (matching the
+`version` in the app manifest) — no compile on your HA host. State persists under `/data`
+(database, runtime config, learned model). App options map to environment variables
 via `run.sh` (shadow mode, log level, Solcast keys, API token, etc.).
+
+The manifest `version` must match a [released](https://github.com/oraad/solar-ai-optimizer/releases) GHCR tag; `main` may briefly be ahead of the latest release.
 
 Full HA wiring (entities, packages, ingress auth): [Home Assistant setup](home-assistant-setup.md).
 
@@ -199,7 +204,7 @@ Updates, backups, fork/branch overrides, and future OCI notes:
 After any deployment path:
 
 1. Open the dashboard → **Settings**
-2. **Connect Home Assistant** (URL + long-lived token) — skip if using the add-on with default Supervisor wiring
+2. **Connect Home Assistant** (URL + long-lived token) — skip if using the HA app with default Supervisor wiring
 3. Set **site latitude / longitude** and **PV arrays** (required for solar forecast)
 4. Map **inverter read/write entities** in Settings → Inverter entity map
 5. Leave **shadow mode** on; confirm Overview decisions look reasonable

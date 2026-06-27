@@ -9,7 +9,7 @@ Choose your deployment path:
 
 | Path | When to use |
 |------|-------------|
-| [Supervisor add-on](#supervisor-add-on) | HAOS or Supervised — recommended for most HA users |
+| [Supervisor app](#supervisor-add-on) | HAOS or Supervised — recommended for most HA users |
 | [Docker + hass_ingress](#docker-with-hass_ingress) | Standalone container on the same network as HA |
 | [Standalone Docker](#standalone-docker) | Direct `:8000` access; optional local admin login |
 
@@ -20,7 +20,7 @@ After connecting, complete [entity mapping](#inverter-entity-discovery) and opti
 
 ## Long-lived access token {#long-lived-access-token}
 
-Required for Docker and Proxmox deployments (the add-on uses the Supervisor token automatically when fields are left empty).
+Required for Docker and Proxmox deployments (the HA app uses the Supervisor token automatically when fields are left empty).
 
 1. In Home Assistant, open your **Profile** (bottom-left avatar).
 2. Scroll to **Security** → **Long-Lived Access Tokens**.
@@ -30,15 +30,17 @@ Required for Docker and Proxmox deployments (the add-on uses the Supervisor toke
    - **Token:** paste the long-lived token
    - **Verify SSL:** enable if HA uses HTTPS with a valid certificate
 
-For the **add-on**, leave URL/token empty to use `http://supervisor/core` and `SUPERVISOR_TOKEN`.
+For the **HA app**, leave URL/token empty to use `http://supervisor/core` and `SUPERVISOR_TOKEN`.
 
 Rotate tokens periodically and revoke unused tokens from the same Security page.
 
 ---
 
-## Supervisor add-on {#supervisor-add-on}
+## Supervisor app {#supervisor-add-on}
 
-1. **Supervisor → Add-on store → Repositories** → add:
+[![Open your Home Assistant instance and show the add repository dialog.](https://my.home-assistant.io/badges/redirect_repository.svg)](https://my.home-assistant.io/redirect/repository/?owner=oraad&repository=solar-ai-optimizer)
+
+1. **Settings → Apps → App store → ⋮ → Custom repositories** → add:
    ```
    https://github.com/oraad/solar-ai-optimizer
    ```
@@ -46,9 +48,11 @@ Rotate tokens periodically and revoke unused tokens from the same Security page.
 3. Open the **ingress panel** from the HA sidebar.
 4. In **Settings**, configure latitude/longitude, PV arrays, and [inverter entities](#inverter-entity-discovery).
 
-Add-on options (Supervisor UI) map to environment variables via `run.sh`:
+The app pulls `ghcr.io/oraad/solar-ai-optimizer` from GHCR (version tag from the app manifest); no build on the HA host.
 
-| Add-on option | Environment variable |
+App options (Supervisor UI) map to environment variables via `run.sh`:
+
+| App option | Environment variable |
 |---------------|---------------------|
 | `shadow_mode` | `SHADOW_MODE` |
 | `log_level` | `LOG_LEVEL` |
@@ -56,7 +60,7 @@ Add-on options (Supervisor UI) map to environment variables via `run.sh`:
 | `solcast_api_key` | `SOLCAST_API_KEY` |
 | `api_token` | `API_TOKEN` |
 
-Ingress is trusted automatically when running as an add-on (`SUPERVISOR_TOKEN`); set `TRUST_INGRESS_HEADERS=true` for external Docker/Proxmox deployments. This enables proxied user identity and `X-Frame-Options: SAMEORIGIN` for the sidebar panel.
+Ingress is trusted automatically when running as a Supervisor app (`SUPERVISOR_TOKEN`); set `TRUST_INGRESS_HEADERS=true` for external Docker/Proxmox deployments. This enables proxied user identity and `X-Frame-Options: SAMEORIGIN` for the sidebar panel.
 See [Roles and access](ingress-auth.md) for admin vs viewer behavior.
 
 ---
@@ -262,7 +266,7 @@ Settings → Forecast → Temperature → **Outdoor sensor entity** — any `sen
 
 ## Related guides
 
-- [Installation](installation.md) — Docker, add-on, Proxmox
+- [Installation](installation.md) — Docker, HA app, Proxmox
 - [Home Assistant fail-safe](home-assistant-failsafe.md) — heartbeat tuning
 - [Roles and access](ingress-auth.md) — admin vs viewer
 - [Configuration](configuration.md) — env vars and persistence

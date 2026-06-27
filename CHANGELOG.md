@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Home Assistant app store: fix `repository.yaml` validation; app manifest in `solar_ai_optimizer/` pulls `ghcr.io/oraad/solar-ai-optimizer` (no on-host build)
+- Installation and HA setup docs: Add-ons → Apps terminology
+
 ## [0.6.3] - 2026-06-27
 
 ### Changed

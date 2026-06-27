@@ -53,7 +53,7 @@ Pre-release images are installed by **explicit tag** (`ghcr.io/oraad/solar-ai-op
      python scripts/sync-version.py
    ```
 
-   `sync-version.py` normalizes `VERSION` to `<version>\n` (LF), and updates `config.yaml` and `frontend/package.json`. Repo `.gitattributes` enforces LF on checkout/commit.
+   `sync-version.py` normalizes `VERSION` to `<version>\n` (LF), and updates `solar_ai_optimizer/config.yaml` and `frontend/package.json`. Repo `.gitattributes` enforces LF on checkout/commit.
 
 3. Update `CHANGELOG.md`: move `## [Unreleased]` items into `## [{VERSION}] - YYYY-MM-DD`; leave `## [Unreleased]` empty. Brackets must match `VERSION` exactly.
 4. Update `docs/` when UI or setup changed (see `.github/PULL_REQUEST_TEMPLATE.md`).

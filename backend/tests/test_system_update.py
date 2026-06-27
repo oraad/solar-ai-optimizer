@@ -117,9 +117,12 @@ def update_client(monkeypatch, tmp_path):
     return TestClient(app)
 
 
+STABLE_SAMPLE_RELEASES = [r for r in SAMPLE_RELEASES if not r.get("prerelease")]
+
+
 def _mock_release_fetches(mock_latest, mock_list):
     mock_latest.return_value = (SAMPLE_RELEASES[0], False)
-    mock_list.return_value = (SAMPLE_RELEASES, False)
+    mock_list.return_value = (STABLE_SAMPLE_RELEASES, False)
 
 
 def test_viewer_cannot_check_updates(update_client):
@@ -773,7 +776,7 @@ def test_get_no_update_notification_when_only_beta_newer(
     mock_list.return_value = (
         [
             {
-                "tag_name": "v0.6.1-beta.1",
+                "tag_name": "v9.9.10-beta",
                 "body": "Beta only",
                 "html_url": "https://example.com/beta",
                 "published_at": "2026-06-22T12:00:00Z",
@@ -799,7 +802,7 @@ def test_get_no_update_notification_when_only_beta_newer(
     data = res.json()
     assert data["update_available"] is False
     assert data["latest_version"] == __version__
-    beta = next(r for r in data["releases"] if r["version"] == "0.6.1-beta.1")
+    beta = next(r for r in data["releases"] if r["version"] == "9.9.10-beta")
     assert beta["relation"] == "newer"
 
 

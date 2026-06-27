@@ -12,7 +12,8 @@
     "override": {
       "kill_switch_confirm": "kill_switch nécessite confirm=true",
       "no_fields": "Aucun champ de surcharge fourni",
-      "assistant_kill_switch": "L'arrêt d'urgence nécessite une confirmation explicite dans votre question (par ex. inclure « confirm »)."
+      "assistant_kill_switch": "L'arrêt d'urgence nécessite une confirmation explicite dans votre question (par ex. inclure « confirm »).",
+      "grid_charge_disabled": "Le contrôle de charge réseau est désactivé dans les paramètres."
     },
     "validation": {
       "field": "{loc} : {msg}"
@@ -60,7 +61,8 @@
       "heat_wave": " Vague de chaleur : {cdh} degrés-heures de refroidissement (24h) augmentant la charge prévue.",
       "degraded_buffer": " Prévision dégradée/obsolète — tampon supplémentaire conservateur appliqué.",
       "driver_solar_bridge": "pont-solaire",
-      "driver_autonomy_floor": "plancher-autonomie"
+      "driver_autonomy_floor": "plancher-autonomie",
+      "optimization_disabled": "Optimisation désactivée — objectif de réserve non calculé."
     },
     "summary": {
       "main": "SOC {soc} vs réserve {target}% | {grid} | risque de coupure : {risk}. {rationale}",
@@ -69,7 +71,8 @@
       "priorities_prefix": "Priorités : {order}. ",
       "grid_present": "réseau PRÉSENT",
       "grid_absent": "réseau absent",
-      "soc_unknown": "?"
+      "soc_unknown": "?",
+      "shedding_only": "Délestage actif — optimisation désactivée."
     },
     "advisory": {
       "surplus": "Surplus disponible ({kw} kW) avec batterie pleine : orienter vers les charges différables (chauffe-eau/VE/pompes) au lieu de limiter."

@@ -4,8 +4,15 @@ repo_url: https://github.com/oraad/solar-ai-optimizer
 repo_name: oraad/solar-ai-optimizer
 edit_uri: edit/main/docs/
 
+validation:
+  links:
+    not_found: ignore
+    anchors: warn
+    unrecognized_links: ignore
+
 theme:
   name: material
+  language: en
   palette:
     - scheme: default
       primary: amber
@@ -23,6 +30,47 @@ theme:
     - navigation.sections
     - content.code.copy
 
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      reconfigure_material: true
+      reconfigure_search: true
+      fallback_to_default: false
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+        - locale: fr
+          name: Français
+          build: true
+          nav_translations:
+            Home: Accueil
+            Installation: Installation
+            Dashboard User Guide: Guide utilisateur du tableau de bord
+            Mobile Ingress QA: QA Ingress mobile
+            Roles and Access: Rôles et accès
+            Home Assistant Setup: Configuration Home Assistant
+            Home Assistant Fail-safe: Sécurité Home Assistant
+            Configuration: Configuration
+            Proxmox Deployment: Déploiement Proxmox
+            Security: Sécurité
+        - locale: ar
+          name: العربية
+          build: true
+          nav_translations:
+            Home: الرئيسية
+            Installation: التثبيت
+            Dashboard User Guide: دليل لوحة التحكم
+            Mobile Ingress QA: ضمان جودة Ingress للجوال
+            Roles and Access: الأدوار والوصول
+            Home Assistant Setup: إعداد Home Assistant
+            Home Assistant Fail-safe: الحماية الاحتياطية لـ Home Assistant
+            Configuration: الإعدادات
+            Proxmox Deployment: نشر Proxmox
+            Security: الأمان
+
 nav:
   - Home: index.md
   - Installation: installation.md
@@ -36,6 +84,7 @@ nav:
   - Security: security.md
 
 markdown_extensions:
+  - attr_list
   - admonition
   - tables
   - toc:

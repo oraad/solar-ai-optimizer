@@ -2,44 +2,28 @@
  * Verify forecast/history chart layout: no overflow, axes visible, canvas aligned, card fill.
  *
  * Prerequisite: solar app running (docker compose up -d solar).
- * Usage: npm run test:charts-visual
  *
- * On Windows without local Node, use a Debian Trixie container:
- *   docker run --rm -v "%CD%\frontend:/ui" -v "%CD%\docs:/docs" -w /ui \
- *     -e SCREENSHOT_BASE_URL=http://host.docker.internal:8000 \
- *     node:24-trixie \
- *     bash -lc "npm ci && npx playwright install --with-deps chromium && npm run test:charts-visual"
+ * Local: npm run test:charts-visual
+ * Docker: npm run test:charts-visual:docker
+ *         (or docker compose --profile docs run --rm docs-screenshots npm run test:charts-visual)
  */
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { chromium, type Locator, type Page } from "playwright";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = path.resolve(__dirname, "../../docs/images/frontend");
-const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:8000";
+import {
+  app,
+  assertDemoPreflight,
+  BASE_URL,
+  clickMainTab,
+  createScreenshotContext,
+  initDashboard,
+  OUT_DIR,
+  waitForChart,
+} from "./screenshot-utils.mjs";
+
 const TOLERANCE_PX = 2;
-
-function app(page: Page) {
-  return page.locator("solar-app");
-}
-
-async function waitForDashboard(page: Page): Promise<void> {
-  await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  await page.evaluate(() => {
-    localStorage.setItem("solar-theme", "dark");
-    document.documentElement.setAttribute("data-theme", "dark");
-  });
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await app(page).getByRole("tablist").waitFor({ timeout: 60_000 });
-  await page.waitForTimeout(1500);
-}
-
-async function clickMainTab(page: Page, label: string): Promise<void> {
-  await app(page).getByRole("tab", { name: label }).click();
-  await page.waitForTimeout(900);
-}
 
 type Rect = { top: number; left: number; bottom: number; right: number; width: number; height: number };
 
@@ -173,36 +157,35 @@ async function verifyChartInComponent(
   cardShot: string,
   label: string,
 ): Promise<void> {
+  await waitForChart(page, componentSelector);
   const host = app(page).locator(componentSelector);
   const wrap = host.locator(".chart-wrap").first();
-  const uplot = wrap.locator(".uplot").first();
-
-  await wrap.waitFor({ state: "visible", timeout: 30_000 });
-  await uplot.waitFor({ state: "visible", timeout: 30_000 });
-  await page.waitForTimeout(500);
 
   const probe = await probeChartLayout(host);
   reportProbe(label, probe);
 
-  await wrap.screenshot({ path: path.join(OUT_DIR, wrapShot) });
+  await wrap.screenshot({ path: path.join(OUT_DIR, wrapShot), animations: "disabled" });
   console.log(`wrote ${path.join(OUT_DIR, wrapShot)}`);
 
-  await host.locator(".card").first().screenshot({ path: path.join(OUT_DIR, cardShot) });
+  await host.locator(".card").first().screenshot({
+    path: path.join(OUT_DIR, cardShot),
+    animations: "disabled",
+  });
   console.log(`wrote ${path.join(OUT_DIR, cardShot)}`);
 }
 
 async function main(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });
+  await assertDemoPreflight(BASE_URL);
+
   const browser = await chromium.launch();
-  const context = await browser.newContext({
-    locale: "en-US",
-    timezoneId: "UTC",
+  const context = await createScreenshotContext(browser, {
     viewport: { width: 1280, height: 900 },
   });
   const page = await context.newPage();
 
   try {
-    await waitForDashboard(page);
+    await initDashboard(page);
 
     await clickMainTab(page, "Forecast");
     await verifyChartInComponent(
@@ -214,11 +197,6 @@ async function main(): Promise<void> {
     );
 
     await clickMainTab(page, "History");
-    await app(page)
-      .locator("solar-history-view .tabs button")
-      .filter({ hasText: "Chart" })
-      .click();
-    await page.waitForTimeout(500);
     await verifyChartInComponent(
       page,
       "solar-history-view",

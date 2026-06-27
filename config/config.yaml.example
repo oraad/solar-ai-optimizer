@@ -54,6 +54,7 @@ fail_safe:
   shutdown_failsafe_enabled: true
 
 engine:
+  enabled: true
   mode: rules
   mpc_horizon_hours: 48
 
@@ -67,6 +68,7 @@ load_shedding:
   tiers: []
 
 grid_charge:
+  enabled: true
   ramp_enabled: true
   factor_order:  # all factors apply; order affects rationale log only
     - soc_gap

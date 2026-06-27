@@ -1,0 +1,55 @@
+---
+description: Lit frontend architecture — components, state, events, routing
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# Frontend architecture
+
+## Stack
+
+Lit 3 + TypeScript + Vite. **No React, Vue, Tailwind, or external UI libraries.**
+
+## Components
+
+- Tag: `solar-<kebab-name>`; file `kebab-name.ts`; class `PascalCase`
+- Default **shadow DOM**; light DOM only when global tokens must hit native inputs (login page: `createRenderRoot() { return this; }`)
+- User-facing components: `LocaleController` in constructor + `t("dotted.key")` for all strings
+- Panels/views/cards/inputs live in `frontend/src/components/`; shared logic in top-level `src/` (`api.ts`, `toast.ts`, `charts.ts`, …)
+
+```typescript
+@customElement("solar-example-panel")
+export class ExamplePanel extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+  static styles = [sharedStyles, css`/* component-only */`];
+}
+```
+
+## State (no Redux/Zustand)
+
+- App-level `@state()` on `SolarApp` (`app-root.ts`): session, status, tab, config, entities
+- Live telemetry: `LiveSocket` WebSocket (`api.ts`); 60s polling for forecast/plan/config
+- Child coordination: **`window` custom events** prefixed `solar-*`:
+  `solar-plan-refresh`, `solar-forecast-refresh`, `solar-navigate-tab`, `solar-history-nav-change`,
+  `solar-load-shedding-dirty`, `solar-theme-change`, `solar-locale-change`, `solar-date-format-change`,
+  `solar-toast-show|update|dismiss`
+- `localStorage`: `solar-theme`, `solar-tab`, `solar-locale`, `solar-date-format`, `solar-api-token`
+
+## Routing
+
+No router library. Tab state + `localStorage` (`solar-tab`) + URL hash (`#overview`, `#history/timeline`, …).
+
+## Async UX
+
+Use `runWithToast()` (`toast.ts`) for operator actions; dispatch `solar-plan-refresh` after mutations.
+
+## Anti-patterns
+
+Do not introduce a state library, CSS framework, or SPA router without an explicit project decision.
+
+## Keep this rule current
+
+Update when you change custom event names, `localStorage` keys, component layout, or app shell structure. Full UX spec: [`docs/frontend-manual.md`](docs/frontend-manual.md).

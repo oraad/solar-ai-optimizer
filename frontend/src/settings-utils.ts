@@ -53,14 +53,30 @@ export function buildSetupChecklist(
   const read = (d?.inverter as Record<string, unknown> | undefined)?.read as
     | Record<string, unknown>
     | undefined;
+  const gc = d?.grid_charge as Record<string, unknown> | undefined;
+  const eng = d?.engine as Record<string, unknown> | undefined;
+  const ls = d?.load_shedding as Record<string, unknown> | undefined;
+  const gridChargeOn = gc?.enabled !== false;
+  const engineOn = eng?.enabled !== false;
+  const shedPrimary = !gridChargeOn && !engineOn;
   const hasPv = Boolean(String(read?.pv_power ?? "").trim());
   const hasLoad = Boolean(String(read?.load_power ?? "").trim());
   const hasSoc = Boolean(String(read?.battery_soc ?? "").trim());
   const arrays = (d?.forecast as Record<string, unknown> | undefined)?.arrays;
   const hasArrays = Array.isArray(arrays) && arrays.length > 0;
   const locationOk = !status?.forecast_misconfigured;
+  const tiers = ls?.tiers;
+  const hasTiers =
+    Boolean(ls?.enabled) && Array.isArray(tiers) && tiers.length > 0;
+  const write = (d?.inverter as Record<string, unknown> | undefined)?.write as
+    | Record<string, unknown>
+    | undefined;
+  const hasGridChargeWrites = Boolean(
+    String(write?.grid_charge_enable ?? "").trim() ||
+      String(write?.max_grid_charge_current ?? "").trim(),
+  );
 
-  return [
+  const items: ChecklistItem[] = [
     {
       id: "ha",
       done: entitiesConnected || Boolean(status?.ha_connected),
@@ -76,12 +92,14 @@ export function buildSetupChecklist(
     {
       id: "location",
       done: locationOk,
+      optional: shedPrimary,
       labelKey: "ui.settings.checklist.siteLocation",
       navId: "setup_site",
     },
     {
       id: "pv",
       done: hasArrays,
+      optional: shedPrimary,
       labelKey: "ui.settings.checklist.pvArrays",
       navId: "setup_site",
     },
@@ -95,6 +113,27 @@ export function buildSetupChecklist(
       navId: "safety",
     },
   ];
+
+  if (shedPrimary) {
+    items.push({
+      id: "shed_tiers",
+      done: hasTiers,
+      labelKey: "ui.settings.checklist.shedTiers",
+      navId: "setup_inverter",
+    });
+  }
+
+  if (gridChargeOn) {
+    items.push({
+      id: "grid_charge_writes",
+      done: hasGridChargeWrites,
+      optional: true,
+      labelKey: "ui.settings.checklist.gridChargeWrites",
+      navId: "setup_inverter",
+    });
+  }
+
+  return items;
 }
 
 export function checklistNeedsAttention(items: ChecklistItem[]): boolean {

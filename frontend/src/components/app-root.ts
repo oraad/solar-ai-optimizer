@@ -17,6 +17,7 @@ import type {
   SystemStatus,
   UpdateInfo,
 } from "../types.js";
+import { buildSubsystemAlerts, type StatusAlert } from "../subsystem-status.js";
 import { updateChipLabel } from "../update-progress.js";
 
 import "./status-cards.js";
@@ -61,8 +62,6 @@ const TAB_ICONS: Record<Tab, string> = {
 const VIEWER_TAB_IDS: Tab[] = TAB_IDS.filter(
   (id) => id !== "settings" && id !== "assistant" && id !== "load_shedding",
 );
-
-type StatusAlert = { label: string; className: string; title?: string; onClick?: () => void };
 
 const UPDATE_FORCE_INTERVAL_MS = 15 * 60 * 1000;
 
@@ -432,6 +431,7 @@ export class SolarApp extends LitElement {
     this.session = null;
     this.authReady = true;
     this.needsLogin = true;
+    this.removeAttribute("data-dashboard-ready");
     this.status = null;
     this.gridStats = null;
     this.updateInfo = null;
@@ -643,6 +643,7 @@ export class SolarApp extends LitElement {
   }
 
   private async bootstrap(): Promise<void> {
+    this.removeAttribute("data-dashboard-ready");
     try {
       this.applyStatus(await api.status());
       this.apiError = "";
@@ -650,6 +651,9 @@ export class SolarApp extends LitElement {
       this.noteApiError(e);
     }
     await this.refreshSlow();
+    if (this.status) {
+      this.setAttribute("data-dashboard-ready", "true");
+    }
   }
 
   private async refreshSlow(): Promise<void> {
@@ -724,8 +728,12 @@ export class SolarApp extends LitElement {
     return t("ui.app.updatedMinutes", { m: String(m) });
   }
 
+  private get subsystemPills(): StatusAlert[] {
+    return buildSubsystemAlerts(this.status);
+  }
+
   private get secondaryAlerts(): StatusAlert[] {
-    const alerts: StatusAlert[] = [];
+    const alerts: StatusAlert[] = [...this.subsystemPills];
     if (this.status?.engine_mode) {
       const suffix =
         this.status.engine_mode === "mpc" && this.status.engine_active !== "mpc"
@@ -826,6 +834,7 @@ export class SolarApp extends LitElement {
             <solar-forecast-chart
               class="span-8"
               .forecast=${this.forecast}
+              .status=${this.status}
               .role=${this.dashboardRole}
               .forecastLastUpdate=${this.forecastLastUpdate}
               .now=${this.now}
@@ -870,6 +879,7 @@ export class SolarApp extends LitElement {
               .decision=${this.status?.decision ?? null}
               .results=${this.execResults}
               .shedResults=${this.shedResults}
+              .status=${this.status}
               .role=${this.dashboardRole}
             ></solar-decision-panel>
             <solar-overrides-panel
@@ -915,7 +925,7 @@ export class SolarApp extends LitElement {
               ${this.shadow ? t("ui.app.shadow") : t("ui.app.liveMode")}
             </span>
             ${this.paused
-              ? html`<span class="pill bad">${t("ui.app.paused")}</span>`
+              ? html`<span class="pill bad">${t("ui.app.allPaused")}</span>`
               : null}
             ${this.secondaryAlerts.map((a) => this.renderStatusPill(a))}
             ${this.renderStatusMenu()}

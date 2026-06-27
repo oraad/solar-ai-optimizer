@@ -40,6 +40,7 @@ from .models import (
 )
 from .demo import synthetic_telemetry
 from .shed_snapshots import ShedSnapshotStore
+from .subsystems import deployment_profile, plan_grid_charge, plan_optimization, plan_shedding
 from .storage import repo
 from .storage.db import close_db, init_db
 
@@ -78,7 +79,9 @@ class Orchestrator:
 
         # Mutable runtime state.
         self.shadow_mode: bool = settings.shadow_mode
-        self.paused: bool = False
+        self.paused_shedding: bool = False
+        self.paused_grid_charge: bool = False
+        self.paused_optimization: bool = False
         self.override = Override()
         self.latest_decision: Decision | None = None
         self.latest_results: list[ExecutionResult] = []
@@ -167,7 +170,7 @@ class Orchestrator:
             cfg.grid_charge,
             self.snapshot_store,
         )
-        self._mpc = self._try_load_mpc() if cfg.engine.mode == "mpc" else None
+        self._mpc = self._try_load_mpc() if cfg.engine.mode == "mpc" and cfg.engine.enabled else None
 
     def _all_shed_power_entities(self) -> set[str]:
         return {
@@ -189,13 +192,22 @@ class Orchestrator:
         from .runtime_state import load as load_runtime_state
 
         saved = load_runtime_state(self.settings.data_dir)
-        if "paused" in saved:
-            self.paused = bool(saved["paused"])
+        if "paused_shedding" in saved:
+            self.paused_shedding = bool(saved["paused_shedding"])
+        if "paused_grid_charge" in saved:
+            self.paused_grid_charge = bool(saved["paused_grid_charge"])
+        if "paused_optimization" in saved:
+            self.paused_optimization = bool(saved["paused_optimization"])
+        elif saved.get("paused"):
+            self.paused_shedding = True
+            self.paused_grid_charge = True
+            self.paused_optimization = True
         if "shadow_mode" in saved:
             self.shadow_mode = bool(saved["shadow_mode"])
         if saved.get("override"):
             with contextlib.suppress(Exception):
                 self.override = Override(**saved["override"])
+        self._apply_pause_override(self.override)
         if self.settings.demo_mode:
             log.warning(
                 "DEMO_MODE enabled — synthetic telemetry only; do not use in production."
@@ -220,6 +232,46 @@ class Orchestrator:
             self._stream_task = asyncio.create_task(self.collector.run_stream_safe())
         await self._pulse_heartbeat()
         log.info("Orchestrator ready (shadow_mode=%s).", self.shadow_mode)
+
+    def _grid_charge_writes_available(self) -> bool:
+        return self._grid_charge_mapped()
+
+    @property
+    def paused(self) -> bool:
+        return (
+            self.paused_shedding
+            and self.paused_grid_charge
+            and self.paused_optimization
+        )
+
+    @paused.setter
+    def paused(self, value: bool) -> None:
+        self.paused_shedding = value
+        self.paused_grid_charge = value
+        self.paused_optimization = value
+
+    @property
+    def shedding_active(self) -> bool:
+        return self.cfg.load_shedding.enabled and not self.paused_shedding
+
+    @property
+    def grid_charge_active(self) -> bool:
+        return (
+            self.cfg.grid_charge.enabled
+            and self.cfg.engine.enabled
+            and not self.paused_grid_charge
+        )
+
+    @property
+    def optimization_active(self) -> bool:
+        return self.cfg.engine.enabled and not self.paused_optimization
+
+    def _plan_flags(self) -> tuple[bool, bool, bool]:
+        return (
+            plan_optimization(self.cfg),
+            plan_grid_charge(self.cfg),
+            plan_shedding(self.cfg),
+        )
 
     def _grid_charge_mapped(self) -> bool:
         w = self.cfg.inverter.write
@@ -297,7 +349,9 @@ class Orchestrator:
             self._build_engine_components()
             self._prune_shed_snapshots()
             self.override = Override()
-            self.paused = False
+            self.paused_shedding = False
+            self.paused_grid_charge = False
+            self.paused_optimization = False
             self.shadow_mode = self.settings.shadow_mode
             self._save_runtime_state()
             if self._resolve_ha() != old_ha:
@@ -365,7 +419,7 @@ class Orchestrator:
         self.latest_decision = decision
         await repo.save_decision(decision)
 
-        if not self.paused:
+        if self.grid_charge_active and decision.actions:
             try:
                 self.latest_results = await self.executor.apply_decision(
                     decision, self.shadow_mode
@@ -375,7 +429,7 @@ class Orchestrator:
                 log.error("Executor failed: %s", e)
         else:
             self.latest_results = []
-        if not self.paused and decision.shed_actions:
+        if self.shedding_active and decision.shed_actions:
             try:
                 self.latest_shed_results = await self.executor.apply_shed_actions(
                     decision.shed_actions,
@@ -392,7 +446,15 @@ class Orchestrator:
         return decision
 
     def _decide(self, telemetry, forecast, telemetry_stale: bool = False) -> Decision:
-        if self._mpc is not None:
+        plan_opt, plan_gc, plan_shed = self._plan_flags()
+        kwargs = {
+            "telemetry_stale": telemetry_stale,
+            "last_grid_charge_amps": self._last_grid_charge_amps,
+            "plan_optimization": plan_opt,
+            "plan_grid_charge": plan_gc,
+            "plan_shedding": plan_shed,
+        }
+        if self._mpc is not None and plan_opt:
             try:
                 return self._mpc.decide(
                     telemetry,
@@ -401,8 +463,7 @@ class Orchestrator:
                     self.override,
                     self.shadow_mode,
                     self.reactive,
-                    telemetry_stale=telemetry_stale,
-                    last_grid_charge_amps=self._last_grid_charge_amps,
+                    **kwargs,
                 )
             except Exception as e:  # noqa: BLE001
                 from .observability.metrics import metrics
@@ -415,8 +476,7 @@ class Orchestrator:
             self.latest_grid_stats,
             self.override,
             self.shadow_mode,
-            telemetry_stale=telemetry_stale,
-            last_grid_charge_amps=self._last_grid_charge_amps,
+            **kwargs,
         )
 
     def _update_last_grid_charge_amps(self, results: list[ExecutionResult]) -> None:
@@ -456,6 +516,8 @@ class Orchestrator:
         return (utcnow() - t.ts).total_seconds()
 
     async def forecast_cycle(self) -> None:
+        if not self.cfg.engine.enabled:
+            return
         try:
             await self.forecast.refresh()
             self.forecast.save_model(self._model_path)  # persist learned state
@@ -494,19 +556,36 @@ class Orchestrator:
             self.latest_grid_stats = None
 
     # ------------------------------------------------------------- overrides --
+    def _apply_pause_override(self, ov: Override) -> None:
+        if ov.pause_engine is not None:
+            self.paused_shedding = ov.pause_engine
+            self.paused_grid_charge = ov.pause_engine
+            self.paused_optimization = ov.pause_engine
+        if ov.pause_shedding is not None:
+            self.paused_shedding = ov.pause_shedding
+        if ov.pause_grid_charge is not None:
+            self.paused_grid_charge = ov.pause_grid_charge
+        if ov.pause_optimization is not None:
+            self.paused_optimization = ov.pause_optimization
+
     async def apply_override(self, ov: Override) -> dict:
         if ov.kill_switch:
             async with self._cycle_lock:
                 prev_shadow = self.shadow_mode
                 self.shadow_mode = False
-                results = await self.executor.kill_switch()
+                results: list[ExecutionResult] = []
+                # Shed-only sites may have grid charge disabled; still restore sheds and pause all.
+                if self.grid_charge_active and self._grid_charge_writes_available():
+                    results = await self.executor.kill_switch()
                 shed_results = await self.executor.restore_all_sheds(
                     self.cfg.load_shedding.tiers, bypass_shadow=True
                 )
                 self.latest_results = results
                 self.latest_shed_results = shed_results
                 self.shadow_mode = prev_shadow
-                self.paused = True
+                self.paused_shedding = True
+                self.paused_grid_charge = True
+                self.paused_optimization = True
                 self._save_runtime_state()
                 await self._broadcast()
                 return {
@@ -515,10 +594,14 @@ class Orchestrator:
                     "shed_restored": [r.model_dump(mode="json") for r in shed_results],
                 }
 
+        if ov.force_grid_charge is not None and not self.cfg.grid_charge.enabled:
+            from .i18n import api_error
+
+            raise api_error("api.override.grid_charge_disabled", 422)
+
         if ov.shadow_mode is not None:
             self.shadow_mode = ov.shadow_mode
-        if ov.pause_engine is not None:
-            self.paused = ov.pause_engine
+        self._apply_pause_override(ov)
         if ov.reserve_soc is not None:
             self.override.reserve_soc = ov.reserve_soc
         if ov.force_grid_charge is not None:
@@ -530,6 +613,9 @@ class Orchestrator:
         return {
             "shadow_mode": self.shadow_mode,
             "paused": self.paused,
+            "paused_shedding": self.paused_shedding,
+            "paused_grid_charge": self.paused_grid_charge,
+            "paused_optimization": self.paused_optimization,
             "reserve_soc": self.override.reserve_soc,
             "force_grid_charge": self.override.force_grid_charge,
         }
@@ -537,11 +623,16 @@ class Orchestrator:
     def clear_overrides(self) -> dict:
         """Reset operator overrides and unpause (e.g. after kill switch)."""
         self.override = Override()
-        self.paused = False
+        self.paused_shedding = False
+        self.paused_grid_charge = False
+        self.paused_optimization = False
         self._save_runtime_state()
         return {
             "cleared": True,
             "paused": self.paused,
+            "paused_shedding": self.paused_shedding,
+            "paused_grid_charge": self.paused_grid_charge,
+            "paused_optimization": self.paused_optimization,
             "shadow_mode": self.shadow_mode,
         }
 
@@ -552,6 +643,9 @@ class Orchestrator:
             self.settings.data_dir,
             {
                 "paused": self.paused,
+                "paused_shedding": self.paused_shedding,
+                "paused_grid_charge": self.paused_grid_charge,
+                "paused_optimization": self.paused_optimization,
                 "shadow_mode": self.shadow_mode,
                 "override": self.override.model_dump(),
             },
@@ -582,7 +676,9 @@ class Orchestrator:
             ),
             telemetry_stale=stale,
             telemetry_age_seconds=self._telemetry_age_seconds(),
-            forecast_misconfigured=not self.cfg.site.location_configured,
+            forecast_misconfigured=(
+            not self.cfg.site.location_configured and self.cfg.engine.enabled
+        ),
             forecast_degraded=forecast.degraded if forecast else False,
             forecast_provider=self.forecast.forecast_provider(),
             solcast_configured=self.forecast.solcast_configured(),
@@ -596,6 +692,14 @@ class Orchestrator:
             force_grid_charge_override=self.override.force_grid_charge,
             shadow_mode=self.shadow_mode,
             paused=self.paused,
+            shedding_enabled=self.cfg.load_shedding.enabled,
+            grid_charge_enabled=self.cfg.grid_charge.enabled,
+            engine_enabled=self.cfg.engine.enabled,
+            paused_shedding=self.paused_shedding,
+            paused_grid_charge=self.paused_grid_charge,
+            paused_optimization=self.paused_optimization,
+            grid_charge_writes_available=self._grid_charge_writes_available(),
+            deployment_profile=deployment_profile(self.cfg),
             timezone_config=self.cfg.site.timezone,
             timezone_resolved=self.forecast.resolved_timezone,
             last_updated=utcnow(),

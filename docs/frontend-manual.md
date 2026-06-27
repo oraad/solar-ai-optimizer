@@ -25,9 +25,17 @@ When you open Solar AI from the HA sidebar (add-on or hass_ingress), a **boot sp
 
 On phones using the **Home Assistant Companion** app, the dashboard respects safe areas (notch, home indicator) and uses larger tap targets. See the [Mobile ingress QA](mobile-ingress-qa.md) checklist when validating layout on iOS or Android.
 
+Production Docker images ship **precompressed** JavaScript, CSS, and HTML (Brotli and gzip sidecars built at image build time). Browsers automatically receive the best format they support — no configuration required. To verify from the host:
+
+```bash
+curl -sI -H "Accept-Encoding: br" http://localhost:8000/assets/<chunk>.js
+```
+
+Expect `Content-Encoding: br` (or `gzip`) and `Vary: Accept-Encoding`. HA ingress passes these headers through unchanged.
+
 ---
 
-## Dashboard roles
+## Dashboard roles {#dashboard-roles}
 
 There is **one dashboard** for all users. Roles control which tabs and controls appear — not separate apps or URLs.
 
@@ -76,15 +84,16 @@ The Overview tab is the control room:
 
 Read the **Decision** panel first: it explains *why* the optimizer chose its current reserve and actions. Use **View shed history** or **Configure shedding** links when shed actions are active.
 
-### Overrides panel (admin)
+### Overrides panel (admin) {#overrides-panel-admin}
 
 Admins get the full operator panel:
 
 - **Shadow / Live** — start in shadow; switch to live only after you trust the decisions
-- **Pause** — stop the control loop without losing telemetry
-- **Kill switch** — emergency stop; attempts restore for entities that were on before shed (requires confirmation)
+- **Pause all** — stop all subsystems (shedding, grid charge, optimization) without losing telemetry
+- **Advanced** — pause shedding, grid charge, or optimization independently
+- **Kill switch** — emergency stop; grid charge at max (when enabled) and shed tier restore (requires confirmation)
 - **Reserve override** — temporarily force a minimum target SOC (%)
-- **Force grid charge** — opportunistic grid top-up override
+- **Force grid charge** — opportunistic grid top-up override (hidden when grid charge is disabled)
 - **Run cycle** / **Refresh forecast** — manual triggers
 - **Clear overrides** — reset operator overrides after kill switch
 
@@ -95,16 +104,16 @@ Admins get the full operator panel:
 Admins use **Forecast** and **History** the same as viewers (see below), plus:
 
 - **Assistant** — LLM chat about recent decisions; optional command apply
-- **Load shedding** — tiers, SOC thresholds, companion entity discovery, restore options
-- **Settings** — HA connection, entities, battery, forecast, grid charge, etc.
+- **Load shedding** — tiers, SOC thresholds, companion entity discovery, restore options, and **shed-only deployment** preset (disables grid charge and optimization; optional advisory reserve)
+- **Settings** — HA connection, entities, battery, forecast, **engine** / **grid charge** enable toggles, etc.
 
 ![Assistant chat panel](images/frontend/assistant.png)
 
-![Settings panel (expanded sections)](images/frontend/settings.png)
+![Settings panel (sidebar navigation — Engine section)](images/frontend/settings.png)
 
 ---
 
-## Viewer dashboard
+## Viewer dashboard {#viewer-dashboard}
 
 When you sign in through Home Assistant ingress as a non-admin user, the dashboard runs in **viewer** mode:
 
@@ -112,7 +121,7 @@ When you sign in through Home Assistant ingress as a non-admin user, the dashboa
 
 - **Tabs:** Overview, Forecast, and History only — no Assistant, Load shedding, or Settings
 - **Top bar:** **VIEWER** badge; your HA display name may appear under the app title
-- **Overview overrides:** shadow/live toggle, pause/resume, and kill switch (with confirmation) only
+- **Overview overrides:** **Pause all** / **Resume** and kill switch (with confirmation) only — no per-subsystem Advanced controls, reserve pin, grid charge overrides, or run cycle
 - **Read-only banners** on Overview when an admin has pinned reserve SOC or forced grid charge — viewers see the active override but cannot change it
 - **Forecast empty state** — if location is not configured, the chart shows a message to ask an admin to set latitude/longitude in Settings (viewers cannot open Settings)
 - **Battery time-to-empty** on Overview uses live status data — no Settings access required
@@ -176,7 +185,7 @@ Blocked kill-switch attempts show a red banner explaining the confirmation requi
 
 ---
 
-## Settings
+## Settings {#settings}
 
 **Admin only.** All runtime configuration is edited here and persisted to the `solar-data` volume. Use **Save changes** after edits.
 
@@ -198,7 +207,7 @@ Major sections:
 
 Configure **load shedding** in the dedicated **Load shedding** tab (not Settings).
 
-### Adding a dashboard language (contributors)
+### Adding a dashboard language (contributors) {#adding-a-dashboard-language-contributors}
 
 1. Copy `frontend/src/locales/en.json` to `frontend/src/locales/<id>.json` and translate all string values.
 2. Add a `LocaleMeta` entry in `frontend/src/locales/manifest.ts` (`id`, `nativeName`, `dir`, `match` prefixes).
@@ -221,7 +230,7 @@ product stance: resilience → savings → self-sufficiency. Grid charge **facto
 (in the Grid charge section) still applies; priorities scale how strongly each factor
 bucket influences the cap chain.
 
-### Load-shedding tiers
+### Load-shedding tiers {#load-shedding-tiers}
 
 Open the **Load shedding** tab to configure tiers. Each tier can control **several power
 switches** (e.g. pool pump + heater, or an AC power switch). All entities in a tier shed
@@ -285,7 +294,7 @@ longer than success messages.
 
 ---
 
-## Regenerating screenshots
+## Regenerating screenshots {#regenerating-screenshots}
 
 !!! danger "DEMO_MODE is for docs only"
     Never run `DEMO_MODE` on a system connected to a real inverter.
@@ -301,6 +310,27 @@ docker compose restart solar
 Then capture screenshots (Docker — works without local Node/npm):
 
 ```bash
+# One-time, or after frontend/package-lock.json changes:
+docker compose --profile docs run --rm docs-screenshots npm ci
+
+# Every regen (demo stack must be running on port 8000):
+docker compose --profile docs run --rm docs-screenshots
+```
+
+From `frontend/` you can also run `npm run docs:screenshots:docker`.
+
+Or with local Node installed (one-time `npm ci` + `npx playwright install chromium`):
+
+```bash
+cd frontend
+npm ci
+npx playwright install chromium
+npm run docs:screenshots
+```
+
+<details><summary>Legacy fallback (slow — reinstalls browsers every run)</summary>
+
+```bash
 docker run --rm --add-host=host.docker.internal:host-gateway \
   -v "$(pwd)/frontend:/ui" -v "$(pwd)/docs:/docs" \
   -e SCREENSHOT_BASE_URL=http://host.docker.internal:8000 \
@@ -310,13 +340,6 @@ docker run --rm --add-host=host.docker.internal:host-gateway \
 
 On Windows PowerShell, use `c:/Projects/solar/frontend` style paths instead of `$(pwd)`.
 
-Or with local Node installed:
+</details>
 
-```bash
-cd frontend
-npm install
-npx playwright install chromium
-npm run docs:screenshots
-```
-
-Commit updated files under `docs/images/frontend/` together with any manual text changes. Captures include desktop (1280×900) and mobile (`mobile-*.png`, 390×844) viewports — notably `load-shedding.png`, `settings-load-shedding.png`, and `mobile-load-shedding.png`.
+Commit updated files under `docs/images/frontend/` together with any manual text changes. Captures include desktop (1280×900) and mobile (`mobile-*.png`, 390×844) viewports — notably `load-shedding.png`, `settings-load-shedding.png`, and `mobile-load-shedding.png`. The capture script waits for live data, charts, and config to load before each shot (no fixed sleep delays).

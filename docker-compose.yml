@@ -63,6 +63,27 @@ services:
       - frontend-node-modules:/ui/node_modules
     command: ["npm", "test"]
 
+  # Docs screenshots — Playwright image + cached node_modules (profile: docs).
+  # Pin: Dockerfile docs-screenshots stage ↔ frontend/package.json playwright version.
+  docs-screenshots:
+    profiles: ["docs"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: docs-screenshots
+    image: solar-ai-optimizer-docs-screenshots
+    working_dir: /ui
+    volumes:
+      - ./frontend:/ui
+      - ./docs:/docs
+      - frontend-node-modules:/ui/node_modules
+    environment:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      SCREENSHOT_BASE_URL: http://host.docker.internal:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["npm", "run", "docs:screenshots"]
+
 volumes:
   solar-data:
   frontend-node-modules:

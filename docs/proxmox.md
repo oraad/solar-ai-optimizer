@@ -102,7 +102,7 @@ docker run -d --name solar-optimizer --restart unless-stopped \
     The `update` command or host-side helper script runs the same pull-and-recreate flow
     and is less error-prone than manual `docker run`.
 
-## Backup
+## Backup {#backup}
 
 Back up the Docker volume before upgrades:
 

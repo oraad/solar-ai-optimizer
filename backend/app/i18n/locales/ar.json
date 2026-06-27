@@ -12,7 +12,8 @@
     "override": {
       "kill_switch_confirm": "يتطلب kill_switch تأكيد confirm=true",
       "no_fields": "لم يتم تقديم حقول تجاوز",
-      "assistant_kill_switch": "يتطلب مفتاح الإيقاف تأكيداً صريحاً في سؤالك (مثلاً تضمين « confirm »)."
+      "assistant_kill_switch": "يتطلب مفتاح الإيقاف تأكيداً صريحاً في سؤالك (مثلاً تضمين « confirm »).",
+      "grid_charge_disabled": "التحكم في شحن الشبكة معطّل في الإعدادات."
     },
     "validation": {
       "field": "{loc}: {msg}"
@@ -60,7 +61,8 @@
       "heat_wave": " موجة حر: {cdh} ساعة-درجة تبريد (24س) ترفع الحمل المتوقع.",
       "degraded_buffer": " توقّع متدهور/قديم — هامش إضافي محافظ.",
       "driver_solar_bridge": "جسر-شمسي",
-      "driver_autonomy_floor": "حد-اكتفاء"
+      "driver_autonomy_floor": "حد-اكتفاء",
+      "optimization_disabled": "التحسين معطّل — لم يُحسب هدف الاحتياطي."
     },
     "summary": {
       "main": "SOC {soc} مقابل احتياطي {target}% | {grid} | خطر انقطاع: {risk}. {rationale}",
@@ -69,7 +71,8 @@
       "priorities_prefix": "الأولويات: {order}. ",
       "grid_present": "الشبكة متوفرة",
       "grid_absent": "الشبكة غير متوفرة",
-      "soc_unknown": "?"
+      "soc_unknown": "?",
+      "shedding_only": "تخفيف الأحمال نشط — التحسين معطّل."
     },
     "advisory": {
       "surplus": "فائض متاح ({kw} كيلوواط) والبطارية ممتلئة: وجّه للأحمال القابلة للتأجيل (سخان/سيارة/مضخات) بدلاً من التقليم."

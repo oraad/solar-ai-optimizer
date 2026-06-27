@@ -1954,6 +1954,15 @@ export class SettingsPanel extends LitElement {
       html`
         <p class="label">${t("ui.settings.engineIntro")}</p>
         <div class="fields">
+          <div class="field checkbox-row">
+            <label>${this.lbl("engine", "enabled")}</label>
+            <input
+              type="checkbox"
+              .checked=${eng.enabled !== false}
+              @change=${(e: Event) =>
+                this.setField("engine", "enabled", (e.target as HTMLInputElement).checked)}
+            />
+          </div>
           <div class="field">
             <label>${this.lbl("engine", "mode")}</label>
             <div class="mode-toggle" role="group">
@@ -2140,11 +2149,28 @@ export class SettingsPanel extends LitElement {
     const d = this.draft as unknown as Record<string, any>;
     const gc = d.grid_charge ?? {};
     const factors = this.gridChargeFactors();
+    const gcEnabled = gc.enabled !== false;
     return this.renderSectionPanel(
       sectionTitle("grid_charge"),
       sectionHelp("grid_charge"),
       html`
         <p class="label">${t("ui.settings.gridChargeIntro")}</p>
+        ${!gcEnabled
+          ? html`<p class="label" style="color:var(--muted)">${t("ui.settings.gridChargeDisabled")}</p>`
+          : null}
+        <div class="fields">
+          <div class="field checkbox-row">
+            <label>${this.lbl("grid_charge", "enabled")}</label>
+            <input
+              type="checkbox"
+              .checked=${gcEnabled}
+              @change=${(e: Event) =>
+                this.setGridChargeField("enabled", (e.target as HTMLInputElement).checked)}
+            />
+          </div>
+        </div>
+        <details ?open=${gcEnabled}>
+          <summary class="label">${t("ui.settings.gridChargeAdvanced")}</summary>
         <div class="fields">
           <div class="field">
             <label>${this.lbl("grid_charge", "ramp_enabled")}</label>
@@ -2218,6 +2244,7 @@ export class SettingsPanel extends LitElement {
             />
           </div>
         </div>
+        </details>
         <details style="margin-top:12px">
           <summary>${t("ui.settings.gridChargeAdvanced")}: ${t("ui.settings.factorLogOrder")}</summary>
           ${factors.map(

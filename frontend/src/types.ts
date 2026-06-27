@@ -131,6 +131,14 @@ export interface SystemStatus {
   force_grid_charge_override?: boolean | null;
   shadow_mode: boolean;
   paused: boolean;
+  shedding_enabled?: boolean;
+  grid_charge_enabled?: boolean;
+  engine_enabled?: boolean;
+  paused_shedding?: boolean;
+  paused_grid_charge?: boolean;
+  paused_optimization?: boolean;
+  grid_charge_writes_available?: boolean;
+  deployment_profile?: string;
   timezone_config?: string;
   timezone_resolved?: string | null;
   last_updated: string;
@@ -300,6 +308,9 @@ export interface Override {
   force_grid_charge?: boolean | null;
   reserve_soc?: number | null;
   pause_engine?: boolean | null;
+  pause_shedding?: boolean | null;
+  pause_grid_charge?: boolean | null;
+  pause_optimization?: boolean | null;
   kill_switch?: boolean | null;
   /** Required when kill_switch is true (REST API). */
   confirm?: boolean;

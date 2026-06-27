@@ -21,7 +21,7 @@ See also: [Home Assistant setup](home-assistant-setup.md) · [Configuration](con
 
 ---
 
-## Docker Compose (recommended)
+## Docker Compose (recommended) {#docker-compose-recommended}
 
 !!! tip "Recommended for most users"
     One command, persistent config, and easy upgrades. No `.env` or `config.yaml` required —
@@ -87,7 +87,7 @@ the previous container is restored automatically. On failure, check
 
 ---
 
-## Docker (standalone image)
+## Docker (standalone image) {#docker-standalone-image}
 
 !!! info "Pre-built image"
     Use this when you do not want Docker Compose. The same GHCR image powers every deployment path.
@@ -139,7 +139,7 @@ by one-click install — use manual `docker pull` + recreate for those setups.
 
 ---
 
-## Home Assistant add-on
+## Home Assistant add-on {#home-assistant-add-on}
 
 !!! tip "Best Home Assistant integration"
     Native ingress panel, automatic Supervisor token, and no manual HA URL wiring when
@@ -162,7 +162,7 @@ Full HA wiring (entities, packages, ingress auth): [Home Assistant setup](home-a
 
 ---
 
-## Proxmox LXC
+## Proxmox LXC {#proxmox-lxc}
 
 !!! info "One-liner on Proxmox VE"
     Community-scripts-style helper creates a Debian or Alpine LXC with Docker-in-LXC
@@ -220,7 +220,9 @@ For maintainers regenerating dashboard screenshots:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
 docker compose exec solar python -m scripts.seed_demo
-cd frontend && npm run docs:screenshots
+docker compose restart solar
+docker compose --profile docs run --rm docs-screenshots npm ci   # once, or after lockfile changes
+docker compose --profile docs run --rm docs-screenshots
 ```
 
 See [Dashboard user guide → Regenerating screenshots](frontend-manual.md#regenerating-screenshots).

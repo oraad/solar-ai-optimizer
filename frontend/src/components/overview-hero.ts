@@ -66,9 +66,10 @@ export class OverviewHero extends LitElement {
   render() {
     const telemetry = this.status?.telemetry ?? null;
     const d = this.status?.decision ?? null;
+    const engineOn = this.status?.engine_enabled !== false;
     const soc = telemetry?.battery_soc ?? null;
-    const reserve = d?.reserve.target_soc ?? null;
-    const riskScore = d?.blackout_risk_score ?? null;
+    const reserve = engineOn ? (d?.reserve.target_soc ?? null) : null;
+    const riskScore = engineOn ? (d?.blackout_risk_score ?? null) : null;
     const risk = riskScore != null ? formatRiskFromScore(riskScore) : null;
 
     return html`

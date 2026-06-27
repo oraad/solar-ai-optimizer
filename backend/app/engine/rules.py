@@ -211,24 +211,35 @@ class RuleEngine:
         shadow_mode: bool,
         telemetry_stale: bool = False,
         last_grid_charge_amps: float | None = None,
+        *,
+        plan_optimization: bool = True,
+        plan_grid_charge: bool = True,
+        plan_shedding: bool = True,
     ) -> Decision:
-        reserve = self.compute_reserve(telemetry, forecast)
-        target_soc = reserve.target_soc
-
-        # Operator can pin a reserve target.
-        if override and override.reserve_soc is not None:
-            target_soc = max(
-                self._battery.min_soc_floor,
-                min(self._battery.max_soc_ceiling, override.reserve_soc),
+        if plan_optimization:
+            reserve = self.compute_reserve(telemetry, forecast)
+            target_soc = reserve.target_soc
+            if override and override.reserve_soc is not None:
+                target_soc = max(
+                    self._battery.min_soc_floor,
+                    min(self._battery.max_soc_ceiling, override.reserve_soc),
+                )
+            risk, score = self._blackout_risk(telemetry, reserve, forecast)
+        else:
+            soc = telemetry.battery_soc or self._battery.min_soc_floor
+            reserve = ReserveTarget(
+                target_soc=soc,
+                solar_bridge_soc=soc,
+                autonomy_floor_soc=self._battery.min_soc_floor,
+                rationale=msg("engine.reserve.optimization_disabled"),
             )
+            target_soc = soc
+            risk, score = BlackoutRisk.LOW, 0.0
 
         actions: list[ControlAction] = []
         advisories: list[Msg] = []
         grid_charge_plan: GridChargePlan | None = None
         max_a = self._grid_charge.max_grid_charge_a
-
-        # Blackout risk (needed before grid charge ramp factors).
-        risk, score = self._blackout_risk(telemetry, reserve, forecast)
 
         last_amps = (
             last_grid_charge_amps
@@ -236,89 +247,91 @@ class RuleEngine:
             else self._last_grid_charge_amps
         )
 
-        # Opportunistic grid top-up (reactive; ramp or legacy).
-        if override and override.force_grid_charge:
-            grid_charge_plan = GridChargePlan(
-                enabled=True,
-                target_amps=max_a,
-                max_amps=max_a,
-                rationale=msg("engine.override.force_grid_charge_plan"),
-            )
-            actions.append(
-                ControlAction(
-                    capability=Capability.GRID_CHARGE_ENABLE,
-                    value=True,
-                    reason=msg("engine.override.force_grid_charge"),
-                    priority=120,
+        if plan_grid_charge:
+            if override and override.force_grid_charge:
+                grid_charge_plan = GridChargePlan(
+                    enabled=True,
+                    target_amps=max_a,
+                    max_amps=max_a,
+                    rationale=msg("engine.override.force_grid_charge_plan"),
                 )
-            )
-            actions.append(
-                ControlAction(
-                    capability=Capability.MAX_GRID_CHARGE_CURRENT,
-                    value=max_a,
-                    reason=grid_charge_plan.rationale,
-                    priority=110,
+                actions.append(
+                    ControlAction(
+                        capability=Capability.GRID_CHARGE_ENABLE,
+                        value=True,
+                        reason=msg("engine.override.force_grid_charge"),
+                        priority=120,
+                    )
                 )
-            )
-        elif override and override.force_grid_charge is False:
-            grid_charge_plan = GridChargePlan(
-                enabled=False,
-                target_amps=0.0,
-                max_amps=max_a,
-                rationale=msg("engine.override.disable_grid_charge_plan"),
-            )
-            actions.append(
-                ControlAction(
-                    capability=Capability.GRID_CHARGE_ENABLE,
-                    value=False,
-                    reason=msg("engine.override.disable_grid_charge"),
-                    priority=120,
+                actions.append(
+                    ControlAction(
+                        capability=Capability.MAX_GRID_CHARGE_CURRENT,
+                        value=max_a,
+                        reason=grid_charge_plan.rationale,
+                        priority=110,
+                    )
                 )
-            )
-            actions.append(
-                ControlAction(
-                    capability=Capability.MAX_GRID_CHARGE_CURRENT,
-                    value=0.0,
-                    reason=msg("engine.override.grid_charge_zero"),
-                    priority=110,
+            elif override and override.force_grid_charge is False:
+                grid_charge_plan = GridChargePlan(
+                    enabled=False,
+                    target_amps=0.0,
+                    max_amps=max_a,
+                    rationale=msg("engine.override.disable_grid_charge_plan"),
                 )
+                actions.append(
+                    ControlAction(
+                        capability=Capability.GRID_CHARGE_ENABLE,
+                        value=False,
+                        reason=msg("engine.override.disable_grid_charge"),
+                        priority=120,
+                    )
+                )
+                actions.append(
+                    ControlAction(
+                        capability=Capability.MAX_GRID_CHARGE_CURRENT,
+                        value=0.0,
+                        reason=msg("engine.override.grid_charge_zero"),
+                        priority=110,
+                    )
+                )
+            elif telemetry_stale:
+                grid_charge_plan, stale_actions = self._conservative_grid_charge_off(
+                    max_a,
+                    msg("engine.grid.telemetry_stale"),
+                )
+                actions.extend(stale_actions)
+            else:
+                result = self._reactive.opportunistic_actions(
+                    telemetry,
+                    target_soc,
+                    forecast=forecast,
+                    grid_stats=grid_stats,
+                    reserve=reserve,
+                    blackout_risk=risk,
+                    blackout_risk_score=score,
+                    last_amps=last_amps,
+                )
+                actions.extend(result.actions)
+                grid_charge_plan = result.plan
+
+        if plan_optimization:
+            soc = telemetry.battery_soc or 0.0
+            pv = telemetry.pv_power or 0.0
+            load = telemetry.load_power or 0.0
+            if soc >= min(99.0, self._battery.max_soc_ceiling - 1) and pv > load:
+                advisories.append(
+                    msg(
+                        "engine.advisory.surplus",
+                        kw=round((pv - load) / 1000, 1),
+                    )
+                )
+
+            summary = self._summary(
+                telemetry, reserve, target_soc, risk, self._engine_cfg.priority_order
             )
-        elif telemetry_stale:
-            grid_charge_plan, stale_actions = self._conservative_grid_charge_off(
-                max_a,
-                msg("engine.grid.telemetry_stale"),
-            )
-            actions.extend(stale_actions)
         else:
-            result = self._reactive.opportunistic_actions(
-                telemetry,
-                target_soc,
-                forecast=forecast,
-                grid_stats=grid_stats,
-                reserve=reserve,
-                blackout_risk=risk,
-                blackout_risk_score=score,
-                last_amps=last_amps,
-            )
-            actions.extend(result.actions)
-            grid_charge_plan = result.plan
+            summary = msg("engine.summary.shedding_only")
 
-        # Surplus diversion advisory (no deferrable-load capability is written;
-        # surfaced for the operator / future automations).
-        soc = telemetry.battery_soc or 0.0
-        pv = telemetry.pv_power or 0.0
-        load = telemetry.load_power or 0.0
-        if soc >= min(99.0, self._battery.max_soc_ceiling - 1) and pv > load:
-            advisories.append(
-                msg(
-                    "engine.advisory.surplus",
-                    kw=round((pv - load) / 1000, 1),
-                )
-            )
-
-        summary = self._summary(
-            telemetry, reserve, target_soc, risk, self._engine_cfg.priority_order
-        )
         if advisories:
             a = advisories[0]
             summary = Msg(
@@ -330,7 +343,11 @@ class RuleEngine:
                 },
             )
 
-        shed_actions = self._shedding.plan(telemetry, telemetry_stale=telemetry_stale)
+        shed_actions = (
+            self._shedding.plan(telemetry, telemetry_stale=telemetry_stale)
+            if plan_shedding
+            else []
+        )
 
         return Decision(
             ts=utcnow(),

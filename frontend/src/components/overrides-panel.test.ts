@@ -59,4 +59,15 @@ describe("OverridesPanel role", () => {
     expect(resume?.disabled).toBe(false);
     el.remove();
   });
+
+  it("admin mode hides grid charge when disabled", async () => {
+    const el = mountPanel("admin");
+    el.status = {
+      ...el.status!,
+      grid_charge_enabled: false,
+    };
+    await el.updateComplete;
+    expect(el.shadowRoot!.textContent).not.toContain("Force on");
+    el.remove();
+  });
 });

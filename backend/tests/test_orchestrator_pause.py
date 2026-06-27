@@ -50,7 +50,9 @@ async def test_paused_skips_executor_and_shed(monkeypatch: pytest.MonkeyPatch, t
     store = ConfigStore(str(tmp_path / "base.yaml"), str(tmp_path / "runtime.yaml"))
     orch = Orchestrator(settings, store)
 
-    orch.paused = True
+    orch.paused_shedding = True
+    orch.paused_grid_charge = True
+    orch.paused_optimization = True
     orch.collector = MagicMock()
     orch.collector.sample = AsyncMock(
         return_value=MagicMock(grid_present=False, battery_soc=40.0, ts=utcnow())

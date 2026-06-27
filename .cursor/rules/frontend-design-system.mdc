@@ -1,0 +1,50 @@
+---
+description: In-house design system — tokens, sharedStyles, theme, charts
+globs: frontend/**/*.{ts,html}
+alwaysApply: false
+---
+
+# Frontend design system
+
+## Token-first styling
+
+All colors, spacing, and radius live on `:root` in `frontend/index.html`. Components **consume** via `var(--token)` — never hardcode hex in component styles.
+
+| Token | Use |
+|-------|-----|
+| `--bg`, `--panel`, `--panel-2` | Surfaces |
+| `--good`, `--warn`, `--bad`, `--critical` | Status pills |
+| `--accent`, `--accent-2` | Brand, links, focus ring |
+| `--safe-*` | Mobile safe-area insets |
+
+## Theme
+
+`html[data-theme="light"|"dark"]`; persist to `localStorage` (`solar-theme`); apply before first paint via the inline script in `index.html`. Charts must repaint on theme change — use helpers in `charts.ts`.
+
+## Shared primitives
+
+Extend `sharedStyles` (`styles.ts`): `.card`, `.pill` (`.good`/`.warn`/`.bad`/`.critical`/`.muted`), `.metric`, `.grid`, `.row`, buttons/inputs with `:focus-visible` + `--ring`.
+
+## Visual language
+
+Dark-first dashboard; amber `--accent` + cyan `--accent-2`; uppercase micro-labels on card headers with gradient bar accent (`h3::before`).
+
+## Layout
+
+12-column grid (`.layout`, `.span-*`), max width 1400px; settings/assistant centered ~860px (`.center`). Density breakpoints: 1100px / 760px / 460px shrink `--app-pad`, `--card-pad`, `--gap`, `--metric`.
+
+## Charts
+
+uPlot only; read colors from CSS vars; lifecycle hooks via `chart-lifecycle.ts`.
+
+## Form help
+
+Use `solar-info-tip` + `labelWithTip()` / `field-help.ts` for settings fields.
+
+## Anti-patterns
+
+No Tailwind, CSS Modules, or styled-components. No one-off color values. No new chart library.
+
+## Keep this rule current
+
+Update when you change design tokens (`index.html`), shared styles (`styles.ts`), layout breakpoints, or chart theming. Full UX spec: [`docs/frontend-manual.md`](docs/frontend-manual.md).

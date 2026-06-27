@@ -59,3 +59,20 @@ Home Assistant ──WebSocket──▶ Ingest ──▶ SQLite
 See [Configuration](configuration.md) for settings sources, [Security](security.md) for
 deployment hardening, and the [README on GitHub](https://github.com/oraad/solar-ai-optimizer#readme)
 for API details and safety notes.
+
+## Documentation languages
+
+This site is published in **English** (default), **Français**, and **العربية**. Use the
+language switcher in the site header to change locale. Arabic pages use right-to-left layout.
+
+**Contributors:** English sources in `docs/*.md` are canonical. After editing English:
+
+1. Re-run `python scripts/translate_docs.py` for affected pages (or `--force` for all).
+2. Run `python scripts/check_docs_i18n.py` and `mkdocs build --strict` locally.
+3. To add a language: extend `docs/i18n/locales.yaml`, add `nav_translations` and a language
+   entry in `mkdocs.yml`, then run the translate script.
+
+Machine-translated pages are a starting point — improve `.fr.md` / `.ar.md` files directly
+when you can. Dashboard UI strings are separate; see
+[Adding a dashboard language](frontend-manual.md#adding-a-dashboard-language-contributors)
+in the user guide.

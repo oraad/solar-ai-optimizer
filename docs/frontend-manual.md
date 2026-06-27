@@ -259,10 +259,12 @@ Per-tier toggles:
 
 Under **Software updates** (admin), the dashboard lists recent GitHub releases with
 **Markdown-formatted** release notes. On Docker self-update hosts, use **Install** on any
-stable version. Downgrades show an extra warning; a `/app/data` backup is created before
-each install. If the service does not come back after an install, use **Restore** from the
-backups section. Use **Check for updates** to refresh the release list. The top bar
-**UPDATE** badge appears when a newer version is available.
+listed stable version. Enable **Include beta releases** to show pre-releases in the table
+(installable on self-update hosts); beta versions do not trigger the top-bar **UPDATE**
+badge or update toasts. Downgrades show an extra warning; a `/app/data` backup is created
+before each install. If the service does not come back after an install, use **Restore**
+from the backups section. Use **Check for updates** to refresh the release list. The top
+bar **UPDATE** badge appears when a newer **stable** version is available.
 
 Home Assistant add-on installs are updated via Supervisor (the release list is informational).
 

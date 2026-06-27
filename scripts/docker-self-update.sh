@@ -161,16 +161,6 @@ remove_stale_old() {
   fi
 }
 
-snapshot_env_if_needed() {
-  if [ -n "$ENV_FILE" ]; then
-    return 0
-  fi
-  if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
-    return 0
-  fi
-  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$CONTAINER" >"$ENV_SNAPSHOT" 2>/dev/null || true
-}
-
 resolve_env_args() {
   ENV_ARGS=""
   if [ -n "$ENV_FILE" ]; then
@@ -194,6 +184,32 @@ run_solar_container() {
     -v "${DATA_VOL}:${DATA_PATH}" \
     -p "${PORT}:8000" \
     "$image"
+}
+
+snapshot_env_from_old() {
+  if [ -n "$ENV_FILE" ]; then
+    return 0
+  fi
+  if ! docker inspect "$CONTAINER_OLD" >/dev/null 2>&1; then
+    return 0
+  fi
+  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$CONTAINER_OLD" >"$ENV_SNAPSHOT" 2>/dev/null || true
+}
+
+recreate_container() {
+  local target_image="$1"
+  if docker inspect "$CONTAINER_OLD" >/dev/null 2>&1; then
+    if python3 "${SCRIPT_DIR}/recreate_from_inspect.py" \
+        --source "$CONTAINER_OLD" \
+        --name "$CONTAINER" \
+        --image "$target_image"; then
+      return 0
+    fi
+    echo "WARN: inspect-based recreate failed; falling back to template"
+  fi
+  snapshot_env_from_old
+  resolve_env_args
+  run_solar_container "$target_image"
 }
 
 wait_healthy() {
@@ -254,8 +270,7 @@ atomic_swap() {
   fi
 
   write_progress "recreating" "Starting updated container"
-  resolve_env_args
-  if ! run_solar_container "$target_image"; then
+  if ! recreate_container "$target_image"; then
     if [ "$allow_rollback" = "true" ]; then
       rollback_to_old
     else
@@ -349,7 +364,6 @@ cmd_update() {
     PREVIOUS_IMAGE="$(docker inspect -f '{{.Config.Image}}' "$CONTAINER" 2>/dev/null || echo "")"
   fi
 
-  snapshot_env_if_needed
   do_backup
   do_pull
 
@@ -377,8 +391,6 @@ cmd_restore() {
   if docker inspect "$CONTAINER" >/dev/null 2>&1; then
     PREVIOUS_IMAGE="$(docker inspect -f '{{.Config.Image}}' "$CONTAINER" 2>/dev/null || echo "")"
   fi
-
-  snapshot_env_if_needed
 
   write_progress "stopping" "Stopping current container"
   if docker inspect "$CONTAINER" >/dev/null 2>&1; then

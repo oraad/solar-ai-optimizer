@@ -119,6 +119,7 @@ async function sendJSON<T>(method: string, path: string, body: unknown): Promise
 
 const postJSON = <T>(path: string, body: unknown) => sendJSON<T>("POST", path, body);
 const putJSON = <T>(path: string, body: unknown) => sendJSON<T>("PUT", path, body);
+const patchJSON = <T>(path: string, body: unknown) => sendJSON<T>("PATCH", path, body);
 
 export const api = {
   me: async (): Promise<SessionInfo> => {
@@ -203,6 +204,10 @@ export const api = {
     const qs = opts?.refresh ? "?refresh=true" : "";
     return getJSON<UpdateInfo>(`/api/system/update${qs}`);
   },
+  updatePreferences: (includePrereleases: boolean) =>
+    patchJSON<{ include_prereleases: boolean }>("/api/system/update/preferences", {
+      include_prereleases: includePrereleases,
+    }),
   applyUpdate: async (version?: string): Promise<{ target_version: string; is_downgrade: boolean }> => {
     const body = version ? JSON.stringify({ version }) : "{}";
     const res = await fetch(

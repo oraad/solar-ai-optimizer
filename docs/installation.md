@@ -134,8 +134,10 @@ docker run -d --name solar-optimizer --restart unless-stopped \
   ghcr.io/oraad/solar-ai-optimizer:latest
 ```
 
-Custom `docker run` options (extra volumes, networks) beyond this recipe are not preserved
-by one-click install — use manual `docker pull` + recreate for those setups.
+Dashboard **Install** recreates the container from its current Docker configuration
+(ports, volumes, networks, environment variables), similar to how Watchtower preserves
+runtime overrides when updating an image. Custom `docker run` or Compose options are kept
+as long as the container was created with them.
 
 ---
 

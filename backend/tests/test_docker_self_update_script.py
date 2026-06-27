@@ -25,6 +25,9 @@ def test_update_script_exists_with_core_guards():
     assert "wait_healthy" in text
     assert "rolled back" in text
     assert "pull-progress.sh" in text
+    assert "recreate_from_inspect.py" in text
+    assert "recreate_container" in text
+    assert "run_solar_container" in text
 
 
 def test_pull_progress_layer_parser():

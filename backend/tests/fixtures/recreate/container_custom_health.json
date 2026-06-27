@@ -1,0 +1,23 @@
+{
+  "Id": "ghi789",
+  "Image": "sha256:oldimage",
+  "Config": {
+    "Image": "ghcr.io/oraad/solar-ai-optimizer:0.5.10",
+    "Entrypoint": ["/app/run.sh"],
+    "Cmd": [],
+    "Env": ["PATH=/usr/local/bin:/usr/bin:/bin", "SHADOW_MODE=true"],
+    "Healthcheck": {
+      "Test": ["CMD-SHELL", "curl -fsS http://localhost:8000/api/health || exit 1"],
+      "Interval": 60000000000,
+      "Timeout": 5000000000,
+      "Retries": 5,
+      "StartPeriod": 25000000000
+    }
+  },
+  "HostConfig": {
+    "NetworkMode": "bridge",
+    "PortBindings": {"8000/tcp": [{"HostPort": "8000"}]},
+    "RestartPolicy": {"Name": "unless-stopped"}
+  },
+  "NetworkSettings": {"Networks": {"bridge": {}}}
+}

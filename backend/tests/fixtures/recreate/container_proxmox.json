@@ -1,0 +1,43 @@
+{
+  "Id": "abc123",
+  "Image": "sha256:oldimage",
+  "Config": {
+    "Image": "ghcr.io/oraad/solar-ai-optimizer:0.5.10",
+    "Entrypoint": ["/app/run.sh"],
+    "Cmd": [],
+    "Env": [
+      "PATH=/usr/local/bin:/usr/bin:/bin",
+      "SHADOW_MODE=true",
+      "LOG_LEVEL=INFO",
+      "SELF_UPDATE_ENABLED=true",
+      "SELF_UPDATE_IMAGE=ghcr.io/oraad/solar-ai-optimizer:0.5.10",
+      "SELF_UPDATE_ENV_FILE=/opt/solar-ai-optimizer/solar.env"
+    ],
+    "Labels": {},
+    "WorkingDir": "/app",
+    "User": ""
+  },
+  "HostConfig": {
+    "NetworkMode": "bridge",
+    "PortBindings": {
+      "8000/tcp": [{"HostIp": "", "HostPort": "8000"}]
+    },
+    "Binds": [
+      "solar-data:/app/data",
+      "/var/run/docker.sock:/var/run/docker.sock"
+    ],
+    "RestartPolicy": {"Name": "unless-stopped", "MaximumRetryCount": 0}
+  },
+  "NetworkSettings": {
+    "Networks": {
+      "bridge": {
+        "Aliases": null,
+        "NetworkID": "net1",
+        "EndpointID": "ep1",
+        "Gateway": "172.17.0.1",
+        "IPAddress": "172.17.0.2",
+        "IPPrefixLen": 16
+      }
+    }
+  }
+}

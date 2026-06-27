@@ -33,7 +33,7 @@ All steps below use `{VERSION}` (no `v` prefix in files; tag is `v{VERSION}`).
 | Stable | `0.6.1` | `v0.6.1` | `:0.6.1`, `:0.6`, `:latest` | normal |
 | Pre-release | `0.6.1-beta.1` | `v0.6.1-beta.1` | `:0.6.1-beta.1` only | `prerelease: true` |
 
-Pre-release images are installed by **explicit tag** (`ghcr.io/oraad/solar-ai-optimizer:0.6.1-beta.1`). The **Software updates** UI lists stable releases only (by design).
+Pre-release images are installed by **explicit tag** (`ghcr.io/oraad/solar-ai-optimizer:0.6.1-beta.1`). The **Software updates** UI lists stable releases by default; admins can enable **Include beta releases** to list and install betas (notifications remain stable-only).
 
 ## 1. Prepare version and changelog (single branch)
 

@@ -2,7 +2,7 @@
 # the FastAPI backend from one Python 3.14 container.
 
 # ---- Stage 1: build the frontend ----
-FROM node:24-trixie AS frontend
+FROM node:26-trixie AS frontend
 WORKDIR /ui
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci

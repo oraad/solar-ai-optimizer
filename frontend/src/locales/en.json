@@ -272,7 +272,7 @@
       "solar": "Current PV production from your mapped sensor.",
       "load": "House load power drawn from the inverter or main meter.",
       "battery": "State of charge and charge/discharge power (+ = charging).",
-      "grid": "Whether utility grid is present and import/export power.",
+      "grid": "Whether utility grid is present, import/export power, and planned grid charge current.",
       "grid_charge": "Planned max grid charge current from the latest decision cycle.",
       "reserve": "Target SOC the optimizer is defending right now.",
       "risk": "Overall reserve risk level from the latest decision.",
@@ -397,7 +397,7 @@
       "liveStatus": "Live status",
       "hero": {
         "reserve": "Reserve {soc}%",
-        "risk": "Risk: {label} {pct}%"
+        "risk": "Risk: {label} {pct}"
       },
       "risk": {
         "low": "Low",
@@ -414,11 +414,12 @@
       "gridCharge": "Grid charge",
       "reserveTarget": "Reserve target",
       "outdoor": "Outdoor",
-      "batteryTemp": "Battery temp",
       "blackoutRisk": "Blackout risk",
       "gridAbsent": "Grid absent",
       "gridChargeOn": "on · max {amps} A",
       "gridChargeOff": "off",
+      "gridChargeLine": "{current} A · max {max} A",
+      "gridChargeOffMax": "Off · max {max} A",
       "reserveMarkTitle": "Reserve target"
     },
     "decision": {
@@ -523,6 +524,7 @@
       "colRisk": "Risk",
       "colSummary": "Summary",
       "colShed": "Shed",
+      "colEntities": "Entities",
       "colCapability": "Capability",
       "colRequested": "Requested",
       "colResult": "Result",

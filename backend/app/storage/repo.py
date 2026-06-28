@@ -206,6 +206,46 @@ async def get_recent_decisions(limit: int = 100) -> list[dict]:
     ]
 
 
+def _execution_audit_fields(e: ExecutionResult) -> dict:
+    """Audit payload persisted to executions (excludes ts)."""
+    return {
+        "capability": e.capability.value,
+        "requested": str(e.requested),
+        "applied": e.applied,
+        "verified": e.verified,
+        "skipped_reason": e.skipped_reason,
+        "error": e.error,
+    }
+
+
+def executions_audit_equal(prev: ExecutionResult | None, cur: ExecutionResult) -> bool:
+    if prev is None:
+        return False
+    return _execution_audit_fields(prev) == _execution_audit_fields(cur)
+
+
+def _shed_execution_audit_fields(r: ShedResult) -> dict:
+    """Audit payload persisted to shed_executions (excludes ts)."""
+    return {
+        "tier": r.tier,
+        "entity": r.entity,
+        "desired_on": r.desired_on,
+        "applied": r.applied,
+        "verified": r.verified,
+        "skipped_reason": r.skipped_reason,
+        "error": r.error,
+        "companions_captured": list(r.companions_captured),
+        "companions_restored": list(r.companions_restored),
+        "companion_errors": dict(r.companion_errors),
+    }
+
+
+def shed_executions_audit_equal(prev: ShedResult | None, cur: ShedResult) -> bool:
+    if prev is None:
+        return False
+    return _shed_execution_audit_fields(prev) == _shed_execution_audit_fields(cur)
+
+
 async def save_execution(e: ExecutionResult) -> None:
     sm = get_sessionmaker()
     async with sm() as s:

@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.6.4] - 2026-06-27
+## [0.6.5] - 2026-06-28
+
+### Added
+
+- Execution and shed history audit deduplication on the backend (skip DB writes when audit payload unchanged)
+- Shared `history-audit` and `grid-charge-display` helpers with unit tests
+- History timeline: entities column for shed execution rows
+
+### Changed
+
+- SoC bar: solid green band from 85% to 100% when max ceiling allows; status cards pass `max_soc_ceiling` to the fill gradient
+- Live status: grid charge amps shown as a subline on the Grid tile; removed separate Grid charge and Battery temp tiles
+- Overview hero: risk pill no longer duplicates the percent sign
+
+### Fixed
+
+- History timeline: collapse consecutive duplicate execution and shed rows in the client
 
 ### Added
 

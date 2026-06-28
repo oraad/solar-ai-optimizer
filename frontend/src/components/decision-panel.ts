@@ -3,6 +3,7 @@ import { customElement, property } from "lit/decorators.js";
 
 import { capabilityLabel } from "../field-labels.js";
 import { riskPillClassFromScore } from "../blackout-risk.js";
+import { gridChargeLabel } from "../grid-charge-display.js";
 import { t } from "../i18n.js";
 import { LocaleController } from "../locale-controller.js";
 import {
@@ -13,7 +14,7 @@ import {
   type TierShedResultSummary,
 } from "../shed-display.js";
 import { sharedStyles } from "../styles.js";
-import type { Decision, ExecutionResult, GridChargePlan, ShedResult, SystemStatus } from "../types.js";
+import type { Decision, ExecutionResult, ShedResult, SystemStatus } from "../types.js";
 
 @customElement("solar-decision-panel")
 export class DecisionPanel extends LitElement {
@@ -93,12 +94,6 @@ export class DecisionPanel extends LitElement {
     if (cls === "bad") return "risk-high";
     if (cls === "warn") return "risk-mid";
     return "risk-low";
-  }
-
-  private gridChargeLabel(gc: GridChargePlan | null | undefined): string {
-    if (!gc) return "--";
-    if (gc.enabled && gc.target_amps > 0) return `${gc.target_amps.toFixed(0)} A`;
-    return t("common.off");
   }
 
   private appliedGridChargeAmps(): number | null {
@@ -226,7 +221,7 @@ export class DecisionPanel extends LitElement {
           ${gridOn
             ? html`<div class="stat ${gc?.enabled ? "risk-low" : ""}">
             <div class="label">${t("ui.decision.gridCharge")}</div>
-            <div class="v">${this.gridChargeLabel(gc)}</div>
+            <div class="v">${gridChargeLabel(gc)}</div>
             ${applied != null && gc?.enabled
               ? html`<div class="label" style="margin-top:4px">${t("ui.decision.applied", { amps: applied.toFixed(0) })}</div>`
               : null}

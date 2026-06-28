@@ -67,9 +67,26 @@ class Executor:
         self._snapshots = snapshot_store
         self._verify_delay = 1.5
         self._switch_last_write: dict[str, tuple[datetime, bool]] = {}
+        self._last_saved_execution: dict[Capability, ExecutionResult] = {}
+        self._last_saved_shed: dict[tuple[str, str], ShedResult] = {}
 
     def set_snapshot_store(self, store: ShedSnapshotStore) -> None:
         self._snapshots = store
+
+    async def _maybe_save_execution(self, res: ExecutionResult) -> None:
+        prev = self._last_saved_execution.get(res.capability)
+        if repo.executions_audit_equal(prev, res):
+            return
+        await repo.save_execution(res)
+        self._last_saved_execution[res.capability] = res
+
+    async def _maybe_save_shed_execution(self, res: ShedResult) -> None:
+        key = (res.tier, res.entity)
+        prev = self._last_saved_shed.get(key)
+        if repo.shed_executions_audit_equal(prev, res):
+            return
+        await repo.save_shed_execution(res)
+        self._last_saved_shed[key] = res
 
     async def apply_decision(
         self, decision: Decision, shadow_mode: bool
@@ -78,7 +95,7 @@ class Executor:
         for action in decision.actions:
             res = await self._apply_action(action, shadow_mode)
             results.append(res)
-            await repo.save_execution(res)
+            await self._maybe_save_execution(res)
             if res.applied:
                 metrics.executor_writes_applied += 1
             else:
@@ -235,7 +252,7 @@ class Executor:
         for a in actions:
             res = await self._apply_shed(a, shadow_mode, tier_list)
             results.append(res)
-            await repo.save_shed_execution(res)
+            await self._maybe_save_shed_execution(res)
             if res.applied:
                 metrics.shed_writes_applied += 1
             else:
@@ -512,7 +529,7 @@ class Executor:
                     error=str(e),
                 )
             results.append(res)
-            await repo.save_execution(res)
+            await self._maybe_save_execution(res)
         return results
 
     async def restore_all_sheds(

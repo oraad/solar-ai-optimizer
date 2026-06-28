@@ -40,11 +40,12 @@
     "gridCharge": "Grid charge",
     "reserveTarget": "Reserve target",
     "outdoor": "Outdoor",
-    "batteryTemp": "Battery temp",
     "blackoutRisk": "Blackout risk",
     "gridAbsent": "Grid absent",
     "gridChargeOn": "on · max {amps} A",
     "gridChargeOff": "off",
+    "gridChargeLine": "{current} A · max {max} A",
+    "gridChargeOffMax": "Off · max {max} A",
     "reserveMarkTitle": "Reserve target"
   },
   "decision": {
@@ -123,6 +124,7 @@
     "colRisk": "Risk",
     "colSummary": "Summary",
     "colShed": "Shed",
+    "colEntities": "Entities",
     "colCapability": "Capability",
     "colRequested": "Requested",
     "colResult": "Result",

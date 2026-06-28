@@ -4,6 +4,7 @@ import { customElement, property } from "lit/decorators.js";
 import { batteryEtaLine } from "../duration.js";
 import { socFillStyle } from "../soc-bar.js";
 import { formatRiskFromLevel } from "../blackout-risk.js";
+import { gridChargeSubline } from "../grid-charge-display.js";
 import { statusHelp } from "../field-help.js";
 import { t } from "../i18n.js";
 import { labelWithTip } from "../label-tip.js";
@@ -30,10 +31,8 @@ const STATUS_ICONS = {
   load: "\u2302",
   battery: "\u{1F50B}",
   grid: "\u26A1",
-  gridCharge: "\u{1F50C}",
   reserve: "\u{1F6E1}",
   outdoor: "\u{1F321}",
-  batteryTemp: "\u2668",
   risk: "\u26A0",
 } as const;
 
@@ -80,6 +79,7 @@ export class StatusCards extends LitElement {
         position: absolute; top: -2px; width: 2px; height: 14px; background: var(--accent-2);
       }
       .eta { margin-top: 4px; font-size: 0.78rem; color: var(--muted); }
+      .charge-line { margin-top: 4px; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
       .tiles.compact { grid-template-columns: repeat(4, 1fr); }
       @media (max-width: 700px) { .tiles.compact { grid-template-columns: repeat(2, 1fr); } }
       .skeleton-tile {
@@ -151,6 +151,7 @@ export class StatusCards extends LitElement {
 
     const battSpec = this.status?.battery_summary ?? this.battery;
     const minSoc = battSpec?.min_soc_floor ?? 20;
+    const maxSoc = battSpec?.max_soc_ceiling ?? 100;
     const eta =
       battSpec && soc != null && battP != null
         ? batteryEtaLine({
@@ -169,22 +170,11 @@ export class StatusCards extends LitElement {
     const age = this.status?.telemetry_age_seconds;
     const gc = d?.grid_charge ?? null;
     const gridAbsent = telemetry?.grid_present === false;
-    const gcAmps = gc?.target_amps;
-    const gcEnabled = gc?.enabled === true && (gcAmps ?? 0) > 0;
-    const gcMetric = gridAbsent
-      ? "--"
-      : gcEnabled
-        ? `${gcAmps!.toFixed(0)} A`
-        : gc
-          ? t("common.off")
-          : "--";
-    const gcSub = gridAbsent
-      ? t("ui.status.gridAbsent")
-      : gc
-        ? gc.enabled
-          ? t("ui.status.gridChargeOn", { amps: gc.max_amps.toFixed(0) })
-          : t("ui.status.gridChargeOff")
-        : "";
+    const chargeSub = gridChargeSubline(
+      gc,
+      gridAbsent,
+      this.status?.grid_charge_enabled !== false,
+    );
 
     return html`
       <div class="card">
@@ -212,7 +202,7 @@ export class StatusCards extends LitElement {
             ${this.tileHead(STATUS_ICONS.battery, t("ui.status.battery"), "battery")}
             <div class="metric">${soc != null ? `${soc.toFixed(0)}%` : "--"}</div>
             <div class="soc-bar">
-              <div class="soc-fill" style=${socFillStyle(soc, minSoc)}></div>
+              <div class="soc-fill" style=${socFillStyle(soc, minSoc, maxSoc)}></div>
               ${reserve != null
                 ? html`<div class="reserve-mark" style="left:${reserve}%" title=${t("ui.status.reserveMarkTitle")}></div>`
                 : null}
@@ -231,17 +221,13 @@ export class StatusCards extends LitElement {
               </span>
             </div>
             <div class="label" style="margin-top:6px">${fmtW(telemetry?.grid_power)}</div>
+            ${chargeSub
+              ? html`<div class="charge-line" style="color:${chargeSub.color}">${chargeSub.text}</div>`
+              : null}
           </div>
           ${this.compact
             ? null
             : html`
-          <div class="tile">
-            ${this.tileHead(STATUS_ICONS.gridCharge, t("ui.status.gridCharge"), "grid_charge")}
-            <div class="metric" style="color:${gcEnabled ? "var(--good)" : "var(--muted)"}">
-              ${gcMetric}
-            </div>
-            ${gcSub ? html`<div class="label" style="margin-top:6px">${gcSub}</div>` : null}
-          </div>
           <div class="tile">
             ${this.tileHead(STATUS_ICONS.reserve, t("ui.status.reserveTarget"), "reserve")}
             <div class="metric">${reserve != null ? `${reserve.toFixed(0)}%` : "--"}</div>
@@ -250,12 +236,6 @@ export class StatusCards extends LitElement {
             ? html`<div class="tile">
                 ${this.tileHead(STATUS_ICONS.outdoor, t("ui.status.outdoor"), "outdoor")}
                 <div class="metric">${telemetry.outdoor_temp.toFixed(1)}&deg;C</div>
-              </div>`
-            : null}
-          ${telemetry?.battery_temp != null
-            ? html`<div class="tile">
-                ${this.tileHead(STATUS_ICONS.batteryTemp, t("ui.status.batteryTemp"), "battery_temp")}
-                <div class="metric">${telemetry.battery_temp.toFixed(1)}&deg;C</div>
               </div>`
             : null}
           <div class="tile">

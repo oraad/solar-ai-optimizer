@@ -79,6 +79,7 @@ export class OverviewHero extends LitElement {
     const engineOn = this.status?.engine_enabled !== false;
     const soc = telemetry?.battery_soc ?? null;
     const minSoc = this.status?.battery_summary?.min_soc_floor ?? 20;
+    const maxSoc = this.status?.battery_summary?.max_soc_ceiling ?? 100;
     const reserve = engineOn ? (d?.reserve.target_soc ?? null) : null;
     const riskScore = engineOn ? (d?.blackout_risk_score ?? null) : null;
     const risk = riskScore != null ? formatRiskFromScore(riskScore) : null;
@@ -90,7 +91,7 @@ export class OverviewHero extends LitElement {
           <div class="soc-bar-wrap">
             <div class="label">${t("ui.status.battery")}</div>
             <div class="soc-bar">
-              <div class="soc-fill" style=${socFillStyle(soc, minSoc)}></div>
+              <div class="soc-fill" style=${socFillStyle(soc, minSoc, maxSoc)}></div>
               ${reserve != null
                 ? html`<div class="reserve-mark" style="left:${reserve}%"></div>`
                 : null}

@@ -18,8 +18,15 @@ import {
 } from "../charts.js";
 import { formatDateTime, getDateFormat } from "../date-format.js";
 import { entityDisplayName } from "../entity-resolve.js";
+import { capabilityLabel } from "../field-labels.js";
+import { dedupeConsecutiveExecutions, dedupeConsecutiveShedExecutions } from "../history-audit.js";
 import { t } from "../i18n.js";
 import { LocaleController } from "../locale-controller.js";
+import {
+  groupShedResultsByTier,
+  shedResultTooltip,
+  type TierShedResultSummary,
+} from "../shed-display.js";
 import { sharedStyles } from "../styles.js";
 import type {
   DecisionHistoryRow,
@@ -27,6 +34,7 @@ import type {
   ExecutionHistoryRow,
   GridEventRow,
   ShedExecutionRow,
+  ShedResult,
   Telemetry,
 } from "../types.js";
 
@@ -135,6 +143,7 @@ export class HistoryView extends LitElement {
   @state() private shedExecs: ShedExecutionRow[] = [];
   @state() private loadError = "";
   @state() private expandedDecisionTs = "";
+  @state() private expandedActivityKey = "";
   @property({ attribute: false }) entities: EntityInfo[] = [];
   @property({ attribute: false }) navHint: HistoryNavHint | null = null;
   @query(".chart-mount") private chartEl!: HTMLDivElement;
@@ -253,11 +262,13 @@ export class HistoryView extends LitElement {
   }
 
   private async loadExecutions(): Promise<void> {
-    this.executions = await api.historyExecutions(100);
+    const rows = await api.historyExecutions(100);
+    this.executions = dedupeConsecutiveExecutions(rows);
   }
 
   private async loadShedExecutions(): Promise<void> {
-    this.shedExecs = await api.historyShedExecutions(100);
+    const rows = await api.historyShedExecutions(100);
+    this.shedExecs = dedupeConsecutiveShedExecutions(rows);
   }
 
   private onHours(e: Event): void {
@@ -300,6 +311,46 @@ export class HistoryView extends LitElement {
 
   private toggleDecision(ts: string): void {
     this.expandedDecisionTs = this.expandedDecisionTs === ts ? "" : ts;
+  }
+
+  private toggleActivity(key: string): void {
+    this.expandedActivityKey = this.expandedActivityKey === key ? "" : key;
+  }
+
+  private onActivityRowKeydown(e: KeyboardEvent, key: string): void {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      this.toggleActivity(key);
+    }
+  }
+
+  private shedExecBatches(): Array<{ ts: string; tiers: TierShedResultSummary[] }> {
+    const tsOrder: string[] = [];
+    const byTs = new Map<string, ShedExecutionRow[]>();
+    for (const row of this.shedExecs) {
+      if (!byTs.has(row.ts)) {
+        tsOrder.push(row.ts);
+        byTs.set(row.ts, []);
+      }
+      byTs.get(row.ts)!.push(row);
+    }
+    return tsOrder.map((ts) => ({
+      ts,
+      tiers: groupShedResultsByTier(byTs.get(ts)! as ShedResult[]),
+    }));
+  }
+
+  private tierShedResultBadge(summary: TierShedResultSummary): ReturnType<typeof html> {
+    if (summary.allVerified) {
+      return html`<span class="pill good">${t("ui.decision.verified")}</span>`;
+    }
+    const skip =
+      summary.uniformSkipReasonText ??
+      summary.primarySkipReasonText ??
+      summary.uniformSkipReason ??
+      summary.primarySkipReason ??
+      t("ui.decision.skipped");
+    return html`<span class="pill muted">${skip}</span>`;
   }
 
   private recentEvents(): string[] {
@@ -480,19 +531,39 @@ export class HistoryView extends LitElement {
       <div class="table-scroll">
         <table class="table">
           <thead>
-            <tr><th>${t("ui.history.colTime")}</th><th>${t("ui.history.colCapability")}</th><th>${t("ui.history.colRequested")}</th><th>${t("ui.history.colResult")}</th></tr>
+            <tr><th>${t("ui.history.colTime")}</th><th>${t("ui.history.colCapability")}</th><th>${t("ui.history.colResult")}</th></tr>
           </thead>
           <tbody>
-            ${this.executions.map(
-              (e) => html`
-                <tr title=${this.skipLabel(e, "") || e.error || ""}>
+            ${this.executions.map((e) => {
+              const key = `exec:${e.ts}|${e.capability}`;
+              const expanded = this.expandedActivityKey === key;
+              const skip = this.skipLabel(e, t("ui.decision.skipped"));
+              const detail = [
+                `${t("ui.history.colRequested")}: ${e.requested}`,
+                skip && !e.applied ? skip : "",
+                e.error ?? "",
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return html`
+                <tr
+                  class="expandable"
+                  role="button"
+                  tabindex="0"
+                  aria-expanded=${expanded}
+                  aria-label=${t("ui.history.expandRow")}
+                  @click=${() => this.toggleActivity(key)}
+                  @keydown=${(e: KeyboardEvent) => this.onActivityRowKeydown(e, key)}
+                >
                   <td>${formatDateTime(e.ts, fmt)}</td>
-                  <td>${e.capability}</td>
-                  <td>${e.requested}</td>
-                  <td>${this.resultBadge(e.applied, e.verified, this.skipLabel(e, t("ui.decision.skipped")))}</td>
+                  <td>${capabilityLabel(e.capability)}</td>
+                  <td>${this.resultBadge(e.applied, e.verified, skip)}</td>
                 </tr>
-              `,
-            )}
+                ${expanded && detail
+                  ? html`<tr class="expanded-row"><td colspan="3">${detail}</td></tr>`
+                  : null}
+              `;
+            })}
           </tbody>
         </table>
       </div>
@@ -504,32 +575,61 @@ export class HistoryView extends LitElement {
       return html`<p class="label">${t("ui.history.noShed")}</p>`;
     }
     const fmt = this.dateFmt();
+    const batches = this.shedExecBatches();
     return html`
       <div class="table-scroll">
         <table class="table">
           <thead>
-            <tr><th>${t("ui.history.colTime")}</th><th>${t("ui.history.colTier")}</th><th>${t("ui.history.colEntity")}</th><th>${t("ui.history.colDesired")}</th><th>${t("ui.history.colResult")}</th><th>${t("ui.history.colCompanions")}</th></tr>
+            <tr>
+              <th>${t("ui.history.colTime")}</th><th>${t("ui.history.colTier")}</th><th>${t("ui.history.colDesired")}</th><th>${t("ui.history.colResult")}</th><th>${t("ui.history.colEntities")}</th>
+            </tr>
           </thead>
           <tbody>
-            ${this.shedExecs.map((e) => {
-              const entityName = this.entityLabel(e.entity);
-              const comp =
-                (e.companions_restored?.length ?? 0) > 0
-                  ? t("ui.history.restored", { list: this.entityLabels(e.companions_restored!) })
-                  : (e.companions_captured?.length ?? 0) > 0
-                    ? t("ui.history.captured", { list: this.entityLabels(e.companions_captured!) })
-                    : "";
-              return html`
-                <tr title=${entityName !== e.entity ? e.entity : ""}>
-                  <td>${formatDateTime(e.ts, fmt)}</td>
-                  <td>${e.tier}</td>
-                  <td>${entityName}</td>
-                  <td>${e.desired_on ? t("common.on") : t("common.off")}</td>
-                  <td>${this.resultBadge(e.applied, e.verified, this.skipLabel(e, t("ui.decision.skipped")))}</td>
-                  <td>${comp || t("ui.history.dash")}</td>
-                </tr>
-              `;
-            })}
+            ${batches.flatMap(({ ts, tiers }) =>
+              tiers.map((summary) => {
+                const key = `shed:${ts}|${summary.tier}`;
+                const expanded = this.expandedActivityKey === key;
+                return html`
+                  <tr
+                    class="expandable"
+                    role="button"
+                    tabindex="0"
+                    title=${shedResultTooltip(summary)}
+                    aria-expanded=${expanded}
+                    aria-label=${t("ui.history.expandRow")}
+                    @click=${() => this.toggleActivity(key)}
+                    @keydown=${(e: KeyboardEvent) => this.onActivityRowKeydown(e, key)}
+                  >
+                    <td>${formatDateTime(ts, fmt)}</td>
+                    <td>${summary.tier}</td>
+                    <td>${summary.desired_on ? t("common.on") : t("common.off")}</td>
+                    <td>${this.tierShedResultBadge(summary)}</td>
+                    <td>${summary.entities.length}</td>
+                  </tr>
+                  ${expanded
+                    ? html`<tr class="expanded-row"><td colspan="5">
+                        ${summary.results.map((r) => {
+                          const name = this.entityLabel(r.entity);
+                          const status = r.verified
+                            ? t("ui.decision.verified")
+                            : this.skipLabel(r, t("ui.decision.skipped"));
+                          const comp =
+                            (r.companions_restored?.length ?? 0) > 0
+                              ? t("ui.history.restored", { list: this.entityLabels(r.companions_restored!) })
+                              : (r.companions_captured?.length ?? 0) > 0
+                                ? t("ui.history.captured", { list: this.entityLabels(r.companions_captured!) })
+                                : "";
+                          return html`<div>
+                            ${name}${name !== r.entity ? html` <span class="label">(${r.entity})</span>` : null}:
+                            ${r.desired_on ? t("common.on") : t("common.off")} ${status}
+                            ${comp ? html` · ${comp}` : null}
+                          </div>`;
+                        })}
+                      </td></tr>`
+                    : null}
+                `;
+              }),
+            )}
           </tbody>
         </table>
       </div>

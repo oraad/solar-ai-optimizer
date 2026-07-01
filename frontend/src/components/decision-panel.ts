@@ -184,7 +184,7 @@ export class DecisionPanel extends LitElement {
         <button type="button" class="link-btn" @click=${this.goHistoryShed}>${t("ui.decision.viewShedHistory")} →</button>
         ${this.role === "admin"
           ? html`<button type="button" class="link-btn" @click=${this.goLoadShedding}>${t("ui.decision.configureShedding")} →</button>`
-          : null}
+          : html`<button type="button" class="link-btn" @click=${this.goLoadShedding}>${t("ui.decision.viewShedding")} →</button>`}
       </div>
     `;
   }

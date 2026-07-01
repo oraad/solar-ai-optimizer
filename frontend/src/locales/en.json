@@ -363,6 +363,9 @@
       "viewer": "VIEWER",
       "viewerTooltip": "Signed in as {name} (viewer)",
       "viewerTooltipGeneric": "Viewer access — limited operator controls",
+      "viewAsViewer": "Viewer preview",
+      "viewAsViewerTooltip": "See the dashboard as a non-admin user",
+      "viewerPreviewTooltip": "Viewer preview — click to return to admin view",
       "haConnected": "HA connected",
       "haOffline": "HA offline",
       "haShort": "HA",
@@ -448,7 +451,8 @@
       "shadowMode": "Shadow mode: actions are logged but NOT written to the inverter.",
       "details": "Details",
       "viewShedHistory": "View shed history",
-      "configureShedding": "Configure shedding"
+      "configureShedding": "Configure shedding",
+      "viewShedding": "View load shedding"
     },
     "grid": {
       "title": "Grid (reactive — not predicted)",
@@ -560,6 +564,7 @@
       "pause": "Pause",
       "pauseAll": "Pause all",
       "resume": "Resume",
+      "resumeAll": "Resume all",
       "pauseShedding": "Load shedding",
       "pauseGridCharge": "Grid charge",
       "pauseOptimization": "Optimization",
@@ -613,6 +618,7 @@
     },
     "loadShedding": {
       "title": "Load shedding",
+      "viewerNote": "Load shedding configuration changes require an admin.",
       "intro": "Companions on the same Home Assistant device are discovered automatically (climate, select, etc.), snapshotted when shedding, and reapplied on restore. Devices that were off before shedding are never turned on.",
       "tiersIntro": "Tiers — lowest priority sheds first. All entities in a tier shed and restore together.",
       "entitiesConnected": "Start typing to pick from your Home Assistant entities.",

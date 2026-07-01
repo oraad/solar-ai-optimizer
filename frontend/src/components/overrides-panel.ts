@@ -197,6 +197,51 @@ export class OverridesPanel extends LitElement {
       t("ui.overrides.toastCycleSuccess"),
     );
 
+  private renderSubsystemPauses(
+    pausedShed: boolean,
+    pausedGrid: boolean,
+    pausedOpt: boolean,
+  ) {
+    return html`
+      <div class="ctrl">
+        <span>${t("ui.overrides.pauseShedding")}</span>
+        <span class="seg">
+          <button
+            class=${pausedShed ? "active warn" : ""}
+            ?disabled=${this.busy}
+            @click=${this.togglePauseShedding}
+          >
+            ${pausedShed ? t("ui.overrides.paused") : t("ui.overrides.running")}
+          </button>
+        </span>
+      </div>
+      <div class="ctrl">
+        <span>${t("ui.overrides.pauseGridCharge")}</span>
+        <span class="seg">
+          <button
+            class=${pausedGrid ? "active warn" : ""}
+            ?disabled=${this.busy}
+            @click=${this.togglePauseGridCharge}
+          >
+            ${pausedGrid ? t("ui.overrides.paused") : t("ui.overrides.running")}
+          </button>
+        </span>
+      </div>
+      <div class="ctrl">
+        <span>${t("ui.overrides.pauseOptimization")}</span>
+        <span class="seg">
+          <button
+            class=${pausedOpt ? "active warn" : ""}
+            ?disabled=${this.busy}
+            @click=${this.togglePauseOptimization}
+          >
+            ${pausedOpt ? t("ui.overrides.paused") : t("ui.overrides.running")}
+          </button>
+        </span>
+      </div>
+    `;
+  }
+
   render() {
     const shadow = this.status?.shadow_mode ?? true;
     const pausedAll = this.status?.paused ?? false;
@@ -207,6 +252,7 @@ export class OverridesPanel extends LitElement {
     const viewer = this.role === "viewer";
     const partialPause =
       !pausedAll && (pausedShed || pausedGrid || pausedOpt);
+    const anyPaused = pausedShed || pausedGrid || pausedOpt;
     return html`
       <div class="card ${this.busy ? "busy" : ""}">
         <h3>${viewer ? t("ui.overrides.titleViewer") : t("ui.overrides.title")}</h3>
@@ -228,13 +274,18 @@ export class OverridesPanel extends LitElement {
 
         <div class="section-label">${t("ui.overrides.sectionPrimary")}</div>
         <div class="primary-row">
-          ${pausedAll
-            ? html`<button class="primary" ?disabled=${this.busy} @click=${this.resumeAll}>&#9654; ${t("ui.overrides.resume")}</button>`
-            : html`<button ?disabled=${this.busy} @click=${this.togglePauseAll}>&#10073;&#10073; ${t("ui.overrides.pauseAll")}</button>`}
+          ${!pausedAll
+            ? html`<button ?disabled=${this.busy} @click=${this.togglePauseAll}>&#10073;&#10073; ${t("ui.overrides.pauseAll")}</button>`
+            : null}
+          ${anyPaused
+            ? html`<button class="primary" ?disabled=${this.busy} @click=${this.resumeAll}>&#9654; ${t("ui.overrides.resumeAll")}</button>`
+            : null}
           ${viewer
             ? null
             : html`<button ?disabled=${this.busy} @click=${this.forceCycle}>&#8635; ${t("ui.overrides.runCycle")}</button>`}
         </div>
+
+        ${this.renderSubsystemPauses(pausedShed, pausedGrid, pausedOpt)}
 
         ${viewer
           ? html`
@@ -275,30 +326,6 @@ export class OverridesPanel extends LitElement {
 
               <details class="advanced">
                 <summary>${t("ui.overrides.sectionAdvanced")}</summary>
-                <div class="ctrl">
-                  <span>${t("ui.overrides.pauseShedding")}</span>
-                  <span class="seg">
-                    <button class=${pausedShed ? "active warn" : ""} @click=${this.togglePauseShedding}>
-                      ${pausedShed ? t("ui.overrides.paused") : t("ui.overrides.running")}
-                    </button>
-                  </span>
-                </div>
-                <div class="ctrl">
-                  <span>${t("ui.overrides.pauseGridCharge")}</span>
-                  <span class="seg">
-                    <button class=${pausedGrid ? "active warn" : ""} @click=${this.togglePauseGridCharge}>
-                      ${pausedGrid ? t("ui.overrides.paused") : t("ui.overrides.running")}
-                    </button>
-                  </span>
-                </div>
-                <div class="ctrl">
-                  <span>${t("ui.overrides.pauseOptimization")}</span>
-                  <span class="seg">
-                    <button class=${pausedOpt ? "active warn" : ""} @click=${this.togglePauseOptimization}>
-                      ${pausedOpt ? t("ui.overrides.paused") : t("ui.overrides.running")}
-                    </button>
-                  </span>
-                </div>
                 <div class="ctrl">
                   <span>${labelWithTip(t("ui.overrides.mode"), overrideHelp("mode"))}</span>
                   <span class="seg">

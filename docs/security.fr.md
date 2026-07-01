@@ -34,7 +34,9 @@ Détails complets du contrôle d'accès :[Rôles et accès](ingress-auth.md).
 Les utilisateurs non administrateurs de Home Assistant authentifiés via Ingress sont des **visionneurs**. Ils peuvent lire en direct
 statut, prévisions et historique, et peut POST des remplacements limités uniquement :
 
-- `shadow_mode`, `pause_engine`, `kill_switch`(avec`confirm=true`)
+- `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `kill_switch` (avec `confirm=true`)
+
+Chaque champ `pause_*` est bidirectionnel : `true` met en pause, `false` reprend.
 
 Les téléspectateurs se voient refuser les lectures de configuration (`GET /api/config`), énumération des entités (`GET /api/entities`),
 écritures de configuration, l'Assistant, le code PIN de réserve, les frais de réseau forcés et d'autres itinéraires réservés aux administrateurs.

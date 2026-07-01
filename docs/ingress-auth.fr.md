@@ -104,7 +104,7 @@ Voir le[Guide d'utilisation du tableau de bord → Rôles du tableau de bord](fr
 | **Administrateur** | Propriétaire HA ou`system-admin`groupe; ou`ADMIN_USER_IDS`liste verte | Tableau de bord complet (Aperçu, Prévisions, Historique, Assistant, Paramètres) |
 | **Visionneuse** | Autres utilisateurs HA via l'entrée | Présentation, Prévisions et Historique uniquement : contrôles limités de l'opérateur sur Présentation |
 
-Les téléspectateurs peuvent basculer **shadow/live**, **mettre en pause/reprendre** le moteur et activer le **kill switch** (avec confirmation). Ils ne peuvent pas épingler le SOC de réserve, forcer la facturation du réseau, exécuter un cycle de contrôle, actualiser les prévisions, effacer les remplacements, utiliser l'Assistant ou ouvrir les paramètres.
+Les téléspectateurs peuvent **mettre en pause/reprendre** le moteur et chaque sous-système (délestage, charge réseau, optimisation) et activer le **kill switch** (avec confirmation). Ils ne peuvent pas épingler le SOC de réserve, forcer la facturation du réseau, exécuter un cycle de contrôle, actualiser les prévisions, effacer les remplacements, basculer shadow/live dans l'UI, utiliser l'Assistant ou ouvrir les paramètres.
 
 Les routes d'API en mutation appliquent les mêmes limites sur le backend. Les API de configuration et de modèle restent réservées aux administrateurs.
 
@@ -125,7 +125,7 @@ ADMIN_USER_IDS=abc123,def456
 | `GET /api/health`| Publique | Sonde de vivacité |
 | `GET /api/config`| Administrateur | Configuration complète du tableau de bord (spectateurs refusés) |
 | `GET /api/entities`| Administrateur | Liste d'entités HA pour la saisie semi-automatique des paramètres |
-| `POST /api/override`| Séance | Admin : tout champ de remplacement ; téléspectateur:`shadow_mode`, `pause_engine`, `kill_switch`seulement (`kill_switch`nécessite`confirm=true`) |
+| `POST /api/override`| Séance | Admin : tout champ de remplacement ; téléspectateur : `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `kill_switch` (`kill_switch` nécessite `confirm=true`) |
 
 ## Liste de contrôle de sécurité
 

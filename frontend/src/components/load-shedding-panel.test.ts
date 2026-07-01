@@ -137,3 +137,58 @@ describe("LoadSheddingPanel entity autocomplete", () => {
     host.remove();
   });
 });
+
+describe("LoadSheddingPanel role", () => {
+  const VIEWER_TIER_CONFIG = {
+    ...TIER_WITH_COMPANIONS,
+    enabled: true,
+    restore_all_when_grid_present: true,
+  };
+
+  function mountViewerPanel(): { host: HTMLElement; panel: LoadSheddingPanel } {
+    const host = document.createElement("div");
+    host.attachShadow({ mode: "open" });
+    const panel = document.createElement("solar-load-shedding-panel") as LoadSheddingPanel;
+    panel.role = "viewer";
+    panel.config = { load_shedding: VIEWER_TIER_CONFIG } as unknown as AppConfigView;
+    panel.status = {
+      telemetry: null,
+      decision: null,
+      grid_stats: null,
+      ha_connected: true,
+      shadow_mode: true,
+      paused: false,
+      last_updated: new Date().toISOString(),
+    };
+    host.shadowRoot!.appendChild(panel);
+    document.body.appendChild(host);
+    return { host, panel };
+  }
+
+  it("viewer mode hides write controls and shows viewer note", async () => {
+    const { host, panel } = mountViewerPanel();
+    await panel.updateComplete;
+
+    const root = panel.shadowRoot!;
+    expect(root.textContent).toContain("require an admin");
+    expect(root.textContent).not.toContain("Revert");
+    expect(root.querySelector("button.primary")).toBeNull();
+    expect(root.textContent).not.toContain("Add tier");
+
+    host.remove();
+  });
+
+  it("viewer mode shows entity ids as text when tier expanded", async () => {
+    const { host, panel } = mountViewerPanel();
+    await panel.updateComplete;
+
+    const tierHead = panel.shadowRoot!.querySelector(".tier-head") as HTMLElement;
+    tierHead.click();
+    await panel.updateComplete;
+
+    expect(panel.shadowRoot!.querySelector("solar-entity-input")).toBeNull();
+    expect(panel.shadowRoot!.textContent).toContain("switch.pool");
+
+    host.remove();
+  });
+});

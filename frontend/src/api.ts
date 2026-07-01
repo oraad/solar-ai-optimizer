@@ -143,6 +143,8 @@ export const api = {
     }>("/api/plan"),
   gridStats: () => getJSON<GridStats>("/api/grid-stats"),
   config: () => getJSON<AppConfigView>("/api/config"),
+  loadSheddingConfig: () =>
+    getJSON<{ load_shedding: Record<string, unknown> }>("/api/config/load-shedding"),
   historyTelemetry: (hours = 24) =>
     getJSON<Telemetry[]>(`/api/history/telemetry?hours=${hours}`),
   historyDecisions: (limit = 100) =>

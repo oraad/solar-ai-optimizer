@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.6-beta.1] - 2026-06-30
+
+### Added
+
+- Read-only **Load shedding** tab for viewer (ingress) users with live status, tier ladder, and `GET /api/config/load-shedding`
+- Admin **Viewer preview** toggle in the top bar to see the dashboard as a non-admin user
+- Viewer override API: per-subsystem pause/resume (load shedding, grid charge, optimization) in addition to pause/resume all and kill switch
+
+### Changed
+
+- Overrides panel: subsystem pause controls in the primary section for admins and viewers; **Resume all** when any subsystem is paused
+- Dashboard and ingress docs: viewer capabilities updated for Load shedding tab and subsystem pauses
+
 ## [0.6.5] - 2026-06-28
 
 ### Added

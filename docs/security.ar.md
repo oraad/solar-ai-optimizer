@@ -34,7 +34,9 @@
 مستخدمو Home Assistant غير الإداريين الذين تمت مصادقتهم عبر الدخول هم **المشاهدون**. يمكنهم القراءة مباشرة
 الحالة والتنبؤات والتاريخ، ويجوز نشر تجاوزات محدودة فقط:
 
-- `shadow_mode`, `pause_engine`, `kill_switch`(مع`confirm=true`)
+- `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `kill_switch` (مع `confirm=true`)
+
+كل حقل `pause_*` ثنائي الاتجاه: `true` يوقف مؤقتًا، `false` يستأنف.
 
 تم رفض قراءات التكوين للمشاهدين (`GET /api/config`)، تعداد الكيان (`GET /api/entities`)،
 يكتب التكوين، والمساعد، والدبوس الاحتياطي، وفرض رسوم الشبكة، وغيرها من المسارات المخصصة للمسؤول فقط.

@@ -305,12 +305,15 @@ def require_admin(request: Request) -> SessionUser:
 VIEWER_OVERRIDE_FIELDS = frozenset({
     "shadow_mode",
     "pause_engine",
+    "pause_shedding",
+    "pause_grid_charge",
+    "pause_optimization",
     "kill_switch",
 })
 
 
 def assert_override_allowed(session: SessionUser, ov: Override) -> None:
-    """Viewers may toggle shadow/live, pause/resume all, and kill switch only."""
+    """Viewers may pause/resume engine and subsystems, toggle shadow/live, and kill switch."""
     if session.is_admin:
         return
     touched = {

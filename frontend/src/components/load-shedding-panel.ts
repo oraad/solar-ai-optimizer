@@ -196,6 +196,21 @@ export class LoadSheddingPanel extends LitElement {
       }
       .preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
       .preset-row button { font-size: 0.78rem; padding: 4px 10px; }
+      .viewer-note { font-size: 0.78rem; color: var(--muted); margin: -4px 0 12px; }
+      .banner {
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        margin-bottom: 12px;
+        font-size: 0.82rem;
+        border: 1px solid var(--border);
+      }
+      .banner.warn {
+        background: color-mix(in srgb, var(--warn) 12%, var(--panel-2));
+        color: var(--warn);
+      }
+      .summary-pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+      .entity-id { font-family: ui-monospace, monospace; font-size: 0.82rem; }
+      .read-value { font-size: 0.88rem; }
     `,
   ];
 
@@ -204,6 +219,7 @@ export class LoadSheddingPanel extends LitElement {
   @property({ attribute: false }) entitiesConnected = false;
   @property({ attribute: false }) status: SystemStatus | null = null;
   @property({ attribute: false }) shedResults: ShedResult[] = [];
+  @property({ type: String }) role: "admin" | "viewer" = "admin";
 
   @state() private draft: Record<string, unknown> | null = null;
   @state() private busy = false;
@@ -213,9 +229,15 @@ export class LoadSheddingPanel extends LitElement {
   @state() private advisoryReserve = false;
   private savedSnapshot = "";
 
+  private get viewer(): boolean {
+    return this.role === "viewer";
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
-    void this.loadSnapshots();
+    if (!this.viewer) {
+      void this.loadSnapshots();
+    }
   }
 
   private async loadSnapshots(): Promise<void> {
@@ -228,17 +250,20 @@ export class LoadSheddingPanel extends LitElement {
   }
 
   private emitDirty(dirty: boolean): void {
+    if (this.viewer) return;
     window.dispatchEvent(
       new CustomEvent("solar-load-shedding-dirty", { detail: dirty, bubbles: true }),
     );
   }
 
   private syncDirtyFlag(): void {
+    if (this.viewer) return;
     const snap = JSON.stringify(this.draft ?? {});
     this.emitDirty(snap !== this.savedSnapshot);
   }
 
   private syncFromConfig(): void {
+    if (this.viewer) return;
     if (!this.config) return;
     const snap = JSON.stringify(this.config.load_shedding ?? {});
     const dirty = this.draft != null && JSON.stringify(this.draft) !== this.savedSnapshot;
@@ -253,6 +278,7 @@ export class LoadSheddingPanel extends LitElement {
   }
 
   updated(changed: Map<string, unknown>): void {
+    if (this.viewer) return;
     if (changed.has("config")) {
       this.syncFromConfig();
     }
@@ -599,7 +625,159 @@ export class LoadSheddingPanel extends LitElement {
     return { entity_id: companionId, domain, name: companionId };
   }
 
+  private onOffLabel(enabled: boolean): string {
+    return enabled ? t("common.on") : t("common.off");
+  }
+
+  private renderViewerPauseBanners(): ReturnType<typeof html> {
+    const pausedAll = this.status?.paused ?? false;
+    const pausedShed = this.status?.paused_shedding ?? false;
+    const partialPause = !pausedAll && pausedShed;
+    return html`
+      ${pausedAll ? html`<div class="banner warn">${t("ui.overrides.enginePaused")}</div>` : null}
+      ${partialPause ? html`<div class="banner warn">${t("ui.overrides.shedPausedOnly")}</div>` : null}
+    `;
+  }
+
+  private renderViewerConfigSummary(d: Record<string, unknown>): ReturnType<typeof html> {
+    const tiers = (d.tiers ?? []) as unknown[];
+    const enabled = Boolean(d.enabled);
+    const restoreAll = d.restore_all_when_grid_present !== false;
+    return html`
+      <div class="summary-pills">
+        <span class="pill">${t("ui.loadShedding.settingsSummary", {
+          count: String(tiers.length),
+          state: enabled ? t("ui.loadShedding.settingsEnabled") : t("ui.loadShedding.settingsDisabled"),
+        })}</span>
+        <span class="pill">${fieldLabel("load_shedding", "restore_all_when_grid_present")}: ${this.onOffLabel(restoreAll)}</span>
+      </div>
+    `;
+  }
+
+  private renderViewerTierBody(
+    tier: Record<string, unknown>,
+    tierIdx: number,
+  ): ReturnType<typeof html> {
+    const se = stateEntitiesMap(tier);
+    const shedSoc = Number(tier.shed_below_soc ?? 40);
+    const restoreSoc = Number(tier.restore_above_soc ?? 55);
+    const switches = tierSwitches(tier).filter((id) => id.includes("."));
+    return html`
+      <div class="tier-body">
+        <div class="fields">
+          <div class="field">
+            <span class="label">${this.lbl("name")}</span>
+            <span class="read-value">${String(tier.name ?? "").trim() || t("ui.loadShedding.tierDefault", { n: String(tierIdx + 1) })}</span>
+          </div>
+          <div class="field">
+            <span class="label">${this.lbl("priority")}</span>
+            <span class="read-value">${String(tier.priority ?? 0)}</span>
+          </div>
+          <div class="field">
+            <span class="label">${this.lbl("shed_below_soc")}</span>
+            <span class="read-value">${shedSoc}%</span>
+          </div>
+          <div class="field">
+            <span class="label">${this.lbl("restore_above_soc")}</span>
+            <span class="read-value">${restoreSoc}%</span>
+          </div>
+          <div class="field">
+            <span class="label">${this.lbl("restore_enabled")}</span>
+            <span class="read-value">${this.onOffLabel(tier.restore_enabled !== false)}</span>
+          </div>
+          <div class="field">
+            <span class="label">${this.lbl("restore_on_grid")}</span>
+            <span class="read-value">${this.onOffLabel(tier.restore_on_grid !== false)}</span>
+          </div>
+        </div>
+        <div class="label" style="margin-top:10px">${this.lbl("switches")}</div>
+        ${switches.length
+          ? switches.map((entity) => {
+              const companionIds = se[entity] ?? [];
+              return html`
+                <div style="margin:8px 0;padding:8px;border:1px dashed var(--border);border-radius:6px">
+                  <div class="entity-id">${entity}</div>
+                  ${companionIds.length
+                    ? html`
+                        <div class="label" style="margin-top:8px">${t("ui.loadShedding.companions", { count: String(companionIds.length) })}</div>
+                        ${companionIds.map((cid) => {
+                          const c = this.companionDisplay(entity, cid);
+                          return html`
+                            <div class="companion-row">
+                              <span class="domain-badge">${c?.domain ?? "?"}</span>
+                              <span>${c?.name ?? cid}</span>
+                            </div>
+                          `;
+                        })}
+                      `
+                    : null}
+                </div>
+              `;
+            })
+          : html`<p class="label">${t("ui.history.dash")}</p>`}
+      </div>
+    `;
+  }
+
+  private renderViewerTierLadder(d: Record<string, unknown>): ReturnType<typeof html> {
+    const tiers = (d.tiers ?? []) as Record<string, unknown>[];
+    const sortedIndices = tiers
+      .map((_, i) => i)
+      .sort((a, b) => Number(tiers[a]?.priority ?? 0) - Number(tiers[b]?.priority ?? 0));
+    return html`
+      <p class="label" style="margin-top:16px">${t("ui.loadShedding.tierLadder")}</p>
+      <p class="label">${t("ui.loadShedding.tiersIntro")}</p>
+      <div class="tier-ladder">
+        ${sortedIndices.map((i) => {
+          const tier = tiers[i]!;
+          const tierName = String(tier.name ?? "").trim() || t("ui.loadShedding.tierDefault", { n: String(i + 1) });
+          const shedSoc = Number(tier.shed_below_soc ?? 40);
+          const restoreSoc = Number(tier.restore_above_soc ?? 55);
+          const open = this.expandedTier === i;
+          return html`
+            <div class="tier-card">
+              <button
+                type="button"
+                class="tier-head"
+                aria-expanded=${open}
+                @click=${() => { this.expandedTier = open ? null : i; }}
+              >
+                <span class="priority">${t("ui.loadShedding.priorityLabel", { n: String(tier.priority ?? i) })}</span>
+                <span class="name">${tierName}</span>
+                <span class="meta">${this.tierSummaryMeta(tier)}</span>
+              </button>
+              ${this.renderSocMini(shedSoc, restoreSoc)}
+              ${open ? this.renderViewerTierBody(tier, i) : null}
+            </div>
+          `;
+        })}
+      </div>
+    `;
+  }
+
+  private renderViewer(): ReturnType<typeof html> {
+    const ls = this.config?.load_shedding;
+    if (!ls) {
+      return html`<div class="card"><h3>${t("ui.loadShedding.title")}</h3><p class="label">${t("common.loading")}</p></div>`;
+    }
+    const d = ls as Record<string, unknown>;
+    return html`
+      <div class="card">
+        <h3>
+          ${t("ui.loadShedding.title")}
+          <solar-info-tip .text=${sectionHelp("load_shedding")!}></solar-info-tip>
+        </h3>
+        <p class="viewer-note">${t("ui.loadShedding.viewerNote")}</p>
+        ${this.renderViewerPauseBanners()}
+        ${this.renderLiveStatus()}
+        ${this.renderViewerConfigSummary(d)}
+        ${this.renderViewerTierLadder(d)}
+      </div>
+    `;
+  }
+
   render() {
+    if (this.viewer) return this.renderViewer();
     if (!this.draft) {
       return html`<div class="card"><h3>${t("ui.loadShedding.title")}</h3><p class="label">${t("common.loading")}</p></div>`;
     }

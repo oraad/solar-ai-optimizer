@@ -283,6 +283,16 @@ async def get_config(
     return _config_view(_orch(request).cfg)
 
 
+@router.get("/config/load-shedding")
+async def get_load_shedding_config(
+    request: Request,
+    _session: SessionUser = Depends(require_authenticated),
+) -> dict:
+    """Read-only load shedding config for viewer dashboard tab."""
+    cfg = _orch(request).cfg
+    return {"load_shedding": cfg.load_shedding.model_dump()}
+
+
 @router.put("/config")
 async def put_config(
     request: Request,

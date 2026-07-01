@@ -44,8 +44,9 @@ Résolution des rôles et application de l'API :[Rôles et accès](ingress-auth
 |---------|:-----:|:------:|
 | Aperçu du statut et de la décision en direct | Oui | Oui |
 | Prévisions et historique | Oui | Oui |
-| Bascule ombre/live | Oui | Oui |
-| Pause/reprise du moteur | Oui | Oui |
+| Bascule ombre/live | Oui | Oui (API uniquement ; pas affiché dans l'UI spectateur) |
+| Pause all / Resume all (moteur) | Oui | Oui |
+| Pause / reprise par sous-système (délestage, charge réseau, optimisation) | Oui | Oui |
 | Kill switch (avec confirmation) | Oui | Oui |
 | Broche de réserve, charge de réseau, suppression des remplacements | Oui | Non |
 | Exécuter le cycle de contrôle, actualiser les prévisions | Oui | Non |
@@ -81,8 +82,9 @@ Lisez d'abord le panneau **Décision** : il explique *pourquoi* l'optimiseur a 
 Les administrateurs obtiennent le panneau de commande complet :
 
 - **Shadow / Live** — démarrez dans l'ombre ; ne passez à la vie qu'après avoir fait confiance aux décisions
-- **Tout mettre en pause** : arrêtez tous les sous-systèmes (délestage, charge du réseau, optimisation) sans perdre la télémétrie
-- **Avancé** — suspendez indépendamment le délestage, la charge du réseau ou l'optimisation
+- **Tout mettre en pause** / **Tout reprendre** — arrêter ou redémarrer tous les sous-systèmes (délestage, charge réseau, optimisation)
+- **Pause / reprise par sous-système** — bascules délestage, charge réseau et optimisation (affichées pour tous les rôles)
+- **Avancé** (admin uniquement) — shadow/live et effacer les remplacements
 - **Interrupteur d'arrêt** — arrêt d'urgence ; charge du réseau au maximum (lorsque activé) et restauration du niveau de délestage (nécessite une confirmation)
 - **Réserve de remplacement** — force temporairement un SOC cible minimum (%)
 - **Forcer les frais de réseau** — remplacement opportuniste de la recharge du réseau (masqué lorsque les frais de réseau sont désactivés)
@@ -113,7 +115,7 @@ Lorsque vous vous connectez via l'entrée Home Assistant en tant qu'utilisateur 
 
 - **Onglets :** Aperçu, prévisions et historique uniquement – pas d'assistant, de délestage ou de paramètres
 - **Barre supérieure :** Badge **VIEWER** ; votre nom d'affichage HA peut apparaître sous le titre de l'application
-- **Aperçu des remplacements :** **Tout mettre en pause** / **Reprendre** et kill switch (avec confirmation) uniquement – pas de contrôles avancés par sous-système, de broche de réserve, de remplacements de charge de réseau ou de cycle d'exécution.
+- **Aperçu des remplacements :** **Tout mettre en pause**, **Tout reprendre**, bascules pause/reprise par sous-système et kill switch (avec confirmation) — pas de broche de réserve, forçage charge réseau, cycle d'exécution, bascule shadow/live ni effacer les remplacements
 - **Bannières en lecture seule** dans la vue d'ensemble lorsqu'un administrateur a épinglé un SOC de réserve ou forcé des frais de réseau : les spectateurs voient le remplacement actif mais ne peuvent pas le modifier.
 - **Prévision de l'état vide** — si l'emplacement n'est pas configuré, le graphique affiche un message demandant à un administrateur de définir la latitude/longitude dans les paramètres (les spectateurs ne peuvent pas ouvrir les paramètres).
 - **Délai de décharge de la batterie** dans la vue d'ensemble utilise les données d'état en temps réel – aucun accès aux paramètres n'est requis

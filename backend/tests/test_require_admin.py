@@ -68,14 +68,39 @@ def test_viewer_can_pause_engine(guarded_client):
     assert res.status_code == 200
 
 
-def test_viewer_cannot_pause_shedding_only(guarded_client):
+def test_viewer_can_resume_engine(guarded_client):
     res = guarded_client.post(
         "/api/override",
-        json={"pause_shedding": True},
+        json={"pause_engine": False},
         headers={"X-Remote-User-Id": "viewer-1"},
     )
-    assert res.status_code == 403
-    assert "Admin access required" in res.json()["detail"]
+    assert res.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["pause_shedding", "pause_grid_charge", "pause_optimization"],
+)
+def test_viewer_can_pause_subsystem(guarded_client, field):
+    res = guarded_client.post(
+        "/api/override",
+        json={field: True},
+        headers={"X-Remote-User-Id": "viewer-1"},
+    )
+    assert res.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["pause_shedding", "pause_grid_charge", "pause_optimization"],
+)
+def test_viewer_can_resume_subsystem(guarded_client, field):
+    res = guarded_client.post(
+        "/api/override",
+        json={field: False},
+        headers={"X-Remote-User-Id": "viewer-1"},
+    )
+    assert res.status_code == 200
 
 
 def test_viewer_can_toggle_shadow(guarded_client):
@@ -113,6 +138,21 @@ def test_viewer_cannot_use_assistant(guarded_client):
 def test_viewer_cannot_get_config(guarded_client):
     res = guarded_client.get("/api/config", headers={"X-Remote-User-Id": "viewer-1"})
     assert res.status_code == 403
+
+
+def test_viewer_can_get_load_shedding_config(guarded_client):
+    from app.config import AppConfig
+
+    guarded_client.app.state.orchestrator.cfg = AppConfig()
+    res = guarded_client.get(
+        "/api/config/load-shedding",
+        headers={"X-Remote-User-Id": "viewer-1"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert "load_shedding" in body
+    assert isinstance(body["load_shedding"], dict)
+    assert "enabled" in body["load_shedding"]
 
 
 def test_viewer_cannot_list_entities(guarded_client):

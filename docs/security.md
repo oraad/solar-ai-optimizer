@@ -34,7 +34,9 @@ Full access-control details: [Roles and access](ingress-auth.md).
 Non-admin Home Assistant users authenticated via ingress are **viewers**. They may read live
 status, forecasts, and history, and may POST limited overrides only:
 
-- `shadow_mode`, `pause_engine`, `kill_switch` (with `confirm=true`)
+- `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `kill_switch` (with `confirm=true`)
+
+Each `pause_*` field is bidirectional: `true` pauses, `false` resumes.
 
 Viewers are denied config reads (`GET /api/config`), entity enumeration (`GET /api/entities`),
 config writes, the Assistant, reserve pin, force grid charge, and other admin-only routes.

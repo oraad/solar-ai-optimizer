@@ -60,7 +60,7 @@ const TAB_ICONS: Record<Tab, string> = {
 };
 
 const VIEWER_TAB_IDS: Tab[] = TAB_IDS.filter(
-  (id) => id !== "settings" && id !== "assistant" && id !== "load_shedding",
+  (id) => id !== "settings" && id !== "assistant",
 );
 
 const UPDATE_FORCE_INTERVAL_MS = 15 * 60 * 1000;
@@ -151,6 +151,16 @@ export class SolarApp extends LitElement {
       .icon-btn {
         width: 38px; height: 38px; padding: 0; display: grid; place-items: center;
         font-size: 1.05rem; border-radius: 11px;
+      }
+      button.pill {
+        border: none;
+        cursor: pointer;
+        font: inherit;
+        min-height: 34px;
+      }
+      button.pill:focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
       }
 
       nav {
@@ -269,6 +279,7 @@ export class SolarApp extends LitElement {
   @state() private statusMenuOpen = false;
   @state() private forecastLastUpdate = 0;
   @state() private historyNavHint: HistoryNavHint | null = null;
+  @state() private viewAsViewer = false;
 
   private unsub?: () => void;
   private pollTimer?: number;
@@ -428,6 +439,7 @@ export class SolarApp extends LitElement {
     live.disconnect();
     this.unsub?.();
     this.unsub = undefined;
+    this.viewAsViewer = false;
     this.session = null;
     this.authReady = true;
     this.needsLogin = true;
@@ -495,6 +507,15 @@ export class SolarApp extends LitElement {
     this.needsLogin = false;
     try {
       this.session = await api.me();
+      if (this.isAdmin) {
+        try {
+          this.viewAsViewer = localStorage.getItem("solar-view-as-viewer") === "true";
+        } catch {
+          /* ignore */
+        }
+      } else {
+        this.viewAsViewer = false;
+      }
       this.normalizeTabForRole();
       this.authReady = true;
       this.dismissBootSplash();
@@ -585,6 +606,30 @@ export class SolarApp extends LitElement {
     return this.session?.is_admin ?? false;
   }
 
+  private get showingViewerUi(): boolean {
+    return !this.isAdmin || this.viewAsViewer;
+  }
+
+  private setViewAsViewer(on: boolean): void {
+    if (!this.isAdmin) return;
+    if (this.viewAsViewer === on) return;
+    this.viewAsViewer = on;
+    try {
+      localStorage.setItem("solar-view-as-viewer", on ? "true" : "false");
+    } catch {
+      /* ignore */
+    }
+    const prevTab = this.tab;
+    this.normalizeTabForRole();
+    if (this.tab !== prevTab) this.updateHash();
+  }
+
+  private onViewerPreviewKeydown(e: KeyboardEvent, enter: boolean): void {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    this.setViewAsViewer(enter);
+  }
+
   private get viewerTooltip(): string {
     const name = this.session?.display_name || this.session?.username;
     return name
@@ -593,7 +638,7 @@ export class SolarApp extends LitElement {
   }
 
   private get dashboardRole(): "admin" | "viewer" {
-    return this.isAdmin ? "admin" : "viewer";
+    return this.showingViewerUi ? "viewer" : "admin";
   }
 
   private get brandSubtitle(): string {
@@ -604,7 +649,7 @@ export class SolarApp extends LitElement {
         : "";
     const withVersion = (text: string) =>
       version ? `${text} · ${version}${updateHint}` : text;
-    if (!this.isAdmin && this.session?.display_name) {
+    if (this.showingViewerUi && this.session?.display_name) {
       return withVersion(this.session.display_name);
     }
     return withVersion(t("ui.app.brandSubtitle"));
@@ -623,7 +668,7 @@ export class SolarApp extends LitElement {
   }
 
   private get visibleTabIds(): Tab[] {
-    return this.isAdmin ? TAB_IDS : VIEWER_TAB_IDS;
+    return this.showingViewerUi ? VIEWER_TAB_IDS : TAB_IDS;
   }
 
   private noteApiError(e: unknown): void {
@@ -676,6 +721,13 @@ export class SolarApp extends LitElement {
       if (now - this.lastForcedUpdateCheck >= UPDATE_FORCE_INTERVAL_MS) {
         this.lastForcedUpdateCheck = now;
         await this.refreshUpdateInfo(true);
+      }
+    } else {
+      try {
+        const res = await api.loadSheddingConfig();
+        this.config = { load_shedding: res.load_shedding } as AppConfigView;
+      } catch (e) {
+        this.noteApiError(e);
       }
     }
   }
@@ -744,7 +796,7 @@ export class SolarApp extends LitElement {
         className: this.status.engine_active === "mpc" ? "good" : "warn",
       });
     }
-    if (this.isAdmin && this.updateInfo?.update_in_progress) {
+    if (!this.showingViewerUi && this.updateInfo?.update_in_progress) {
       const chip = updateChipLabel(this.updateInfo.update_progress);
       alerts.push({
         label: chip,
@@ -752,7 +804,7 @@ export class SolarApp extends LitElement {
         title: t("ui.app.updateInProgressTitle"),
         onClick: () => this.setTab("settings"),
       });
-    } else if (this.isAdmin && this.updateInfo?.update_available) {
+    } else if (!this.showingViewerUi && this.updateInfo?.update_available) {
       alerts.push({
         label: t("ui.app.update"),
         className: "warn",
@@ -760,14 +812,14 @@ export class SolarApp extends LitElement {
         onClick: () => this.setTab("settings"),
       });
     }
-    if (this.isAdmin && this.status?.forecast_misconfigured) {
+    if (!this.showingViewerUi && this.status?.forecast_misconfigured) {
       alerts.push({ label: t("ui.app.setLocation"), className: "bad" });
     }
     if (this.status?.forecast_degraded) {
       alerts.push({ label: t("ui.app.forecastDegraded"), className: "warn" });
     }
     if (
-      this.isAdmin &&
+      !this.showingViewerUi &&
       this.status?.forecast_provider === "solcast" &&
       this.status?.solcast_configured === false
     ) {
@@ -854,7 +906,7 @@ export class SolarApp extends LitElement {
       case "settings":
         return html`<div class="layout"><solar-settings-panel class="span-12 center" .config=${this.config} .status=${this.status} .session=${this.session} .updateInfo=${this.updateInfo} .entities=${this.entities} .entitiesConnected=${this.entitiesConnected}></solar-settings-panel></div>`;
       case "load_shedding":
-        return html`<div class="layout"><solar-load-shedding-panel class="span-12 center" .config=${this.config} .entities=${this.entities} .entitiesConnected=${this.entitiesConnected} .status=${this.status} .shedResults=${this.shedResults}></solar-load-shedding-panel></div>`;
+        return html`<div class="layout"><solar-load-shedding-panel class="span-12 center" .role=${this.dashboardRole} .config=${this.config} .entities=${this.entities} .entitiesConnected=${this.entitiesConnected} .status=${this.status} .shedResults=${this.shedResults}></solar-load-shedding-panel></div>`;
       default:
         return html`
           <div class="layout">
@@ -913,9 +965,33 @@ export class SolarApp extends LitElement {
           </div>
           <div class="status-strip">
             <span class="updated"><span class="dot ${this.haConnected ? "on" : "off"}"></span>${this.updatedLabel()}</span>
-            ${!this.isAdmin
-              ? html`<span class="pill warn" title=${this.viewerTooltip}>${t("ui.app.viewer")}</span>`
-              : null}
+            ${this.isAdmin && !this.viewAsViewer
+              ? html`
+                  <button
+                    type="button"
+                    class="pill"
+                    title=${t("ui.app.viewAsViewerTooltip")}
+                    aria-label=${t("ui.app.viewAsViewerTooltip")}
+                    @click=${() => this.setViewAsViewer(true)}
+                    @keydown=${(e: KeyboardEvent) => this.onViewerPreviewKeydown(e, true)}
+                  >${t("ui.app.viewAsViewer")}</button>
+                `
+              : this.showingViewerUi
+                ? html`
+                    ${this.isAdmin
+                      ? html`
+                          <button
+                            type="button"
+                            class="pill warn"
+                            title=${t("ui.app.viewerPreviewTooltip")}
+                            aria-label=${t("ui.app.viewerPreviewTooltip")}
+                            @click=${() => this.setViewAsViewer(false)}
+                            @keydown=${(e: KeyboardEvent) => this.onViewerPreviewKeydown(e, false)}
+                          >${t("ui.app.viewer")}</button>
+                        `
+                      : html`<span class="pill warn" title=${this.viewerTooltip}>${t("ui.app.viewer")}</span>`}
+                  `
+                : null}
             <span class="pill ${this.haConnected ? "good" : "bad"} ${this.compactTopbar ? "short-text" : ""}">
               <span class="dot ${this.haConnected ? "on" : "off"}"></span>
               <span class="pill-long">${this.haConnected ? t("ui.app.haConnected") : t("ui.app.haOffline")}</span>

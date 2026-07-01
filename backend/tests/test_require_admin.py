@@ -141,9 +141,33 @@ def test_viewer_cannot_get_config(guarded_client):
 
 
 def test_viewer_can_get_load_shedding_config(guarded_client):
-    from app.config import AppConfig
+    from app.config import AppConfig, LoadTier
 
-    guarded_client.app.state.orchestrator.cfg = AppConfig()
+    cfg = AppConfig()
+    cfg.load_shedding.enabled = True
+    cfg.load_shedding.tiers = [
+        LoadTier(
+            name="pool",
+            switches=["switch.pool"],
+            state_entities={"switch.pool": ["climate.pool_heater"]},
+        ),
+    ]
+    orch = guarded_client.app.state.orchestrator
+    orch.cfg = cfg
+    orch.ha.get_states = AsyncMock(
+        return_value=[
+            {
+                "entity_id": "switch.pool",
+                "attributes": {"friendly_name": "Pool pump"},
+            },
+            {
+                "entity_id": "climate.pool_heater",
+                "attributes": {"friendly_name": "Pool heater"},
+            },
+        ]
+    )
+    orch.ha.is_reachable = MagicMock(return_value=True)
+
     res = guarded_client.get(
         "/api/config/load-shedding",
         headers={"X-Remote-User-Id": "viewer-1"},
@@ -153,6 +177,15 @@ def test_viewer_can_get_load_shedding_config(guarded_client):
     assert "load_shedding" in body
     assert isinstance(body["load_shedding"], dict)
     assert "enabled" in body["load_shedding"]
+    assert body["connected"] is True
+    assert body["entities"] == [
+        {
+            "entity_id": "climate.pool_heater",
+            "name": "Pool heater",
+            "domain": "climate",
+        },
+        {"entity_id": "switch.pool", "name": "Pool pump", "domain": "switch"},
+    ]
 
 
 def test_viewer_cannot_list_entities(guarded_client):

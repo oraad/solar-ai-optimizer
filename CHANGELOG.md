@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-07-01
+
+### Changed
+
+- Viewer **Load shedding** tab shows Home Assistant friendly names for tier switches and companions instead of raw entity IDs; entity ID remains available on hover
+- `GET /api/config/load-shedding` returns scoped `entities` and `connected` for viewer sessions (full `/api/entities` remains admin-only)
+- Viewer History shed activity rows use the same scoped entity names
+
 ## [0.6.6] - 2026-07-01
 
 ### Added

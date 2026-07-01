@@ -36,7 +36,7 @@ export class ExamplePanel extends LitElement {
   `solar-plan-refresh`, `solar-forecast-refresh`, `solar-navigate-tab`, `solar-history-nav-change`,
   `solar-load-shedding-dirty`, `solar-theme-change`, `solar-locale-change`, `solar-date-format-change`,
   `solar-toast-show|update|dismiss`
-- `localStorage`: `solar-theme`, `solar-tab`, `solar-locale`, `solar-date-format`, `solar-api-token`
+- `localStorage`: `solar-theme`, `solar-tab`, `solar-locale`, `solar-date-format`, `solar-api-token`, `solar-view-as-viewer`
 
 ## Routing
 

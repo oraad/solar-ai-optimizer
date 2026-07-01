@@ -11,6 +11,7 @@ from pydantic import BaseModel, ValidationError
 from ..i18n import api_error, format_validation_errors, t
 from ..i18n.serialize import localize_model, localize_payload
 from ..llm.assistant import Assistant
+from ..config import LoadSheddingConfig
 from ..models import GridStats, Override, utcnow
 from ..orchestrator import Orchestrator
 from ..storage import repo
@@ -189,6 +190,51 @@ def _config_view(cfg) -> dict:
     }
 
 
+def _shedding_entity_ids(load_shedding: LoadSheddingConfig) -> set[str]:
+    ids: set[str] = set()
+    for tier in load_shedding.tiers:
+        ids.update(tier.entity_ids())
+        for companions in tier.state_entities.values():
+            ids.update(c.strip() for c in companions if c and str(c).strip())
+    return ids
+
+
+def _entity_info_from_state(state: dict) -> dict | None:
+    eid = state.get("entity_id")
+    if not eid:
+        return None
+    dom = eid.split(".", 1)[0]
+    name = (state.get("attributes") or {}).get("friendly_name") or eid
+    return {"entity_id": eid, "name": name, "domain": dom}
+
+
+async def _entity_infos_for_ids(orch: Orchestrator, wanted_ids: set[str]) -> tuple[bool, list[dict]]:
+    connected = orch.ha.is_reachable(orch.cfg.control.ha_stale_after_seconds)
+    if not wanted_ids:
+        return connected, []
+
+    states_by_id: dict[str, dict] = {}
+    try:
+        states = await orch.ha.get_states()
+        for s in states:
+            eid = s.get("entity_id")
+            if eid in wanted_ids:
+                states_by_id[eid] = s
+    except Exception:  # noqa: BLE001 - HA may be unreachable
+        return False, []
+
+    out: list[dict] = []
+    for eid in sorted(wanted_ids):
+        state = states_by_id.get(eid)
+        if state:
+            info = _entity_info_from_state(state)
+            if info:
+                out.append(info)
+        else:
+            out.append({"entity_id": eid, "name": eid, "domain": eid.split(".", 1)[0]})
+    return connected, out
+
+
 @router.get("/entities")
 async def entities(
     request: Request,
@@ -289,8 +335,15 @@ async def get_load_shedding_config(
     _session: SessionUser = Depends(require_authenticated),
 ) -> dict:
     """Read-only load shedding config for viewer dashboard tab."""
-    cfg = _orch(request).cfg
-    return {"load_shedding": cfg.load_shedding.model_dump()}
+    orch = _orch(request)
+    load_shedding = orch.cfg.load_shedding
+    wanted = _shedding_entity_ids(load_shedding)
+    connected, entity_list = await _entity_infos_for_ids(orch, wanted)
+    return {
+        "load_shedding": load_shedding.model_dump(),
+        "entities": entity_list,
+        "connected": connected,
+    }
 
 
 @router.put("/config")

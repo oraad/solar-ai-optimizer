@@ -145,12 +145,13 @@ describe("LoadSheddingPanel role", () => {
     restore_all_when_grid_present: true,
   };
 
-  function mountViewerPanel(): { host: HTMLElement; panel: LoadSheddingPanel } {
+  function mountViewerPanel(entities = ENTITIES): { host: HTMLElement; panel: LoadSheddingPanel } {
     const host = document.createElement("div");
     host.attachShadow({ mode: "open" });
     const panel = document.createElement("solar-load-shedding-panel") as LoadSheddingPanel;
     panel.role = "viewer";
     panel.config = { load_shedding: VIEWER_TIER_CONFIG } as unknown as AppConfigView;
+    panel.entities = entities;
     panel.status = {
       telemetry: null,
       decision: null,
@@ -178,8 +179,11 @@ describe("LoadSheddingPanel role", () => {
     host.remove();
   });
 
-  it("viewer mode shows entity ids as text when tier expanded", async () => {
-    const { host, panel } = mountViewerPanel();
+  it("viewer mode shows entity friendly names when tier expanded", async () => {
+    const { host, panel } = mountViewerPanel([
+      ...ENTITIES,
+      { entity_id: "climate.pool_heater", name: "Pool heater", domain: "climate" },
+    ]);
     await panel.updateComplete;
 
     const tierHead = panel.shadowRoot!.querySelector(".tier-head") as HTMLElement;
@@ -187,7 +191,12 @@ describe("LoadSheddingPanel role", () => {
     await panel.updateComplete;
 
     expect(panel.shadowRoot!.querySelector("solar-entity-input")).toBeNull();
-    expect(panel.shadowRoot!.textContent).toContain("switch.pool");
+    expect(panel.shadowRoot!.textContent).toContain("Pool pump");
+    expect(panel.shadowRoot!.textContent).not.toContain("switch.pool");
+
+    const entityLabel = panel.shadowRoot!.querySelector(".read-value[title='switch.pool']");
+    expect(entityLabel).toBeTruthy();
+    expect(entityLabel!.textContent).toBe("Pool pump");
 
     host.remove();
   });

@@ -726,6 +726,8 @@ export class SolarApp extends LitElement {
       try {
         const res = await api.loadSheddingConfig();
         this.config = { load_shedding: res.load_shedding } as AppConfigView;
+        this.entities = res.entities ?? [];
+        this.entitiesConnected = res.connected ?? false;
       } catch (e) {
         this.noteApiError(e);
       }

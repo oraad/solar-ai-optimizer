@@ -144,7 +144,11 @@ export const api = {
   gridStats: () => getJSON<GridStats>("/api/grid-stats"),
   config: () => getJSON<AppConfigView>("/api/config"),
   loadSheddingConfig: () =>
-    getJSON<{ load_shedding: Record<string, unknown> }>("/api/config/load-shedding"),
+    getJSON<{
+      load_shedding: Record<string, unknown>;
+      entities?: EntityInfo[];
+      connected?: boolean;
+    }>("/api/config/load-shedding"),
   historyTelemetry: (hours = 24) =>
     getJSON<Telemetry[]>(`/api/history/telemetry?hours=${hours}`),
   historyDecisions: (limit = 100) =>

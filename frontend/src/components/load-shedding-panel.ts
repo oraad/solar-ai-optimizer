@@ -4,6 +4,7 @@ import { repeat } from "lit/directives/repeat.js";
 
 import { api } from "../api.js";
 import { SHED_DOMAINS } from "../entity-datalists.js";
+import { entityDisplayName } from "../entity-resolve.js";
 import { fieldLabel } from "../field-labels.js";
 import { fieldHelp, sectionHelp } from "../field-help.js";
 import { t } from "../i18n.js";
@@ -209,7 +210,6 @@ export class LoadSheddingPanel extends LitElement {
         color: var(--warn);
       }
       .summary-pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-      .entity-id { font-family: ui-monospace, monospace; font-size: 0.82rem; }
       .read-value { font-size: 0.88rem; }
     `,
   ];
@@ -696,7 +696,7 @@ export class LoadSheddingPanel extends LitElement {
               const companionIds = se[entity] ?? [];
               return html`
                 <div style="margin:8px 0;padding:8px;border:1px dashed var(--border);border-radius:6px">
-                  <div class="entity-id">${entity}</div>
+                  <div class="read-value" title=${entity}>${entityDisplayName(entity, this.entities)}</div>
                   ${companionIds.length
                     ? html`
                         <div class="label" style="margin-top:8px">${t("ui.loadShedding.companions", { count: String(companionIds.length) })}</div>
@@ -705,7 +705,7 @@ export class LoadSheddingPanel extends LitElement {
                           return html`
                             <div class="companion-row">
                               <span class="domain-badge">${c?.domain ?? "?"}</span>
-                              <span>${c?.name ?? cid}</span>
+                              <span title=${cid}>${entityDisplayName(cid, this.entities)}</span>
                             </div>
                           `;
                         })}

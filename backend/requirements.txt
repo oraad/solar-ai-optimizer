@@ -14,7 +14,7 @@ httpx>=0.28.1,<1.0
 websockets>=16.0
 
 # Scheduling
-APScheduler>=3.11.2
+APScheduler>=3.11.3
 
 # Storage (async SQLite)
 SQLAlchemy[asyncio]>=2.0.51,<2.1

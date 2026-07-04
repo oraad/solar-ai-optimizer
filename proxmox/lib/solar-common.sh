@@ -152,8 +152,11 @@ solar_write_update_command() {
   local repo_raw="${SOLAR_REPO_RAW:-https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main}"
   local ct_script
   ct_script="$(solar_ct_script_name)"
-  cat > /usr/bin/update <<EOF
-#!/bin/bash
+  cat <<EOF >/usr/bin/update
+#!/usr/bin/env bash
+set -a
+[ -f /etc/profile.d/90-http-proxy.sh ] && . /etc/profile.d/90-http-proxy.sh
+set +a
 bash -c "\$(curl -fsSL ${repo_raw}/proxmox/ct/${ct_script})"
 EOF
   chmod +x /usr/bin/update

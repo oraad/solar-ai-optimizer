@@ -71,54 +71,99 @@ function update_script() {
     exit
   fi
 
-  solar_write_update_command
-
-  local previous current env_patched=0 previous_image_id=""
-  previous="$(solar_installed_ref)"
-
-  msg_info "Ensuring auth configuration"
-  solar_ensure_env_auth
-  env_patched="${SOLAR_ENV_PATCHED:-0}"
-
-  if docker inspect "$SOLAR_CONTAINER" >/dev/null 2>&1; then
-    previous_image_id="$(docker inspect -f '{{.Image}}' "$SOLAR_CONTAINER" 2>/dev/null || echo "")"
+  if ! command -v whiptail &>/dev/null; then
+    if [[ -f /etc/alpine-release ]]; then
+      apk add --no-cache newt >/dev/null 2>&1 || true
+    else
+      apt-get update -qq >/dev/null 2>&1 || true
+      apt-get install -y -qq whiptail >/dev/null 2>&1 || true
+    fi
   fi
 
-  msg_info "Pulling latest image"
-  $STD docker pull "$(solar_image_ref)"
-  msg_ok "Pulled $(solar_image_ref)"
+  UPD=$(msg_menu "Solar AI Optimizer Update Options" \
+    "1" "Update Solar AI Optimizer" \
+    "2" "Remove Unused Images")
 
-  current="$(solar_current_image_ref)"
-  if [[ -n "$previous" && "$previous" == "$current" && "$env_patched" != "1" ]]; then
-    msg_ok "No update required. ${APP} is already running the latest image."
+  if [[ "$UPD" == "1" ]]; then
+    solar_write_update_command
+
+    msg_info "Updating base system"
+    if [[ -f /etc/alpine-release ]]; then
+      $STD apk -U upgrade
+    else
+      $STD apt update
+      $STD apt -y upgrade
+    fi
+    msg_ok "Base system updated"
+
+    local previous current env_patched=0 previous_image_id=""
+    previous="$(solar_installed_ref)"
+
+    msg_info "Ensuring auth configuration"
+    solar_ensure_env_auth
+    env_patched="${SOLAR_ENV_PATCHED:-0}"
+
+    if docker inspect "$SOLAR_CONTAINER" >/dev/null 2>&1; then
+      previous_image_id="$(docker inspect -f '{{.Image}}' "$SOLAR_CONTAINER" 2>/dev/null || echo "")"
+    fi
+
+    msg_info "Pulling latest image"
+    $STD docker pull "$(solar_image_ref)"
+    msg_ok "Pulled $(solar_image_ref)"
+
+    current="$(solar_current_image_ref)"
+    if [[ -n "$previous" && "$previous" == "$current" && "$env_patched" != "1" ]]; then
+      msg_ok "No update required. ${APP} is already running the latest image."
+      echo -e "${INFO}${YW}Access the dashboard at:${CL}"
+      echo -e "${GATEWAY}${BGN}http://${IP}:${SOLAR_PORT:-8000}${CL}"
+      exit
+    fi
+
+    if [[ -n "$previous" && "$previous" == "$current" ]]; then
+      msg_ok "${APP} is already running the latest image."
+    fi
+
+    msg_info "Recreating container (data volume preserved)"
+    $STD solar_recreate_container
+    solar_save_version
+    msg_ok "Container recreated"
+
+    msg_info "Waiting for health check"
+    if solar_wait_healthy 127.0.0.1 "$SOLAR_PORT" "$SOLAR_HEALTH_PATH" 120; then
+      msg_ok "Service is healthy"
+    else
+      msg_warn "Health check timed out — check: docker logs ${SOLAR_CONTAINER}"
+    fi
+
+    msg_info "Cleaning up old images"
+    solar_cleanup_old_images "$previous_image_id"
+    msg_ok "Old images cleaned up"
+
+    solar_show_admin_credentials
+
+    msg_ok "Updated successfully!"
+    echo -e "${INFO}${YW}Access the dashboard at:${CL}"
+    echo -e "${GATEWAY}${BGN}http://${IP}:${SOLAR_PORT:-8000}${CL}"
     exit
   fi
 
-  if [[ -n "$previous" && "$previous" == "$current" ]]; then
-    msg_ok "${APP} is already running the latest image."
+  if [[ "$UPD" == "2" ]]; then
+    msg_info "Removing unused images"
+    $STD docker image prune -af
+    msg_ok "Removed unused images"
+    exit
   fi
-
-  msg_info "Recreating container (data volume preserved)"
-  $STD solar_recreate_container
-  solar_save_version
-  msg_ok "Container recreated"
-
-  msg_info "Waiting for health check"
-  if solar_wait_healthy 127.0.0.1 "$SOLAR_PORT" "$SOLAR_HEALTH_PATH" 120; then
-    msg_ok "Service is healthy"
-  else
-    msg_warn "Health check timed out — check: docker logs ${SOLAR_CONTAINER}"
-  fi
-
-  msg_info "Cleaning up old images"
-  solar_cleanup_old_images "$previous_image_id"
-  msg_ok "Old images cleaned up"
-
-  solar_show_admin_credentials
-
-  msg_ok "Updated successfully!"
-  exit
 }
+
+# Ensure Silent/Verbose/Cancel menu works (start() requires whiptail)
+if ! command -v pveversion &>/dev/null && ! command -v whiptail &>/dev/null; then
+  if [[ -f /etc/alpine-release ]]; then
+    apk add --no-cache newt >/dev/null 2>&1 || true
+  else
+    apt-get update -qq >/dev/null 2>&1 || true
+    apt-get install -y -qq whiptail >/dev/null 2>&1 || true
+  fi
+fi
 
 start
 build_container

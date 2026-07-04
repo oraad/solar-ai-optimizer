@@ -12,6 +12,14 @@ setting_up_container
 network_check
 update_os
 
+msg_info "Installing update menu dependencies"
+if [[ -f /etc/alpine-release ]]; then
+  $STD apk add --no-cache newt
+else
+  $STD apt-get install -y whiptail
+fi
+msg_ok "Installed update menu dependencies"
+
 _SOLAR_REPO_RAW="${SOLAR_REPO_RAW:-https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main}"
 # shellcheck disable=SC1090
 source <(curl -fsSL "${_SOLAR_REPO_RAW}/proxmox/lib/solar-common.sh")

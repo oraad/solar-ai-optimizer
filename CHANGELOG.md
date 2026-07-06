@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.9] - 2026-07-06
+
+### Changed
+
+- Grid charge **Auto / Force ON** and **Running / Paused** are single flip toggles (same interaction as load shedding and optimization), with green highlight for healthy states
+- Admin top bar: **Viewer** pill enters preview mode, **Admin** pill exits; role pill hidden for real viewer sessions and sized to match other status chips
+
 ## [0.6.8] - 2026-07-06
 
 ### Changed

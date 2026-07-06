@@ -43,7 +43,7 @@ describe("OverridesPanel role", () => {
     expect(root.textContent).not.toContain("Run cycle now");
     expect(root.textContent).not.toContain("Clear overrides");
     expect(root.textContent).toContain("Kill switch");
-    expect(root.textContent).toContain("Force on");
+    expect(root.textContent).toContain("Auto");
     el.remove();
   });
 
@@ -134,7 +134,7 @@ describe("OverridesPanel role", () => {
     };
     await el.updateComplete;
     const texts = buttonTexts(el);
-    expect(texts.some((t) => t.includes("Force on"))).toBe(false);
+    expect(texts.some((t) => t.includes("Force ON"))).toBe(false);
     el.remove();
   });
 
@@ -154,6 +154,21 @@ describe("OverridesPanel role", () => {
     };
     await el.updateComplete;
     expect(el.shadowRoot!.textContent).toContain("forced on at max current");
+    el.remove();
+  });
+
+  it("grid pause toggle shows Paused when forced", async () => {
+    const el = mountPanel("viewer");
+    el.status = {
+      ...el.status!,
+      force_grid_charge_override: true,
+      paused_grid_charge: true,
+    };
+    await el.updateComplete;
+    const gridRow = [...el.shadowRoot!.querySelectorAll(".ctrl")].find((row) =>
+      row.textContent?.includes("Grid charge"),
+    );
+    expect(gridRow?.textContent).toContain("Paused");
     el.remove();
   });
 });

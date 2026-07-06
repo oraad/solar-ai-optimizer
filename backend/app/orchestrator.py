@@ -262,6 +262,13 @@ class Orchestrator:
             and not self.paused_grid_charge
         )
 
+    def grid_charge_writes_allowed(self) -> bool:
+        if not self.cfg.grid_charge.enabled:
+            return False
+        if self.override.force_grid_charge is True:
+            return True
+        return self.cfg.engine.enabled and not self.paused_grid_charge
+
     @property
     def optimization_active(self) -> bool:
         return self.cfg.engine.enabled and not self.paused_optimization
@@ -420,7 +427,7 @@ class Orchestrator:
             await repo.save_decision(decision)
         self.latest_decision = decision
 
-        if self.grid_charge_active and decision.actions:
+        if self.grid_charge_writes_allowed() and decision.actions:
             try:
                 self.latest_results = await self.executor.apply_decision(
                     decision, self.shadow_mode
@@ -569,6 +576,19 @@ class Orchestrator:
         if ov.pause_optimization is not None:
             self.paused_optimization = ov.pause_optimization
 
+    def _apply_force_grid_coupling(self, ov: Override) -> None:
+        """Couple force-on with pause; resume paths clear force back to optimizer (None)."""
+        if ov.force_grid_charge is True:
+            self.paused_grid_charge = True
+        elif ov.pause_engine is False:
+            self.override.force_grid_charge = None
+        elif (
+            ov.pause_grid_charge is False
+            and ov.force_grid_charge is not True
+            and ov.force_grid_charge is not False
+        ):
+            self.override.force_grid_charge = None
+
     async def apply_override(self, ov: Override) -> dict:
         if ov.kill_switch:
             async with self._cycle_lock:
@@ -607,6 +627,7 @@ class Orchestrator:
             self.override.reserve_soc = ov.reserve_soc
         if ov.force_grid_charge is not None:
             self.override.force_grid_charge = ov.force_grid_charge
+        self._apply_force_grid_coupling(ov)
 
         async with self._cycle_lock:
             await self._control_cycle_body()

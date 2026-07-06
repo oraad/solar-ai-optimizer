@@ -33,8 +33,13 @@ _RESUME_RULES: tuple[tuple[re.Pattern[str], Callable[[Override], None]], ...] = 
     (re.compile(r"\b(resume|unpause|continue)\b.*\boptim"), lambda ov: setattr(ov, "pause_optimization", False)),
     (re.compile(r"\b(resume|unpause|continue)\b"), lambda ov: setattr(ov, "pause_engine", False)),
 )
+def _force_grid_charge(ov: Override) -> None:
+    ov.force_grid_charge = True
+    ov.pause_grid_charge = True
+
+
 _INDEPENDENT_RULES: tuple[tuple[re.Pattern[str], Callable[[Override], None]], ...] = (
-    (re.compile(r"\b(force|start).*(grid )?charg"), lambda ov: setattr(ov, "force_grid_charge", True)),
+    (re.compile(r"\b(force|start).*(grid )?charg"), _force_grid_charge),
     (re.compile(r"\b(stop|cancel|release).*(grid )?charg"), lambda ov: setattr(ov, "force_grid_charge", False)),
     (re.compile(r"\b(live|enable control|go live)\b"), lambda ov: setattr(ov, "shadow_mode", False)),
     (re.compile(r"\b(shadow|observe only|dry run)\b"), lambda ov: setattr(ov, "shadow_mode", True)),

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-07-06
+
+### Changed
+
+- Grid charge **Auto / Force on** toggle co-located in the per-subsystem row (left segment); **Running / Paused** stays right-aligned with other subsystems
+- **Force on** pauses automatic grid charge control and applies max safe current; **Auto**, **Running**, and **Resume all** return to optimizer control
+- Viewers may use grid charge Auto / Force on via `POST /api/override` (`force_grid_charge`)
+- Admin **Viewer preview** / **VIEWER** status pills match HA and subsystem chip styling in the top bar
+
 ## [0.6.7] - 2026-07-01
 
 ### Changed

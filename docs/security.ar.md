@@ -34,7 +34,7 @@
 مستخدمو Home Assistant غير الإداريين الذين تمت مصادقتهم عبر الدخول هم **المشاهدون**. يمكنهم القراءة مباشرة
 الحالة والتنبؤات والتاريخ، ويجوز نشر تجاوزات محدودة فقط:
 
-- `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `kill_switch` (مع `confirm=true`)
+- `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `force_grid_charge`, `kill_switch` (مع `confirm=true`)
 
 كل حقل `pause_*` ثنائي الاتجاه: `true` يوقف مؤقتًا، `false` يستأنف.
 

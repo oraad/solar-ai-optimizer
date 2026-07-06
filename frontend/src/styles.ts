@@ -86,7 +86,11 @@ export const sharedStyles = css`
   .pill.warn { background: rgba(240, 162, 2, 0.15); color: var(--warn); border-color: rgba(240, 162, 2, 0.3); }
   .pill.bad { background: rgba(229, 72, 77, 0.15); color: var(--bad); border-color: rgba(229, 72, 77, 0.3); }
   .pill.critical { background: rgba(255, 45, 85, 0.18); color: var(--critical); border-color: rgba(255, 45, 85, 0.35); }
-  .pill.muted { color: var(--muted); }
+  .pill.muted {
+    color: var(--muted);
+    background: color-mix(in srgb, var(--muted) 10%, transparent);
+    border-color: color-mix(in srgb, var(--muted) 25%, var(--border));
+  }
 
   button {
     font: inherit;

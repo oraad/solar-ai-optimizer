@@ -42,6 +42,13 @@ export class OverridesPanel extends LitElement {
         align-items: center;
         gap: 4px;
       }
+      .ctrl-segments {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+        flex-wrap: wrap;
+      }
       .seg {
         display: inline-flex; background: var(--panel-2);
         border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -136,9 +143,16 @@ export class OverridesPanel extends LitElement {
       t("ui.overrides.toastSubsystemSuccess"),
     );
 
-  private togglePauseGridCharge = () =>
+  private resumeGridCharge = () =>
     this.run(
-      () => api.override({ pause_grid_charge: !(this.status?.paused_grid_charge ?? false) }),
+      () => api.override({ pause_grid_charge: false }),
+      t("ui.overrides.toastEngineLoading"),
+      t("ui.overrides.toastSubsystemSuccess"),
+    );
+
+  private pauseGridCharge = () =>
+    this.run(
+      () => api.override({ pause_grid_charge: true }),
       t("ui.overrides.toastEngineLoading"),
       t("ui.overrides.toastSubsystemSuccess"),
     );
@@ -152,14 +166,14 @@ export class OverridesPanel extends LitElement {
 
   private forceCharge = () =>
     this.run(
-      () => api.override({ force_grid_charge: true }),
+      () => api.override({ force_grid_charge: true, pause_grid_charge: true }),
       t("ui.overrides.toastGridLoading"),
       t("ui.overrides.toastGridForced"),
     );
 
-  private stopForceCharge = () =>
+  private releaseGridCharge = () =>
     this.run(
-      () => api.override({ force_grid_charge: false }),
+      () => api.override({ pause_grid_charge: false }),
       t("ui.overrides.toastGridLoading"),
       t("ui.overrides.toastGridReleased"),
     );
@@ -201,7 +215,11 @@ export class OverridesPanel extends LitElement {
     pausedShed: boolean,
     pausedGrid: boolean,
     pausedOpt: boolean,
+    gridChargeEnabled: boolean,
+    forcedGrid: boolean,
   ) {
+    const gridRunning = !pausedGrid && !forcedGrid;
+    const gridPaused = pausedGrid || forcedGrid;
     return html`
       <div class="ctrl">
         <span>${t("ui.overrides.pauseShedding")}</span>
@@ -215,18 +233,47 @@ export class OverridesPanel extends LitElement {
           </button>
         </span>
       </div>
-      <div class="ctrl">
-        <span>${t("ui.overrides.pauseGridCharge")}</span>
-        <span class="seg">
-          <button
-            class=${pausedGrid ? "active warn" : ""}
-            ?disabled=${this.busy}
-            @click=${this.togglePauseGridCharge}
-          >
-            ${pausedGrid ? t("ui.overrides.paused") : t("ui.overrides.running")}
-          </button>
-        </span>
-      </div>
+      ${gridChargeEnabled
+        ? html`
+            <div class="ctrl">
+              <span>${labelWithTip(t("ui.overrides.pauseGridCharge"), overrideHelp("grid_charge"))}</span>
+              <span class="ctrl-segments">
+                <span class="seg">
+                  <button
+                    class=${forcedGrid ? "" : "active good"}
+                    ?disabled=${this.busy || !forcedGrid}
+                    @click=${this.releaseGridCharge}
+                  >
+                    ${t("common.auto")}
+                  </button>
+                  <button
+                    class=${forcedGrid ? "active warn" : ""}
+                    ?disabled=${this.busy}
+                    @click=${this.forceCharge}
+                  >
+                    ${t("ui.overrides.forceOn")}
+                  </button>
+                </span>
+                <span class="seg">
+                  <button
+                    class=${gridRunning ? "active good" : ""}
+                    ?disabled=${this.busy}
+                    @click=${this.resumeGridCharge}
+                  >
+                    ${t("ui.overrides.running")}
+                  </button>
+                  <button
+                    class=${gridPaused ? "active warn" : ""}
+                    ?disabled=${this.busy}
+                    @click=${this.pauseGridCharge}
+                  >
+                    ${t("ui.overrides.paused")}
+                  </button>
+                </span>
+              </span>
+            </div>
+          `
+        : null}
       <div class="ctrl">
         <span>${t("ui.overrides.pauseOptimization")}</span>
         <span class="seg">
@@ -249,6 +296,7 @@ export class OverridesPanel extends LitElement {
     const pausedGrid = this.status?.paused_grid_charge ?? false;
     const pausedOpt = this.status?.paused_optimization ?? false;
     const gridChargeEnabled = this.status?.grid_charge_enabled !== false;
+    const forcedGrid = this.status?.force_grid_charge_override === true;
     const viewer = this.role === "viewer";
     const partialPause =
       !pausedAll && (pausedShed || pausedGrid || pausedOpt);
@@ -260,16 +308,13 @@ export class OverridesPanel extends LitElement {
 
         ${pausedAll ? html`<div class="banner warn">${t("ui.overrides.enginePaused")}</div>` : null}
         ${partialPause && pausedShed ? html`<div class="banner warn">${t("ui.overrides.shedPausedOnly")}</div>` : null}
-        ${partialPause && pausedGrid ? html`<div class="banner warn">${t("ui.overrides.gridPausedOnly")}</div>` : null}
+        ${partialPause && pausedGrid && !forcedGrid ? html`<div class="banner warn">${t("ui.overrides.gridPausedOnly")}</div>` : null}
         ${partialPause && pausedOpt ? html`<div class="banner warn">${t("ui.overrides.optPausedOnly")}</div>` : null}
         ${this.status?.reserve_soc_override != null
           ? html`<div class="banner warn">${t("ui.overrides.reservePinned", { soc: String(this.status.reserve_soc_override) })}</div>`
           : null}
-        ${this.status?.force_grid_charge_override === true
+        ${forcedGrid
           ? html`<div class="banner warn">${t("ui.overrides.gridChargeForced")}</div>`
-          : null}
-        ${!viewer && this.status?.force_grid_charge_override === false
-          ? html`<div class="banner warn">${t("ui.overrides.gridChargeAuto")}</div>`
           : null}
 
         <div class="section-label">${t("ui.overrides.sectionPrimary")}</div>
@@ -285,7 +330,7 @@ export class OverridesPanel extends LitElement {
             : html`<button ?disabled=${this.busy} @click=${this.forceCycle}>&#8635; ${t("ui.overrides.runCycle")}</button>`}
         </div>
 
-        ${this.renderSubsystemPauses(pausedShed, pausedGrid, pausedOpt)}
+        ${this.renderSubsystemPauses(pausedShed, pausedGrid, pausedOpt, gridChargeEnabled, forcedGrid)}
 
         ${viewer
           ? html`
@@ -296,17 +341,6 @@ export class OverridesPanel extends LitElement {
             `
           : html`
               <div class="section-label">${t("ui.overrides.sectionOverrides")}</div>
-              ${gridChargeEnabled
-                ? html`
-                    <div class="ctrl">
-                      <span>${labelWithTip(t("ui.overrides.gridCharge"), overrideHelp("grid_charge"))}</span>
-                      <span class="seg">
-                        <button @click=${this.forceCharge}>&#9889; ${t("ui.overrides.forceOn")}</button>
-                        <button @click=${this.stopForceCharge}>${t("common.auto")}</button>
-                      </span>
-                    </div>
-                  `
-                : null}
               <div class="ctrl">
                 <span>${labelWithTip(t("ui.overrides.pinReserve"), overrideHelp("pin_reserve"))}</span>
                 <span class="reserve-input">

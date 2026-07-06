@@ -112,13 +112,13 @@ def test_viewer_can_toggle_shadow(guarded_client):
     assert res.status_code == 200
 
 
-def test_viewer_cannot_force_grid_charge(guarded_client):
+def test_viewer_can_force_grid_charge(guarded_client):
     res = guarded_client.post(
         "/api/override",
         json={"force_grid_charge": True},
         headers={"X-Remote-User-Id": "viewer-1"},
     )
-    assert res.status_code == 403
+    assert res.status_code == 200
 
 
 def test_viewer_can_read_status(guarded_client):

@@ -148,10 +148,10 @@
   "overrides": {
     "title": "Controls & overrides",
     "titleViewer": "Operator controls",
-    "viewerNote": "Reserve pin and grid-charge overrides require an admin.",
+    "viewerNote": "Reserve pin requires an admin.",
     "enginePaused": "Engine paused — no inverter or shed writes until resumed.",
     "reservePinned": "Reserve pinned at {soc}%.",
-    "gridChargeForced": "Grid charge forced on.",
+    "gridChargeForced": "Grid charge forced on at max current (automation paused).",
     "gridChargeAuto": "Grid charge override: auto.",
     "mode": "Mode",
     "shadow": "Shadow",

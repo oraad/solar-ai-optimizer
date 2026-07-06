@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.10-beta.1] - 2026-07-06
+
+### Added
+
+- Load shedding **Auto / Force OFF** operator control (mirrors grid charge **Auto / Force ON**): Force OFF pauses automatic shedding and turns off all configured tier devices each cycle until Auto or Running is selected
+- Viewers may use shed Force OFF via `POST /api/override` (`force_shed_off`)
+
+### Changed
+
+- Load shedding and optimization **Running** toggles use green highlight when healthy (same as grid charge)
+
 ## [0.6.9] - 2026-07-06
 
 ### Changed

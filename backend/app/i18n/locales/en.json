@@ -13,7 +13,8 @@
       "kill_switch_confirm": "kill_switch requires confirm=true",
       "no_fields": "No override fields provided",
       "assistant_kill_switch": "Kill switch requires explicit confirmation in your question (e.g. include \"confirm\").",
-      "grid_charge_disabled": "Grid charge control is disabled in settings."
+      "grid_charge_disabled": "Grid charge control is disabled in settings.",
+      "shedding_disabled": "Load shedding control is disabled in settings."
     },
     "validation": {
       "field": "{loc}: {msg}"
@@ -82,7 +83,9 @@
       "force_grid_charge": "Operator override: force grid charge.",
       "disable_grid_charge_plan": "Operator override: disable grid charge.",
       "disable_grid_charge": "Operator override: disable grid charge.",
-      "grid_charge_zero": "Operator override: grid charge current set to 0."
+      "grid_charge_zero": "Operator override: grid charge current set to 0.",
+      "force_shed_off_plan": "Operator override: force all shed tier devices off.",
+      "force_shed_off": "Operator override: force shed tier devices off."
     },
     "grid": {
       "absent": "Grid absent; disable grid charge.",

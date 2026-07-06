@@ -254,6 +254,13 @@ class Orchestrator:
     def shedding_active(self) -> bool:
         return self.cfg.load_shedding.enabled and not self.paused_shedding
 
+    def shedding_writes_allowed(self) -> bool:
+        if not self.cfg.load_shedding.enabled:
+            return False
+        if self.override.force_shed_off is True:
+            return True
+        return not self.paused_shedding
+
     @property
     def grid_charge_active(self) -> bool:
         return (
@@ -437,7 +444,7 @@ class Orchestrator:
                 log.error("Executor failed: %s", e)
         else:
             self.latest_results = []
-        if self.shedding_active and decision.shed_actions:
+        if self.shedding_writes_allowed() and decision.shed_actions:
             try:
                 self.latest_shed_results = await self.executor.apply_shed_actions(
                     decision.shed_actions,
@@ -589,6 +596,19 @@ class Orchestrator:
         ):
             self.override.force_grid_charge = None
 
+    def _apply_force_shed_coupling(self, ov: Override) -> None:
+        """Couple force-off with pause; resume paths clear force back to optimizer (None)."""
+        if ov.force_shed_off is True:
+            self.paused_shedding = True
+        elif ov.pause_engine is False:
+            self.override.force_shed_off = None
+        elif (
+            ov.pause_shedding is False
+            and ov.force_shed_off is not True
+            and ov.force_shed_off is not False
+        ):
+            self.override.force_shed_off = None
+
     async def apply_override(self, ov: Override) -> dict:
         if ov.kill_switch:
             async with self._cycle_lock:
@@ -620,6 +640,11 @@ class Orchestrator:
 
             raise api_error("api.override.grid_charge_disabled", 422)
 
+        if ov.force_shed_off is not None and not self.cfg.load_shedding.enabled:
+            from .i18n import api_error
+
+            raise api_error("api.override.shedding_disabled", 422)
+
         if ov.shadow_mode is not None:
             self.shadow_mode = ov.shadow_mode
         self._apply_pause_override(ov)
@@ -627,7 +652,10 @@ class Orchestrator:
             self.override.reserve_soc = ov.reserve_soc
         if ov.force_grid_charge is not None:
             self.override.force_grid_charge = ov.force_grid_charge
+        if ov.force_shed_off is not None:
+            self.override.force_shed_off = ov.force_shed_off
         self._apply_force_grid_coupling(ov)
+        self._apply_force_shed_coupling(ov)
 
         async with self._cycle_lock:
             await self._control_cycle_body()
@@ -640,6 +668,7 @@ class Orchestrator:
             "paused_optimization": self.paused_optimization,
             "reserve_soc": self.override.reserve_soc,
             "force_grid_charge": self.override.force_grid_charge,
+            "force_shed_off": self.override.force_shed_off,
         }
 
     def clear_overrides(self) -> dict:
@@ -712,6 +741,7 @@ class Orchestrator:
             mpc_unavailable=self.cfg.engine.mode == "mpc" and self._mpc is None,
             reserve_soc_override=self.override.reserve_soc,
             force_grid_charge_override=self.override.force_grid_charge,
+            force_shed_off_override=self.override.force_shed_off,
             shadow_mode=self.shadow_mode,
             paused=self.paused,
             shedding_enabled=self.cfg.load_shedding.enabled,

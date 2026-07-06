@@ -13,10 +13,17 @@ export function buildSubsystemAlerts(status: SystemStatus | null): StatusAlert[]
   if (!status) return [];
   const pills: StatusAlert[] = [];
   if (status.shedding_enabled) {
-    pills.push({
-      label: status.paused_shedding ? t("ui.app.shedPaused") : t("ui.app.shedOn"),
-      className: status.paused_shedding ? "warn" : "good",
-    });
+    if (status.force_shed_off_override === true) {
+      pills.push({
+        label: t("ui.app.shedForced"),
+        className: "warn",
+      });
+    } else {
+      pills.push({
+        label: status.paused_shedding ? t("ui.app.shedPaused") : t("ui.app.shedOn"),
+        className: status.paused_shedding ? "warn" : "good",
+      });
+    }
   } else {
     pills.push({ label: t("ui.app.shedOff"), className: "warn" });
   }

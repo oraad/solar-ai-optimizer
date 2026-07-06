@@ -136,12 +136,28 @@ export class OverridesPanel extends LitElement {
       t("ui.overrides.toastEngineResumed"),
     );
 
-  private togglePauseShedding = () =>
-    this.run(
-      () => api.override({ pause_shedding: !(this.status?.paused_shedding ?? false) }),
+  private togglePauseShedding = () => {
+    const paused =
+      (this.status?.paused_shedding ?? false) ||
+      this.status?.force_shed_off_override === true;
+    return this.run(
+      () => api.override({ pause_shedding: !paused }),
       t("ui.overrides.toastEngineLoading"),
       t("ui.overrides.toastSubsystemSuccess"),
     );
+  };
+
+  private toggleForceShedOff = () => {
+    const forced = this.status?.force_shed_off_override === true;
+    return this.run(
+      () =>
+        forced
+          ? api.override({ pause_shedding: false })
+          : api.override({ force_shed_off: true, pause_shedding: true }),
+      t("ui.overrides.toastShedLoading"),
+      forced ? t("ui.overrides.toastShedReleased") : t("ui.overrides.toastShedForced"),
+    );
+  };
 
   private togglePauseGridCharge = () => {
     const paused =
@@ -210,23 +226,54 @@ export class OverridesPanel extends LitElement {
     pausedShed: boolean,
     pausedGrid: boolean,
     pausedOpt: boolean,
+    sheddingEnabled: boolean,
+    forcedShed: boolean,
     gridChargeEnabled: boolean,
     forcedGrid: boolean,
   ) {
+    const shedPaused = pausedShed || forcedShed;
     const gridPaused = pausedGrid || forcedGrid;
     return html`
-      <div class="ctrl">
-        <span>${t("ui.overrides.pauseShedding")}</span>
-        <span class="seg">
-          <button
-            class=${pausedShed ? "active warn" : ""}
-            ?disabled=${this.busy}
-            @click=${this.togglePauseShedding}
-          >
-            ${pausedShed ? t("ui.overrides.paused") : t("ui.overrides.running")}
-          </button>
-        </span>
-      </div>
+      ${sheddingEnabled
+        ? html`
+            <div class="ctrl">
+              <span>${labelWithTip(t("ui.overrides.pauseShedding"), overrideHelp("load_shedding"))}</span>
+              <span class="ctrl-segments">
+                <span class="seg">
+                  <button
+                    class=${forcedShed ? "active warn" : "active good"}
+                    ?disabled=${this.busy}
+                    @click=${this.toggleForceShedOff}
+                  >
+                    ${forcedShed ? t("ui.overrides.forceOff") : t("ui.overrides.auto")}
+                  </button>
+                </span>
+                <span class="seg">
+                  <button
+                    class=${shedPaused ? "active warn" : "active good"}
+                    ?disabled=${this.busy}
+                    @click=${this.togglePauseShedding}
+                  >
+                    ${shedPaused ? t("ui.overrides.paused") : t("ui.overrides.running")}
+                  </button>
+                </span>
+              </span>
+            </div>
+          `
+        : html`
+            <div class="ctrl">
+              <span>${t("ui.overrides.pauseShedding")}</span>
+              <span class="seg">
+                <button
+                  class=${pausedShed ? "active warn" : "active good"}
+                  ?disabled=${this.busy}
+                  @click=${this.togglePauseShedding}
+                >
+                  ${pausedShed ? t("ui.overrides.paused") : t("ui.overrides.running")}
+                </button>
+              </span>
+            </div>
+          `}
       ${gridChargeEnabled
         ? html`
             <div class="ctrl">
@@ -258,7 +305,7 @@ export class OverridesPanel extends LitElement {
         <span>${t("ui.overrides.pauseOptimization")}</span>
         <span class="seg">
           <button
-            class=${pausedOpt ? "active warn" : ""}
+            class=${pausedOpt ? "active warn" : "active good"}
             ?disabled=${this.busy}
             @click=${this.togglePauseOptimization}
           >
@@ -276,7 +323,9 @@ export class OverridesPanel extends LitElement {
     const pausedGrid = this.status?.paused_grid_charge ?? false;
     const pausedOpt = this.status?.paused_optimization ?? false;
     const gridChargeEnabled = this.status?.grid_charge_enabled !== false;
+    const sheddingEnabled = this.status?.shedding_enabled === true;
     const forcedGrid = this.status?.force_grid_charge_override === true;
+    const forcedShed = this.status?.force_shed_off_override === true;
     const viewer = this.role === "viewer";
     const partialPause =
       !pausedAll && (pausedShed || pausedGrid || pausedOpt);
@@ -287,7 +336,7 @@ export class OverridesPanel extends LitElement {
         ${viewer ? html`<p class="viewer-note">${t("ui.overrides.viewerNote")}</p>` : null}
 
         ${pausedAll ? html`<div class="banner warn">${t("ui.overrides.enginePaused")}</div>` : null}
-        ${partialPause && pausedShed ? html`<div class="banner warn">${t("ui.overrides.shedPausedOnly")}</div>` : null}
+        ${partialPause && pausedShed && !forcedShed ? html`<div class="banner warn">${t("ui.overrides.shedPausedOnly")}</div>` : null}
         ${partialPause && pausedGrid && !forcedGrid ? html`<div class="banner warn">${t("ui.overrides.gridPausedOnly")}</div>` : null}
         ${partialPause && pausedOpt ? html`<div class="banner warn">${t("ui.overrides.optPausedOnly")}</div>` : null}
         ${this.status?.reserve_soc_override != null
@@ -295,6 +344,9 @@ export class OverridesPanel extends LitElement {
           : null}
         ${forcedGrid
           ? html`<div class="banner warn">${t("ui.overrides.gridChargeForced")}</div>`
+          : null}
+        ${forcedShed
+          ? html`<div class="banner warn">${t("ui.overrides.shedForced")}</div>`
           : null}
 
         <div class="section-label">${t("ui.overrides.sectionPrimary")}</div>
@@ -310,7 +362,7 @@ export class OverridesPanel extends LitElement {
             : html`<button ?disabled=${this.busy} @click=${this.forceCycle}>&#8635; ${t("ui.overrides.runCycle")}</button>`}
         </div>
 
-        ${this.renderSubsystemPauses(pausedShed, pausedGrid, pausedOpt, gridChargeEnabled, forcedGrid)}
+        ${this.renderSubsystemPauses(pausedShed, pausedGrid, pausedOpt, sheddingEnabled, forcedShed, gridChargeEnabled, forcedGrid)}
 
         ${viewer
           ? html`

@@ -249,6 +249,7 @@ def _orch_for_override_tests(monkeypatch: pytest.MonkeyPatch, tmp_path) -> objec
     orch = Orchestrator(settings, store)
     orch.cfg.grid_charge.enabled = True
     orch.cfg.engine.enabled = True
+    orch.cfg.load_shedding.enabled = True
     orch.collector = MagicMock()
     orch.collector.sample = AsyncMock(
         return_value=MagicMock(grid_present=True, battery_soc=60.0, ts=utcnow())
@@ -342,3 +343,59 @@ async def test_apply_override_resume_all_clears_force(
 
     assert orch.override.force_grid_charge is None
     assert orch.paused_grid_charge is False
+
+
+@pytest.mark.asyncio
+async def test_force_shed_off_while_paused_applies_shed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+):
+    orch = _orch_for_override_tests(monkeypatch, tmp_path)
+    orch.paused_shedding = True
+    orch.override.force_shed_off = True
+    orch._decide = MagicMock(return_value=_decision_with_both())
+
+    await orch.control_cycle()
+
+    orch.executor.apply_shed_actions.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_apply_override_force_off_pauses_shed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+):
+    orch = _orch_for_override_tests(monkeypatch, tmp_path)
+
+    await orch.apply_override(Override(force_shed_off=True))
+
+    assert orch.override.force_shed_off is True
+    assert orch.paused_shedding is True
+
+
+@pytest.mark.asyncio
+async def test_apply_override_resume_shed_clears_force_off(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+):
+    orch = _orch_for_override_tests(monkeypatch, tmp_path)
+    orch.override.force_shed_off = True
+    orch.paused_shedding = True
+
+    await orch.apply_override(Override(pause_shedding=False))
+
+    assert orch.override.force_shed_off is None
+    assert orch.paused_shedding is False
+
+
+@pytest.mark.asyncio
+async def test_apply_override_resume_all_clears_force_shed_off(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+):
+    orch = _orch_for_override_tests(monkeypatch, tmp_path)
+    orch.override.force_shed_off = True
+    orch.paused_shedding = True
+    orch.paused_grid_charge = True
+    orch.paused_optimization = True
+
+    await orch.apply_override(Override(pause_engine=False))
+
+    assert orch.override.force_shed_off is None
+    assert orch.paused_shedding is False

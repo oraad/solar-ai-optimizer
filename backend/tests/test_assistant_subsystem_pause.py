@@ -47,3 +47,16 @@ def test_parse_force_grid_charge_pauses():
     assert ov is not None
     assert ov.force_grid_charge is True
     assert ov.pause_grid_charge is True
+
+
+def test_parse_force_shed_off_pauses():
+    ov = _assistant().parse_intent("force shed off")
+    assert ov is not None
+    assert ov.force_shed_off is True
+    assert ov.pause_shedding is True
+
+
+def test_parse_release_shed_clears_force_off():
+    ov = _assistant().parse_intent("release shed")
+    assert ov is not None
+    assert ov.force_shed_off is False

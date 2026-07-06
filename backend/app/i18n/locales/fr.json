@@ -13,7 +13,8 @@
       "kill_switch_confirm": "kill_switch nécessite confirm=true",
       "no_fields": "Aucun champ de surcharge fourni",
       "assistant_kill_switch": "L'arrêt d'urgence nécessite une confirmation explicite dans votre question (par ex. inclure « confirm »).",
-      "grid_charge_disabled": "Le contrôle de charge réseau est désactivé dans les paramètres."
+      "grid_charge_disabled": "Le contrôle de charge réseau est désactivé dans les paramètres.",
+      "shedding_disabled": "Le contrôle du délestage est désactivé dans les paramètres."
     },
     "validation": {
       "field": "{loc} : {msg}"
@@ -82,7 +83,9 @@
       "force_grid_charge": "Surcharge opérateur : forcer la charge réseau.",
       "disable_grid_charge_plan": "Surcharge opérateur : désactiver la charge réseau.",
       "disable_grid_charge": "Surcharge opérateur : désactiver la charge réseau.",
-      "grid_charge_zero": "Surcharge opérateur : courant de charge réseau à 0."
+      "grid_charge_zero": "Surcharge opérateur : courant de charge réseau à 0.",
+      "force_shed_off_plan": "Surcharge opérateur : forcer l'arrêt de tous les appareils de délestage.",
+      "force_shed_off": "Surcharge opérateur : forcer l'arrêt des appareils de délestage."
     },
     "grid": {
       "absent": "Réseau absent ; désactiver la charge réseau.",

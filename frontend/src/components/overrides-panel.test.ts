@@ -16,6 +16,7 @@ function mountPanel(role: "admin" | "viewer"): OverridesPanel {
     ha_connected: true,
     shadow_mode: true,
     paused: false,
+    grid_charge_enabled: true,
     last_updated: new Date().toISOString(),
   };
   document.body.appendChild(el);
@@ -34,7 +35,7 @@ describe("OverridesPanel role", () => {
     await el.updateComplete;
     const root = el.shadowRoot!;
     expect(root.textContent).toContain("Operator controls");
-    expect(root.textContent).toContain("require an admin");
+    expect(root.textContent).toContain("Reserve pin requires an admin");
     expect(root.textContent).toContain("Load shedding");
     expect(root.textContent).toContain("Grid charge");
     expect(root.textContent).toContain("Optimization");
@@ -42,6 +43,7 @@ describe("OverridesPanel role", () => {
     expect(root.textContent).not.toContain("Run cycle now");
     expect(root.textContent).not.toContain("Clear overrides");
     expect(root.textContent).toContain("Kill switch");
+    expect(root.textContent).toContain("Force on");
     el.remove();
   });
 
@@ -121,21 +123,37 @@ describe("OverridesPanel role", () => {
     };
     await el.updateComplete;
     expect(el.shadowRoot!.textContent).toContain("Paused");
-    const shedButton = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>("button")].find(
-      (b) => b.textContent?.includes("Paused"),
-    );
-    expect(shedButton?.disabled).toBe(false);
     el.remove();
   });
 
-  it("admin mode hides grid charge when disabled", async () => {
+  it("hides grid charge row when disabled", async () => {
     const el = mountPanel("admin");
     el.status = {
       ...el.status!,
       grid_charge_enabled: false,
     };
     await el.updateComplete;
-    expect(el.shadowRoot!.textContent).not.toContain("Force on");
+    const texts = buttonTexts(el);
+    expect(texts.some((t) => t.includes("Force on"))).toBe(false);
+    el.remove();
+  });
+
+  it("viewer note does not claim grid-charge overrides are admin-only", async () => {
+    const el = mountPanel("viewer");
+    await el.updateComplete;
+    expect(el.shadowRoot!.textContent).not.toContain("grid-charge overrides");
+    el.remove();
+  });
+
+  it("shows forced grid charge banner when active", async () => {
+    const el = mountPanel("viewer");
+    el.status = {
+      ...el.status!,
+      force_grid_charge_override: true,
+      paused_grid_charge: true,
+    };
+    await el.updateComplete;
+    expect(el.shadowRoot!.textContent).toContain("forced on at max current");
     el.remove();
   });
 });

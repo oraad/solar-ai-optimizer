@@ -308,12 +308,13 @@ VIEWER_OVERRIDE_FIELDS = frozenset({
     "pause_shedding",
     "pause_grid_charge",
     "pause_optimization",
+    "force_grid_charge",
     "kill_switch",
 })
 
 
 def assert_override_allowed(session: SessionUser, ov: Override) -> None:
-    """Viewers may pause/resume engine and subsystems, toggle shadow/live, and kill switch."""
+    """Viewers may pause/resume engine and subsystems, force grid charge, toggle shadow/live, and kill switch."""
     if session.is_admin:
         return
     touched = {

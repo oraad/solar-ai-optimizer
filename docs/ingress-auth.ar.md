@@ -125,7 +125,7 @@ ADMIN_USER_IDS=abc123,def456
 | `GET /api/health`| عام | مسبار الحياة |
 | `GET /api/config`| المشرف | تكوين لوحة القيادة الكاملة (تم رفض المشاهدين) |
 | `GET /api/entities`| المشرف | قائمة كيانات HA للإكمال التلقائي للإعدادات |
-| `POST /api/override`| جلسة | المشرف: أي حقل تجاوز؛ المشاهد: `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `kill_switch` (`kill_switch` يتطلب `confirm=true`) |
+| `POST /api/override`| جلسة | المشرف: أي حقل تجاوز؛ المشاهد: `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `force_grid_charge`, `kill_switch` (`kill_switch` يتطلب `confirm=true`) |
 
 ## قائمة التحقق الأمنية
 

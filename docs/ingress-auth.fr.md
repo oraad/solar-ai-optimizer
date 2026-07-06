@@ -125,7 +125,7 @@ ADMIN_USER_IDS=abc123,def456
 | `GET /api/health`| Publique | Sonde de vivacité |
 | `GET /api/config`| Administrateur | Configuration complète du tableau de bord (spectateurs refusés) |
 | `GET /api/entities`| Administrateur | Liste d'entités HA pour la saisie semi-automatique des paramètres |
-| `POST /api/override`| Séance | Admin : tout champ de remplacement ; téléspectateur : `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `kill_switch` (`kill_switch` nécessite `confirm=true`) |
+| `POST /api/override`| Séance | Admin : tout champ de remplacement ; téléspectateur : `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `force_grid_charge`, `kill_switch` (`kill_switch` nécessite `confirm=true`) |
 
 ## Liste de contrôle de sécurité
 

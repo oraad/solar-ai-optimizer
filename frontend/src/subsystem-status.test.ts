@@ -47,4 +47,12 @@ describe("buildSubsystemAlerts", () => {
     );
     expect(alerts.every((a) => a.className === "warn")).toBe(true);
   });
+
+  it("shows GRID FORCED when force override is active", () => {
+    const alerts = buildSubsystemAlerts(
+      status({ force_grid_charge_override: true, paused_grid_charge: true }),
+    );
+    expect(alerts[1].label).toBe("GRID FORCED");
+    expect(alerts[1].className).toBe("warn");
+  });
 });

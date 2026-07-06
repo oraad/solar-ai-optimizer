@@ -104,7 +104,7 @@ When `SUPERVISOR_TOKEN` is set, ingress is trusted automatically (user headers a
 | **Admin** | HA owner or `system-admin` group; or `ADMIN_USER_IDS` allowlist | Full dashboard (Overview, Forecast, History, Assistant, Settings) |
 | **Viewer** | Other HA users via ingress | Overview, Forecast, and History only — limited operator controls on Overview |
 
-Viewers can **pause/resume** the engine and each subsystem (shedding, grid charge, optimization), and engage the **kill switch** (with confirmation). They cannot pin reserve SOC, force grid charge, run a control cycle, refresh forecast, clear overrides, toggle shadow/live in the UI, use the Assistant, or open Settings.
+Viewers can **pause/resume** the engine and each subsystem (shedding, grid charge, optimization), toggle grid charge **Auto / Force on**, and engage the **kill switch** (with confirmation). They cannot pin reserve SOC, run a control cycle, refresh forecast, clear overrides, toggle shadow/live in the UI, use the Assistant, or open Settings.
 
 Mutating API routes enforce the same limits on the backend. Config and model APIs remain admin-only.
 
@@ -126,7 +126,7 @@ ADMIN_USER_IDS=abc123,def456
 | `GET /api/config` | Admin | Full dashboard config (viewers denied) |
 | `GET /api/config/load-shedding` | Session | Read-only load shedding config for viewer dashboard tab |
 | `GET /api/entities` | Admin | HA entity list for Settings autocomplete |
-| `POST /api/override` | Session | Admin: any override field; viewer: `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `kill_switch` (`kill_switch` requires `confirm=true`) |
+| `POST /api/override` | Session | Admin: any override field; viewer: `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `force_grid_charge`, `kill_switch` (`kill_switch` requires `confirm=true`) |
 
 ## Security checklist
 

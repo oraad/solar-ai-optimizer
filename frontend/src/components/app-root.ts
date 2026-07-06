@@ -153,14 +153,26 @@ export class SolarApp extends LitElement {
         font-size: 1.05rem; border-radius: 11px;
       }
       button.pill {
-        border: none;
         cursor: pointer;
         font: inherit;
         min-height: 34px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: transparent;
+        border: 1px solid var(--border);
+        box-shadow: none;
+        transform: none;
+      }
+      button.pill:hover {
+        filter: brightness(1.06);
+      }
+      button.pill:active {
+        transform: none;
       }
       button.pill:focus-visible {
         outline: 2px solid var(--ring);
         outline-offset: 2px;
+        box-shadow: none;
       }
 
       nav {
@@ -971,7 +983,7 @@ export class SolarApp extends LitElement {
               ? html`
                   <button
                     type="button"
-                    class="pill"
+                    class="pill muted"
                     title=${t("ui.app.viewAsViewerTooltip")}
                     aria-label=${t("ui.app.viewAsViewerTooltip")}
                     @click=${() => this.setViewAsViewer(true)}

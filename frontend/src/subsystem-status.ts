@@ -21,10 +21,17 @@ export function buildSubsystemAlerts(status: SystemStatus | null): StatusAlert[]
     pills.push({ label: t("ui.app.shedOff"), className: "warn" });
   }
   if (status.grid_charge_enabled !== false) {
-    pills.push({
-      label: status.paused_grid_charge ? t("ui.app.gridPaused") : t("ui.app.gridOn"),
-      className: status.paused_grid_charge ? "warn" : "good",
-    });
+    if (status.force_grid_charge_override === true) {
+      pills.push({
+        label: t("ui.app.gridForced"),
+        className: "warn",
+      });
+    } else {
+      pills.push({
+        label: status.paused_grid_charge ? t("ui.app.gridPaused") : t("ui.app.gridOn"),
+        className: status.paused_grid_charge ? "warn" : "good",
+      });
+    }
   } else {
     pills.push({ label: t("ui.app.gridOff"), className: "warn" });
   }

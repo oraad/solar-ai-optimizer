@@ -40,3 +40,10 @@ def test_parse_resume_grid():
     ov = _assistant().parse_intent("resume grid")
     assert ov is not None
     assert ov.pause_grid_charge is False
+
+
+def test_parse_force_grid_charge_pauses():
+    ov = _assistant().parse_intent("force grid charge")
+    assert ov is not None
+    assert ov.force_grid_charge is True
+    assert ov.pause_grid_charge is True

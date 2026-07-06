@@ -46,7 +46,7 @@ There is **one dashboard** for all users. Roles control which tabs and controls 
 
 Role resolution and API enforcement: [Roles and access](ingress-auth.md).
 
-**Admins** can open **Viewer preview** from the top status bar to see the same four-tab layout and limited controls that ingress viewers get. Click the **VIEWER** badge to return to the full admin dashboard. Preview is UI-only — your session remains admin.
+**Admins** can open **Viewer** from the top status bar to see the same four-tab layout and limited controls that ingress viewers get. Click **Admin** to return to the full admin dashboard. Preview is UI-only — your session remains admin.
 
 ### Feature matrix
 
@@ -57,7 +57,7 @@ Role resolution and API enforcement: [Roles and access](ingress-auth.md).
 | Shadow / live toggle | Yes | Yes (API only; not shown in viewer UI) |
 | Pause all / Resume all (engine) | Yes | Yes |
 | Per-subsystem pause / resume (shedding, grid charge, optimization) | Yes | Yes |
-| Grid charge Auto / Force on | Yes | Yes |
+| Grid charge Auto / Force ON | Yes | Yes |
 | Kill switch (with confirmation) | Yes | Yes |
 | Reserve pin, grid charge, clear overrides | Yes | No |
 | Run control cycle, refresh forecast | Yes | No |
@@ -94,7 +94,7 @@ Admins get the full operator panel:
 
 - **Shadow / Live** — start in shadow; switch to live only after you trust the decisions
 - **Pause all** / **Resume all** — stop or restart all subsystems (shedding, grid charge, optimization)
-- **Per-subsystem pause / resume** — load shedding, grid charge (Auto/Force on + Running/Paused), and optimization toggles (shown for all roles)
+- **Per-subsystem pause / resume** — load shedding, grid charge (two flip toggles: Auto/Force ON and Running/Paused), and optimization toggles (shown for all roles)
 - **Advanced** (admin only) — shadow/live and clear overrides
 - **Kill switch** — emergency stop; grid charge at max (when enabled) and shed tier restore (requires confirmation)
 - **Reserve override** — temporarily force a minimum target SOC (%)
@@ -121,12 +121,12 @@ Admins use **Forecast** and **History** the same as viewers (see below), plus:
 
 When you sign in through Home Assistant ingress as a non-admin user, the dashboard runs in **viewer** mode:
 
-![Viewer Overview — three tabs and VIEWER badge](images/frontend/viewer-overview.png)
+![Viewer Overview — tabs without role badge](images/frontend/viewer-overview.png)
 
 - **Tabs:** Overview, Forecast, History, and **Load shedding** (read-only) — no Assistant or Settings
-- **Top bar:** **VIEWER** badge; your HA display name may appear under the app title
+- **Top bar:** your HA display name may appear under the app title (no role badge for viewers)
 - **Load shedding tab:** view live shed status, tier ladder, and configured entities — configuration changes require an admin
-- **Overview overrides:** **Pause all**, **Resume all**, per-subsystem pause/resume toggles, grid charge **Auto / Force on**, and kill switch (with confirmation) — no reserve pin, run cycle, shadow/live toggle, or clear overrides
+- **Overview overrides:** **Pause all**, **Resume all**, per-subsystem pause/resume toggles, grid charge **Auto / Force ON** flip toggles, and kill switch (with confirmation) — no reserve pin, run cycle, shadow/live toggle, or clear overrides
 - **Read-only banners** on Overview when an admin has pinned reserve SOC or forced grid charge — viewers see the active override but cannot change it
 - **Forecast empty state** — if location is not configured, the chart shows a message to ask an admin to set latitude/longitude in Settings (viewers cannot open Settings)
 - **Battery time-to-empty** on Overview uses live status data — no Settings access required

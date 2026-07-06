@@ -155,7 +155,8 @@ export class SolarApp extends LitElement {
       button.pill {
         cursor: pointer;
         font: inherit;
-        min-height: 34px;
+        font-size: 0.78rem;
+        font-weight: 600;
         padding: 3px 10px;
         border-radius: 999px;
         background: transparent;
@@ -642,13 +643,6 @@ export class SolarApp extends LitElement {
     this.setViewAsViewer(enter);
   }
 
-  private get viewerTooltip(): string {
-    const name = this.session?.display_name || this.session?.username;
-    return name
-      ? t("ui.app.viewerTooltip", { name })
-      : t("ui.app.viewerTooltipGeneric");
-  }
-
   private get dashboardRole(): "admin" | "viewer" {
     return this.showingViewerUi ? "viewer" : "admin";
   }
@@ -990,20 +984,16 @@ export class SolarApp extends LitElement {
                     @keydown=${(e: KeyboardEvent) => this.onViewerPreviewKeydown(e, true)}
                   >${t("ui.app.viewAsViewer")}</button>
                 `
-              : this.showingViewerUi
+              : this.isAdmin && this.viewAsViewer
                 ? html`
-                    ${this.isAdmin
-                      ? html`
-                          <button
-                            type="button"
-                            class="pill warn"
-                            title=${t("ui.app.viewerPreviewTooltip")}
-                            aria-label=${t("ui.app.viewerPreviewTooltip")}
-                            @click=${() => this.setViewAsViewer(false)}
-                            @keydown=${(e: KeyboardEvent) => this.onViewerPreviewKeydown(e, false)}
-                          >${t("ui.app.viewer")}</button>
-                        `
-                      : html`<span class="pill warn" title=${this.viewerTooltip}>${t("ui.app.viewer")}</span>`}
+                    <button
+                      type="button"
+                      class="pill warn"
+                      title=${t("ui.app.exitViewerPreviewTooltip")}
+                      aria-label=${t("ui.app.exitViewerPreviewTooltip")}
+                      @click=${() => this.setViewAsViewer(false)}
+                      @keydown=${(e: KeyboardEvent) => this.onViewerPreviewKeydown(e, false)}
+                    >${t("ui.app.exitViewerPreview")}</button>
                   `
                 : null}
             <span class="pill ${this.haConnected ? "good" : "bad"} ${this.compactTopbar ? "short-text" : ""}">

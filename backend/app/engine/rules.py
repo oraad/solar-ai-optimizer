@@ -343,11 +343,14 @@ class RuleEngine:
                 },
             )
 
-        shed_actions = (
-            self._shedding.plan(telemetry, telemetry_stale=telemetry_stale)
-            if plan_shedding
-            else []
-        )
+        if plan_shedding and override and override.force_shed_off:
+            shed_actions = self._shedding.force_off_plan()
+        elif plan_shedding:
+            shed_actions = self._shedding.plan(
+                telemetry, telemetry_stale=telemetry_stale
+            )
+        else:
+            shed_actions = []
 
         return Decision(
             ts=utcnow(),

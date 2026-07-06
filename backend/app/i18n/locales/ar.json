@@ -13,7 +13,8 @@
       "kill_switch_confirm": "يتطلب kill_switch تأكيد confirm=true",
       "no_fields": "لم يتم تقديم حقول تجاوز",
       "assistant_kill_switch": "يتطلب مفتاح الإيقاف تأكيداً صريحاً في سؤالك (مثلاً تضمين « confirm »).",
-      "grid_charge_disabled": "التحكم في شحن الشبكة معطّل في الإعدادات."
+      "grid_charge_disabled": "التحكم في شحن الشبكة معطّل في الإعدادات.",
+      "shedding_disabled": "التحكم في تخفيف الأحمال معطّل في الإعدادات."
     },
     "validation": {
       "field": "{loc}: {msg}"
@@ -82,7 +83,9 @@
       "force_grid_charge": "تجاوز المشغّل: فرض شحن الشبكة.",
       "disable_grid_charge_plan": "تجاوز المشغّل: تعطيل شحن الشبكة.",
       "disable_grid_charge": "تجاوز المشغّل: تعطيل شحن الشبكة.",
-      "grid_charge_zero": "تجاوز المشغّل: تيار شحن الشبكة إلى 0."
+      "grid_charge_zero": "تجاوز المشغّل: تيار شحن الشبكة إلى 0.",
+      "force_shed_off_plan": "تجاوز المشغّل: إيقاف جميع أجهزة مستويات التخفيف.",
+      "force_shed_off": "تجاوز المشغّل: إيقاف أجهزة مستويات التخفيف."
     },
     "grid": {
       "absent": "الشبكة غير متوفرة؛ تعطيل شحن الشبكة.",

@@ -171,4 +171,72 @@ describe("OverridesPanel role", () => {
     expect(gridRow?.textContent).toContain("Paused");
     el.remove();
   });
+
+  it("shows forced shed banner when active", async () => {
+    const el = mountPanel("viewer");
+    el.status = {
+      ...el.status!,
+      shedding_enabled: true,
+      force_shed_off_override: true,
+      paused_shedding: true,
+    };
+    await el.updateComplete;
+    expect(el.shadowRoot!.textContent).toContain("forced off");
+    el.remove();
+  });
+
+  it("shed pause toggle shows Paused when forced off", async () => {
+    const el = mountPanel("viewer");
+    el.status = {
+      ...el.status!,
+      shedding_enabled: true,
+      force_shed_off_override: true,
+      paused_shedding: true,
+    };
+    await el.updateComplete;
+    const shedRow = [...el.shadowRoot!.querySelectorAll(".ctrl")].find((row) =>
+      row.textContent?.includes("Load shedding"),
+    );
+    expect(shedRow?.textContent).toContain("Paused");
+    expect(shedRow?.textContent).toContain("Force OFF");
+    el.remove();
+  });
+
+  it("shows shed Auto and Running when shedding enabled", async () => {
+    const el = mountPanel("viewer");
+    el.status = {
+      ...el.status!,
+      shedding_enabled: true,
+    };
+    await el.updateComplete;
+    const shedRow = [...el.shadowRoot!.querySelectorAll(".ctrl")].find((row) =>
+      row.textContent?.includes("Load shedding"),
+    );
+    expect(shedRow?.querySelectorAll(".seg").length).toBe(2);
+    expect(shedRow?.textContent).toContain("Auto");
+    expect(shedRow?.textContent).toContain("Running");
+    el.remove();
+  });
+
+  it("running shed and optimization toggles use active good styling", async () => {
+    const el = mountPanel("viewer");
+    el.status = {
+      ...el.status!,
+      shedding_enabled: true,
+      paused_shedding: false,
+      paused_grid_charge: false,
+      paused_optimization: false,
+    };
+    await el.updateComplete;
+    const rows = [...el.shadowRoot!.querySelectorAll(".ctrl")];
+    const shedRow = rows.find((row) => row.textContent?.includes("Load shedding"));
+    const optRow = rows.find((row) => row.textContent?.includes("Optimization"));
+    const shedRunningBtn = shedRow?.querySelector(".ctrl-segments .seg:last-child button");
+    const optBtn = optRow?.querySelector("button");
+    expect(shedRunningBtn?.classList.contains("active")).toBe(true);
+    expect(shedRunningBtn?.classList.contains("good")).toBe(true);
+    expect(optBtn?.classList.contains("active")).toBe(true);
+    expect(optBtn?.classList.contains("good")).toBe(true);
+    el.remove();
+  });
 });

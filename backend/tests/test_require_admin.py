@@ -121,6 +121,15 @@ def test_viewer_can_force_grid_charge(guarded_client):
     assert res.status_code == 200
 
 
+def test_viewer_can_force_shed_off(guarded_client):
+    res = guarded_client.post(
+        "/api/override",
+        json={"force_shed_off": True},
+        headers={"X-Remote-User-Id": "viewer-1"},
+    )
+    assert res.status_code == 200
+
+
 def test_viewer_can_read_status(guarded_client):
     res = guarded_client.get("/api/status", headers={"X-Remote-User-Id": "viewer-1"})
     assert res.status_code == 200

@@ -55,4 +55,12 @@ describe("buildSubsystemAlerts", () => {
     expect(alerts[1].label).toBe("GRID FORCED");
     expect(alerts[1].className).toBe("warn");
   });
+
+  it("shows SHED FORCED when force shed off override is active", () => {
+    const alerts = buildSubsystemAlerts(
+      status({ force_shed_off_override: true, paused_shedding: true }),
+    );
+    expect(alerts[0].label).toBe("SHED FORCED");
+    expect(alerts[0].className).toBe("warn");
+  });
 });

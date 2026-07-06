@@ -309,6 +309,7 @@ VIEWER_OVERRIDE_FIELDS = frozenset({
     "pause_grid_charge",
     "pause_optimization",
     "force_grid_charge",
+    "force_shed_off",
     "kill_switch",
 })
 

@@ -38,9 +38,16 @@ def _force_grid_charge(ov: Override) -> None:
     ov.pause_grid_charge = True
 
 
+def _force_shed_off(ov: Override) -> None:
+    ov.force_shed_off = True
+    ov.pause_shedding = True
+
+
 _INDEPENDENT_RULES: tuple[tuple[re.Pattern[str], Callable[[Override], None]], ...] = (
     (re.compile(r"\b(force|start).*(grid )?charg"), _force_grid_charge),
     (re.compile(r"\b(stop|cancel|release).*(grid )?charg"), lambda ov: setattr(ov, "force_grid_charge", False)),
+    (re.compile(r"\b(force|turn off).*(shed|load)"), _force_shed_off),
+    (re.compile(r"\b(release|resume|auto).*(shed|load)"), lambda ov: setattr(ov, "force_shed_off", False)),
     (re.compile(r"\b(live|enable control|go live)\b"), lambda ov: setattr(ov, "shadow_mode", False)),
     (re.compile(r"\b(shadow|observe only|dry run)\b"), lambda ov: setattr(ov, "shadow_mode", True)),
 )

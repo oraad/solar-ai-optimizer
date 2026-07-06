@@ -224,6 +224,7 @@ class SystemStatus(BaseModel):
     mpc_unavailable: bool = False
     reserve_soc_override: float | None = None
     force_grid_charge_override: bool | None = None
+    force_shed_off_override: bool | None = None
     shadow_mode: bool = True
     paused: bool = False
     shedding_enabled: bool = False
@@ -244,6 +245,7 @@ class Override(BaseModel):
 
     shadow_mode: bool | None = None
     force_grid_charge: bool | None = None
+    force_shed_off: bool | None = None
     reserve_soc: float | None = None     # pin reserve target (None = auto)
     pause_engine: bool | None = None
     pause_shedding: bool | None = None

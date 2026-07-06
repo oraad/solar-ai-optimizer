@@ -129,6 +129,7 @@ export interface SystemStatus {
   mpc_unavailable?: boolean;
   reserve_soc_override?: number | null;
   force_grid_charge_override?: boolean | null;
+  force_shed_off_override?: boolean | null;
   shadow_mode: boolean;
   paused: boolean;
   shedding_enabled?: boolean;
@@ -308,6 +309,7 @@ export interface ForecastBundle {
 export interface Override {
   shadow_mode?: boolean | null;
   force_grid_charge?: boolean | null;
+  force_shed_off?: boolean | null;
   reserve_soc?: number | null;
   pause_engine?: boolean | null;
   pause_shedding?: boolean | null;

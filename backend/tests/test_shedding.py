@@ -119,3 +119,32 @@ def test_companions_for_empty_list_when_explicit():
         state_entities={"switch.a": []},
     )
     assert tier.companions_for("switch.a") == []
+
+
+def test_force_off_plan_turns_off_all_tier_entities():
+    ctrl = _ctrl(
+        tiers=[
+            LoadTier(
+                name="pool",
+                switches=["switch.pool_pump", "switch.pool_heater"],
+                shed_below_soc=40,
+                restore_above_soc=55,
+                priority=1,
+            ),
+            LoadTier(
+                name="ac",
+                switches=["switch.ac"],
+                shed_below_soc=30,
+                restore_above_soc=50,
+                priority=2,
+            ),
+        ]
+    )
+    actions = ctrl.force_off_plan()
+    assert len(actions) == 3
+    assert {a.entity for a in actions} == {
+        "switch.pool_pump",
+        "switch.pool_heater",
+        "switch.ac",
+    }
+    assert all(a.desired_on is False for a in actions)

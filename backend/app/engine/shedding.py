@@ -87,3 +87,22 @@ class LoadSheddingController:
                         )
                     )
         return actions
+
+    def force_off_plan(self) -> list[ShedAction]:
+        """Operator override: turn off every configured tier entity."""
+        if not self._cfg.enabled or not self._cfg.tiers:
+            return []
+
+        actions: list[ShedAction] = []
+        reason = msg("engine.override.force_shed_off")
+        for tier in sorted(self._cfg.tiers, key=lambda t: t.priority):
+            for entity in tier.entity_ids():
+                actions.append(
+                    ShedAction(
+                        tier=tier.name,
+                        entity=entity,
+                        desired_on=False,
+                        reason=reason,
+                    )
+                )
+        return actions

@@ -89,6 +89,7 @@ COPY backend/requirements-dev.txt backend/requirements-mcp.txt ./
 RUN pip install -r requirements-dev.txt \
     && pip install -r requirements-mcp.txt
 COPY VERSION ./VERSION
+COPY INTEGRATION_VERSION ./INTEGRATION_VERSION
 COPY scripts ./scripts
 RUN sed -i 's/\r$//' /app/scripts/docker-self-update.sh /app/scripts/recreate_from_inspect.py /app/scripts/lib/pull-progress.sh \
     && chmod +x /app/scripts/docker-self-update.sh /app/scripts/recreate_from_inspect.py

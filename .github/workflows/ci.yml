@@ -95,7 +95,7 @@ jobs:
           python -m venv .venv-ha
           .venv-ha/bin/pip install --upgrade pip
           .venv-ha/bin/pip install pytest pytest-asyncio aiohttp "homeassistant>=2026.3.0,<2026.4.0"
-          .venv-ha/bin/pytest custom_components/solar_ai_optimizer/tests -q
+          PYTHONPATH=. .venv-ha/bin/pytest custom_components/solar_ai_optimizer/tests -q
       - name: Hassfest (best-effort against HA 2026.3)
         continue-on-error: true
         run: |

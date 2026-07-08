@@ -80,8 +80,8 @@ nav:
   - Mobile Ingress QA: mobile-ingress-qa.md
   - Roles and Access: ingress-auth.md
   - Home Assistant Setup: home-assistant-setup.md
-  - Home Assistant Integration: home-assistant-integration.md
-  - Home Assistant Fail-safe: home-assistant-failsafe.md
+  - Home Assistant Integration: https://oraad.github.io/solar-ai-integration/home-assistant-integration/
+  - Home Assistant Fail-safe: https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/
   - Configuration: configuration.md
   - MCP (AI agents): mcp.md
   - Proxmox Deployment: proxmox.md

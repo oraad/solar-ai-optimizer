@@ -11,7 +11,7 @@ pannes de réseau imprévisibles.
 | **Installer** |[Installation et démarrage rapide](installation.md)— Docker, Compose, module complémentaire, Proxmox |
 | **Tableau de bord** |[Guide d'utilisation du tableau de bord](frontend-manual.md)— procédure pas à pas pour l'administrateur et le spectateur |
 | **Mobile (application HA)** |[Contrôle qualité des entrées mobiles](mobile-ingress-qa.md)— Liste de contrôle de l'application compagnon |
-| **Assistant à domicile** |[Configuration haute disponibilité](home-assistant-setup.md) · [Package de sécurité](home-assistant-failsafe.md) |
+| **Assistant à domicile** |[Configuration haute disponibilité](home-assistant-setup.md) · [Intégration HACS](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) · [Package de sécurité](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) |
 | **Contrôle d'accès** |[Rôles et accès](ingress-auth.md)— administrateur contre spectateur |
 | **Configuration** |[Configuration](configuration.md) · [`.env.example`](https://github.com/oraad/solar-ai-optimizer/blob/main/.env.example) |
 | **Proxmox** |[Déploiement Proxmox](proxmox.md) |

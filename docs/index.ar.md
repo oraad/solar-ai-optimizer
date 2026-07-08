@@ -11,7 +11,7 @@
 | **تثبيت** |[التثبيت والبدء السريع](installation.md)- عامل ميناء، إنشاء، وظيفة إضافية، Proxmox |
 | **لوحة المعلومات** |[دليل مستخدم لوحة القيادة](frontend-manual.md)— إرشادات المشرف والعارض |
 | **الجوال (تطبيق HA)** |[دخول المحمول ضمان الجودة](mobile-ingress-qa.md)- قائمة التحقق من التطبيق المصاحب |
-| ** مساعد منزلي ** |[إعداد HA](home-assistant-setup.md) · [حزمة آمنة من الفشل](home-assistant-failsafe.md) |
+| ** مساعد منزلي ** |[إعداد HA](home-assistant-setup.md) · [تكامل HACS](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) · [حزمة آمنة من الفشل](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) |
 | **التحكم في الوصول** |[الأدوار والوصول](ingress-auth.md)— المشرف مقابل العارض |
 | ** التكوين ** |[إعدادات](configuration.md) · [`.env.example`](https://github.com/oraad/solar-ai-optimizer/blob/main/.env.example) |
 | **بروكسموكس** |[نشر Proxmox](proxmox.md) |

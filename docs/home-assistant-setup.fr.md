@@ -184,7 +184,7 @@ Avant de recharger, modifiez les espaces réservés :
 - `input_number.solar_optimizer_max_grid_charge_a`**initial** — correspond à Paramètres → Charge du réseau → Courant de charge maximum du réseau (A)
 
 Rechargez les **helpers**, les **modèles** et les **automatisations**. Configurez ensuite le côté optimiseur :
-[Sécurité intégrée de Home Assistant](home-assistant-failsafe.md).
+[Sécurité intégrée de Home Assistant](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/).
 
 ---
 
@@ -267,6 +267,6 @@ Paramètres → Prévisions → Température → **Entité de capteur extérieur
 ## Guides associés
 
 - [Installation](installation.md)— Docker, application HA, Proxmox
-- [Sécurité intégrée de Home Assistant](home-assistant-failsafe.md)- réglage du rythme cardiaque
+- [Sécurité intégrée de Home Assistant](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) — réglage du rythme cardiaque
 - [Rôles et accès](ingress-auth.md)— administrateur contre spectateur
 - [Configuration](configuration.md)- variables d'environnement et persistance

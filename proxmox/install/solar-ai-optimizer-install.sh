@@ -54,7 +54,7 @@ echo
 echo "Optional: Install the Solar AI Optimizer Home Assistant integration via HACS"
 echo "for fail-safe watchdog and software updates in Settings → Updates."
 echo "Generate a pairing code in the Solar dashboard (Settings), then add the integration."
-echo "Docs: https://oraad.github.io/solar-ai-optimizer/home-assistant-integration/"
+echo "Docs: https://oraad.github.io/solar-ai-integration/home-assistant-integration/"
 echo
 
 motd_ssh

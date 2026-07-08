@@ -208,7 +208,7 @@ After any deployment path:
 3. Set **site latitude / longitude** and **PV arrays** (required for solar forecast)
 4. Map **inverter read/write entities** in Settings → Inverter entity map
 5. Leave **shadow mode** on; confirm Overview decisions look reasonable
-6. Optionally import the [fail-safe HA package](home-assistant-failsafe.md) and enable heartbeat in Settings → Fail-safe
+6. Optionally import the [fail-safe HA package](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) and enable heartbeat in Settings → Fail-safe
 7. Switch to **live** control only when you trust the optimizer
 
 Next steps:

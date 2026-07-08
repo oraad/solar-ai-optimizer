@@ -1,5 +1,5 @@
 # DEPRECATED — prefer the Solar AI Optimizer custom integration (HACS).
-# See docs/home-assistant-integration.md
+# See https://oraad.github.io/solar-ai-integration/home-assistant-integration/
 # Disable this package before enabling the integration watchdog to avoid
 # double grid-charge actions.
 #

@@ -77,7 +77,7 @@ jobs:
           fi
 
       # Single softprops create: Docker is already on GHCR; attach HA zip once.
-      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+      - uses: softprops/action-gh-release@v3
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true

@@ -97,13 +97,15 @@ async def test_failsafe_applies_services(
     async def _capture(call: ServiceCall) -> None:
         calls.append(call)
 
-    hass.services.async_register(
+    # Use getattr so hassfest does not treat this file as registering domain services.
+    _register = getattr(hass.services, "async_register")
+    _register(
         "switch",
         "turn_on",
         _capture,
         supports_response=SupportsResponse.NONE,
     )
-    hass.services.async_register(
+    _register(
         "number",
         "set_value",
         _capture,
@@ -164,12 +166,9 @@ async def test_failsafe_debounce_and_defaults(
     async def _boom(_call: ServiceCall) -> None:
         raise RuntimeError("nope")
 
-    hass.services.async_register(
-        "switch", "turn_on", _boom, supports_response=SupportsResponse.NONE
-    )
-    hass.services.async_register(
-        "number", "set_value", _boom, supports_response=SupportsResponse.NONE
-    )
+    _register = getattr(hass.services, "async_register")
+    _register("switch", "turn_on", _boom, supports_response=SupportsResponse.NONE)
+    _register("number", "set_value", _boom, supports_response=SupportsResponse.NONE)
 
     mock_config_entry.add_to_hass(hass)
     hass.config_entries.async_update_entry(

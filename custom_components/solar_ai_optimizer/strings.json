@@ -107,11 +107,5 @@
       "title": "Fail-safe configuration incomplete",
       "description": "Both a grid-charge enable switch and a max grid-charge current number entity are required for the fail-safe watchdog. Open the integration options and set both entities, or clear both."
     }
-  },
-  "repairs": {
-    "failsafe_incomplete": {
-      "title": "Complete fail-safe options",
-      "description": "Open **Configure** on the Solar AI Optimizer integration and set both fail-safe entities, or remove the incomplete one."
-    }
   }
 }

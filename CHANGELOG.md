@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [integration 0.1.0] - 2026-07-08
+
+### Integration
+
+- Initial independent integration semver line (decoupled from app `VERSION`)
+- HACS IQS Platinum-shaped checklist, diagnostics, reconfigure, repairs, `validate-ha.yml`, release zip packaging
+- Independent release tracks: app (`VERSION` / `v*` tags) vs HACS integration (`INTEGRATION_VERSION` / `integration-v*` tags)
+- `sync-version.py` syncs integration manifest from `INTEGRATION_VERSION` (decoupled from app `VERSION`)
+- HACS `zip_release` enabled; integration installs from `solar_ai_optimizer.zip` on GitHub Releases
+
 ## [0.6.11-beta.3] - 2026-07-08
 
 ### Added

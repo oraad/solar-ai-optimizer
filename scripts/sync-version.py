@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sync or verify derived version fields from the root VERSION file."""
+"""Sync or verify derived version fields from VERSION and INTEGRATION_VERSION."""
 
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ def parse_numeric_triple(version: str) -> tuple[int, int, int]:
 def paths_for_root(root: Path) -> dict[str, Path]:
     return {
         "version": root / "VERSION",
+        "integration_version": root / "INTEGRATION_VERSION",
         "config": root / "solar_ai_optimizer" / "config.yaml",
         "icon": root / "solar_ai_optimizer" / "icon.png",
         "logo": root / "solar_ai_optimizer" / "logo.png",
@@ -185,52 +186,12 @@ def check_addon_store_assets(icon: Path, logo: Path) -> bool:
     return ok
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Verify VERSION (LF-only) and derived files; do not write",
-    )
-    parser.add_argument(
-        "--root",
-        type=Path,
-        default=_DEFAULT_ROOT,
-        help="Repository root (default: parent of scripts/)",
-    )
-    args = parser.parse_args()
-
-    paths = paths_for_root(args.root.resolve())
+def sync_app_versions(paths: dict[str, Path], expected: str) -> bool:
+    """Sync app-derived files from VERSION. Returns True if anything changed."""
     version_file = paths["version"]
     config_yaml = paths["config"]
     package_json = paths["package"]
-    integration_manifest = paths["integration_manifest"]
 
-    if args.check:
-        ok = verify_version_lf(version_file)
-        expected = read_canonical_version(version_file)
-        manifest = read_config_yaml_version(config_yaml)
-        ok &= check_ha_manifest_version(expected, manifest, config_yaml)
-        ok &= check_version(
-            "frontend/package.json", package_json, read_package_json_version(package_json), expected
-        )
-        if integration_manifest.is_file():
-            ok &= check_version(
-                "integration manifest",
-                integration_manifest,
-                read_integration_manifest_version(integration_manifest),
-                expected,
-            )
-        else:
-            print(f"Missing integration manifest: {integration_manifest}", file=sys.stderr)
-            ok = False
-        ok &= check_addon_store_assets(paths["icon"], paths["logo"])
-        if not ok:
-            return 1
-        print(f"All version files match {expected}")
-        return 0
-
-    expected = read_canonical_version(version_file)
     raw_before = read_version_bytes(version_file)
     write_version_file(version_file, expected)
     changed = raw_before != canonical_version_bytes(expected)
@@ -256,17 +217,117 @@ def main() -> int:
         print(f"Updated {config_yaml} -> {expected}")
         changed = True
 
-    # Integration manifest tracks VERSION including prereleases (unlike HA addon store).
-    if integration_manifest.is_file():
-        if read_integration_manifest_version(integration_manifest) != expected:
-            write_integration_manifest_version(integration_manifest, expected)
-            print(f"Updated {integration_manifest} -> {expected}")
-            changed = True
-    else:
-        print(f"Missing integration manifest: {integration_manifest}", file=sys.stderr)
+    return changed
 
+
+def sync_integration_versions(paths: dict[str, Path], integration_expected: str) -> bool:
+    """Sync integration manifest from INTEGRATION_VERSION. Returns True if changed."""
+    integration_version_file = paths["integration_version"]
+    integration_manifest = paths["integration_manifest"]
+
+    raw_before = read_version_bytes(integration_version_file)
+    write_version_file(integration_version_file, integration_expected)
+    changed = raw_before != canonical_version_bytes(integration_expected)
+    if changed:
+        print(f"Normalized {integration_version_file} to LF")
+
+    if not integration_manifest.is_file():
+        print(f"Missing integration manifest: {integration_manifest}", file=sys.stderr)
+        return changed
+
+    if read_integration_manifest_version(integration_manifest) != integration_expected:
+        write_integration_manifest_version(integration_manifest, integration_expected)
+        print(f"Updated {integration_manifest} -> {integration_expected}")
+        changed = True
+
+    return changed
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify version files (LF-only) and derived files; do not write",
+    )
+    parser.add_argument(
+        "--integration-only",
+        action="store_true",
+        help="Sync or check only INTEGRATION_VERSION and integration manifest",
+    )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=_DEFAULT_ROOT,
+        help="Repository root (default: parent of scripts/)",
+    )
+    args = parser.parse_args()
+
+    paths = paths_for_root(args.root.resolve())
+    version_file = paths["version"]
+    integration_version_file = paths["integration_version"]
+    config_yaml = paths["config"]
+    package_json = paths["package"]
+    integration_manifest = paths["integration_manifest"]
+
+    if args.check:
+        ok = True
+        if args.integration_only:
+            ok &= verify_version_lf(integration_version_file)
+            integration_expected = read_canonical_version(integration_version_file)
+            if integration_manifest.is_file():
+                ok &= check_version(
+                    "integration manifest",
+                    integration_manifest,
+                    read_integration_manifest_version(integration_manifest),
+                    integration_expected,
+                )
+            else:
+                print(f"Missing integration manifest: {integration_manifest}", file=sys.stderr)
+                ok = False
+            if not ok:
+                return 1
+            print(f"Integration version files match {integration_expected}")
+            return 0
+
+        ok &= verify_version_lf(version_file)
+        ok &= verify_version_lf(integration_version_file)
+        app_expected = read_canonical_version(version_file)
+        integration_expected = read_canonical_version(integration_version_file)
+        manifest = read_config_yaml_version(config_yaml)
+        ok &= check_ha_manifest_version(app_expected, manifest, config_yaml)
+        ok &= check_version(
+            "frontend/package.json", package_json, read_package_json_version(package_json), app_expected
+        )
+        if integration_manifest.is_file():
+            ok &= check_version(
+                "integration manifest",
+                integration_manifest,
+                read_integration_manifest_version(integration_manifest),
+                integration_expected,
+            )
+        else:
+            print(f"Missing integration manifest: {integration_manifest}", file=sys.stderr)
+            ok = False
+        ok &= check_addon_store_assets(paths["icon"], paths["logo"])
+        if not ok:
+            return 1
+        print(f"App version {app_expected}; integration version {integration_expected}")
+        return 0
+
+    if args.integration_only:
+        integration_expected = read_canonical_version(integration_version_file)
+        changed = sync_integration_versions(paths, integration_expected)
+        if not changed:
+            print(f"Integration already in sync at {integration_expected}")
+        return 0
+
+    app_expected = read_canonical_version(version_file)
+    integration_expected = read_canonical_version(integration_version_file)
+    changed = sync_app_versions(paths, app_expected)
+    changed |= sync_integration_versions(paths, integration_expected)
     if not changed:
-        print(f"Already in sync at {expected}")
+        print(f"Already in sync (app {app_expected}, integration {integration_expected})")
     return 0
 
 

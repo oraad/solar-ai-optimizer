@@ -38,6 +38,12 @@ def _write_fixture(root: Path, version: str, manifest: str, package: str | None 
         json.dumps({"version": pkg_version}) + "\n",
         encoding="utf-8",
     )
+    integration = root / "custom_components" / "solar_ai_optimizer"
+    integration.mkdir(parents=True, exist_ok=True)
+    (integration / "manifest.json").write_text(
+        json.dumps({"domain": "solar_ai_optimizer", "version": pkg_version}) + "\n",
+        encoding="utf-8",
+    )
 
 
 def test_is_prerelease():
@@ -74,6 +80,12 @@ def test_sync_preserves_stable_manifest_on_prerelease(tmp_path: Path):
     assert result.returncode == 0, result.stderr or result.stdout
     assert sv.read_config_yaml_version(tmp_path / "solar_ai_optimizer" / "config.yaml") == "0.6.9"
     assert sv.read_package_json_version(tmp_path / "frontend" / "package.json") == "0.6.10-beta.2"
+    assert (
+        sv.read_integration_manifest_version(
+            tmp_path / "custom_components" / "solar_ai_optimizer" / "manifest.json"
+        )
+        == "0.6.10-beta.2"
+    )
 
 
 def test_sync_bumps_manifest_on_stable(tmp_path: Path):
@@ -86,6 +98,31 @@ def test_sync_bumps_manifest_on_stable(tmp_path: Path):
     )
     assert result.returncode == 0, result.stderr or result.stdout
     assert sv.read_config_yaml_version(tmp_path / "solar_ai_optimizer" / "config.yaml") == "0.6.10"
+    assert (
+        sv.read_integration_manifest_version(
+            tmp_path / "custom_components" / "solar_ai_optimizer" / "manifest.json"
+        )
+        == "0.6.10"
+    )
+
+
+def test_sync_updates_integration_manifest_on_prerelease(tmp_path: Path):
+    _write_fixture(tmp_path, "0.6.10-beta.3", "0.6.9", package="0.6.10-beta.2")
+    integration = (
+        tmp_path / "custom_components" / "solar_ai_optimizer" / "manifest.json"
+    )
+    integration.write_text(
+        json.dumps({"domain": "solar_ai_optimizer", "version": "0.6.10-beta.2"}) + "\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert sv.read_integration_manifest_version(integration) == "0.6.10-beta.3"
 
 
 def test_check_passes_for_repo_prerelease_state():

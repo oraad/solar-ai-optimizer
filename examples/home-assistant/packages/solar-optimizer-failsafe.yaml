@@ -1,3 +1,8 @@
+# DEPRECATED — prefer the Solar AI Optimizer custom integration (HACS).
+# See docs/home-assistant-integration.md
+# Disable this package before enabling the integration watchdog to avoid
+# double grid-charge actions.
+#
 # Heartbeat helper — optimizer pulses this each control cycle (Settings → Fail-safe).
 input_datetime:
   solar_optimizer_heartbeat:

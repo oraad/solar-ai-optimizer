@@ -52,6 +52,7 @@ plugins:
             Mobile Ingress QA: QA Ingress mobile
             Roles and Access: Rôles et accès
             Home Assistant Setup: Configuration Home Assistant
+            Home Assistant Integration: Intégration Home Assistant
             Home Assistant Fail-safe: Sécurité Home Assistant
             Configuration: Configuration
             Proxmox Deployment: Déploiement Proxmox
@@ -66,6 +67,7 @@ plugins:
             Mobile Ingress QA: ضمان جودة Ingress للجوال
             Roles and Access: الأدوار والوصول
             Home Assistant Setup: إعداد Home Assistant
+            Home Assistant Integration: تكامل Home Assistant
             Home Assistant Fail-safe: الحماية الاحتياطية لـ Home Assistant
             Configuration: الإعدادات
             Proxmox Deployment: نشر Proxmox
@@ -78,6 +80,7 @@ nav:
   - Mobile Ingress QA: mobile-ingress-qa.md
   - Roles and Access: ingress-auth.md
   - Home Assistant Setup: home-assistant-setup.md
+  - Home Assistant Integration: home-assistant-integration.md
   - Home Assistant Fail-safe: home-assistant-failsafe.md
   - Configuration: configuration.md
   - MCP (AI agents): mcp.md

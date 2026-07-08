@@ -36,6 +36,12 @@ def paths_for_root(root: Path) -> dict[str, Path]:
         "icon": root / "solar_ai_optimizer" / "icon.png",
         "logo": root / "solar_ai_optimizer" / "logo.png",
         "package": root / "frontend" / "package.json",
+        "integration_manifest": (
+            root
+            / "custom_components"
+            / "solar_ai_optimizer"
+            / "manifest.json"
+        ),
     }
 
 
@@ -119,6 +125,23 @@ def write_package_json_version(package_json: Path, version: str) -> None:
     )
 
 
+def read_integration_manifest_version(manifest_json: Path) -> str:
+    data = json.loads(manifest_json.read_text(encoding="utf-8"))
+    version = data.get("version")
+    if not isinstance(version, str) or not version:
+        raise SystemExit(f'Missing "version" in {manifest_json}')
+    return version
+
+
+def write_integration_manifest_version(manifest_json: Path, version: str) -> None:
+    data = json.loads(manifest_json.read_text(encoding="utf-8"))
+    data["version"] = version
+    manifest_json.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
 def check_version(label: str, path: Path, actual: str, expected: str) -> bool:
     if actual == expected:
         return True
@@ -181,6 +204,7 @@ def main() -> int:
     version_file = paths["version"]
     config_yaml = paths["config"]
     package_json = paths["package"]
+    integration_manifest = paths["integration_manifest"]
 
     if args.check:
         ok = verify_version_lf(version_file)
@@ -190,6 +214,16 @@ def main() -> int:
         ok &= check_version(
             "frontend/package.json", package_json, read_package_json_version(package_json), expected
         )
+        if integration_manifest.is_file():
+            ok &= check_version(
+                "integration manifest",
+                integration_manifest,
+                read_integration_manifest_version(integration_manifest),
+                expected,
+            )
+        else:
+            print(f"Missing integration manifest: {integration_manifest}", file=sys.stderr)
+            ok = False
         ok &= check_addon_store_assets(paths["icon"], paths["logo"])
         if not ok:
             return 1
@@ -221,6 +255,15 @@ def main() -> int:
         write_config_yaml_version(config_yaml, expected)
         print(f"Updated {config_yaml} -> {expected}")
         changed = True
+
+    # Integration manifest tracks VERSION including prereleases (unlike HA addon store).
+    if integration_manifest.is_file():
+        if read_integration_manifest_version(integration_manifest) != expected:
+            write_integration_manifest_version(integration_manifest, expected)
+            print(f"Updated {integration_manifest} -> {expected}")
+            changed = True
+    else:
+        print(f"Missing integration manifest: {integration_manifest}", file=sys.stderr)
 
     if not changed:
         print(f"Already in sync at {expected}")

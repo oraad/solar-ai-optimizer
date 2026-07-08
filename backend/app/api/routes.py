@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ValidationError
 
+from .. import __version__
+from ..auth.install_id import get_or_create_install_id
 from ..i18n import api_error, format_validation_errors, t
 from ..i18n.serialize import localize_model, localize_payload, serialize_api_payload
 from ..llm.assistant import Assistant
@@ -58,6 +60,7 @@ async def health(request: Request) -> dict:
     from ..observability.metrics import metrics
 
     orch = _orch(request)
+    settings = get_settings()
     status = orch.build_status()
     forecast = orch.forecast.current
     fs = orch.cfg.fail_safe
@@ -65,7 +68,10 @@ async def health(request: Request) -> dict:
     return _dump(
         {
             "status": "ok",
-            "mcp_enabled": get_settings().mcp_enabled,
+            "install_id": get_or_create_install_id(settings.data_dir),
+            "version": __version__,
+            "mcp_enabled": settings.mcp_enabled,
+            "is_addon": settings.is_addon,
             "ha_connected": status.ha_connected,
             "shadow_mode": status.shadow_mode,
             "paused": status.paused,

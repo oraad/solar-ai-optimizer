@@ -20,6 +20,8 @@ Do not open public issues for undisclosed vulnerabilities.
 - When exposing the API outside Home Assistant ingress, set `LOCAL_ADMIN_PASSWORD_HASH` + `SESSION_SECRET` or `API_TOKEN`, and use HTTPS.
 - Set `TRUST_INGRESS_HEADERS=true` only when the app is reachable exclusively via HA ingress (not directly on port 8000). This also sets `X-Frame-Options: SAMEORIGIN` for the sidebar iframe.
 - Keep Home Assistant long-lived tokens scoped and rotated.
+- Prefer the HACS integration pairing flow (`sol_c_…` client tokens) over sharing the env `API_TOKEN` with Home Assistant.
+- For Solar → HA API access on non-add-on installs, prefer IndieAuth over a long-lived access token when possible.
 - Run in **shadow mode** until you trust automated inverter writes.
 - The default Docker image includes optional ML/MPC extras; use `INSTALL_EXTRAS=0` for a leaner attack surface if those features are unused.
 

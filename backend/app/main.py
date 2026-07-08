@@ -26,10 +26,13 @@ from .api import (
     api_router,
     auth_router,
     debug_router,
+    ha_oauth_router,
     metrics_router,
+    pair_router,
     system_update_router,
     ws_router,
 )
+from .api.session import credentials_configured
 from .api.auth import AuthGateMiddleware, UserContextMiddleware
 from .compressed_static import CompressedStaticFiles
 from .config import get_settings
@@ -96,10 +99,15 @@ async def lifespan(app: FastAPI):
             "LOCAL_ADMIN_PASSWORD is set in plain text — use "
             "LOCAL_ADMIN_PASSWORD_HASH in production."
         )
-    if not settings.local_auth_enabled and not settings.api_token and not settings.is_addon:
+    if (
+        not settings.local_auth_enabled
+        and not settings.api_token
+        and not credentials_configured(settings)
+        and not settings.is_addon
+    ):
         log.warning(
-            "No LOCAL_ADMIN or API_TOKEN configured — API is open on the LAN. "
-            "Set LOCAL_ADMIN_PASSWORD or API_TOKEN for standalone deployments."
+            "No LOCAL_ADMIN, API_TOKEN, or paired clients — API is open on the LAN. "
+            "Set LOCAL_ADMIN_PASSWORD, API_TOKEN, or pair a Home Assistant client."
         )
     orchestrator = Orchestrator(settings, store)
     await orchestrator.setup()
@@ -132,7 +140,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    auth_locked = settings.api_token or settings.local_auth_enabled
+    auth_locked = credentials_configured(settings)
     docs_url = None if auth_locked else "/docs"
     openapi_url = None if auth_locked else "/openapi.json"
     app = FastAPI(
@@ -181,6 +189,8 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(metrics_router)
     app.include_router(api_router)
+    app.include_router(pair_router)
+    app.include_router(ha_oauth_router)
     app.include_router(debug_router)
     app.include_router(system_update_router)
     app.include_router(ws_router)

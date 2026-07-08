@@ -9,6 +9,17 @@
       "admin_required": "Admin access required",
       "admin_required_override": "Admin access required for this override"
     },
+    "pair": {
+      "rate_limited": "Too many pairing attempts; try again later.",
+      "invalid_or_expired": "Invalid or expired pairing code.",
+      "conflict": "Pairing code already used.",
+      "failed": "Could not start pairing.",
+      "client_not_found": "Paired client not found."
+    },
+    "ha_oauth": {
+      "addon_unsupported": "IndieAuth is not used when running as a Home Assistant add-on.",
+      "invalid_url": "Invalid public or Home Assistant base URL."
+    },
     "override": {
       "kill_switch_confirm": "kill_switch requires confirm=true",
       "no_fields": "No override fields provided",

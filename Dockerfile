@@ -94,6 +94,8 @@ RUN sed -i 's/\r$//' /app/scripts/docker-self-update.sh /app/scripts/recreate_fr
     && chmod +x /app/scripts/docker-self-update.sh /app/scripts/recreate_from_inspect.py
 COPY solar_ai_optimizer/ ./solar_ai_optimizer/
 COPY frontend/package.json ./frontend/package.json
+COPY custom_components/solar_ai_optimizer/manifest.json \
+     ./custom_components/solar_ai_optimizer/manifest.json
 COPY backend/tests ./tests
 ENV PYTHONPATH=/app
 WORKDIR /app

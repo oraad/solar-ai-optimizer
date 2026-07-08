@@ -1,0 +1,14 @@
+{
+  "domain": "solar_ai_optimizer",
+  "name": "Solar AI Optimizer",
+  "codeowners": [
+    "@oraad"
+  ],
+  "config_flow": true,
+  "documentation": "https://oraad.github.io/solar-ai-optimizer/home-assistant-integration/",
+  "issue_tracker": "https://github.com/oraad/solar-ai-optimizer/issues",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "requirements": [],
+  "version": "0.6.11-beta.1"
+}

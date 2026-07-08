@@ -11,11 +11,17 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.routes import router
+from app.config import get_settings
 from app.models import SystemStatus, utcnow
 
 
 @pytest.fixture
-def client():
+def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("HA_TOKEN", "")
+    get_settings.cache_clear()
+
     orch = MagicMock()
     orch.ha.is_reachable.return_value = True
     orch.shadow_mode = True
@@ -50,6 +56,9 @@ def test_health_includes_monitoring_fields(client):
     assert res.status_code == 200
     body = res.json()
     assert body["status"] == "ok"
+    assert "install_id" in body
+    assert "version" in body
+    assert body.get("is_addon") is False
     assert "telemetry_stale" in body
     assert "engine_active" in body
     assert "metrics" in body

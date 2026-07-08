@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.1] - 2026-07-08
+
+### Added
+
+- HACS custom integration (`custom_components/solar_ai_optimizer/`): pairing codes, fail-safe watchdog, and Update entity (HA Core 2026.3.0+)
+- One-time pairing (`XXXX-XXXX` → `sol_c_…` client tokens) and IndieAuth (Solar → HA) for non-add-on installs
+- Stable `install_id` on `/api/health` for HA device identity
+- Settings UI for pairing codes, client revoke, and IndieAuth connect (non-add-on)
+
+### Changed
+
+- Legacy YAML fail-safe package is deprecated in favor of the HACS integration
+
 ## [0.6.10-beta.3] - 2026-07-08
 
 ### Added

@@ -9,6 +9,17 @@
       "admin_required": "Accès administrateur requis",
       "admin_required_override": "Accès administrateur requis pour cette surcharge"
     },
+    "pair": {
+      "rate_limited": "Trop de tentatives d'appairage ; réessayez plus tard.",
+      "invalid_or_expired": "Code d'appairage invalide ou expiré.",
+      "conflict": "Code d'appairage déjà utilisé.",
+      "failed": "Impossible de démarrer l'appairage.",
+      "client_not_found": "Client appairé introuvable."
+    },
+    "ha_oauth": {
+      "addon_unsupported": "IndieAuth n'est pas utilisé en mode add-on Home Assistant.",
+      "invalid_url": "URL publique ou Home Assistant invalide."
+    },
     "override": {
       "kill_switch_confirm": "kill_switch nécessite confirm=true",
       "no_fields": "Aucun champ de surcharge fourni",

@@ -1,9 +1,11 @@
 # Home Assistant setup
 
-Solar AI Optimizer integrates with Home Assistant as an **external application** — it is
-**not** a HACS custom integration or `custom_components/` platform. The optimizer connects
-over REST and WebSocket, maps inverter entities from Settings, and optionally uses a small
-HA **YAML package** for heartbeat fail-safe automation.
+Solar AI Optimizer is an **external application** that connects to Home Assistant over REST
+and WebSocket. For fail-safe and software updates from HA itself, install the
+**[HACS custom integration](home-assistant-integration.md)** (Home Assistant **2026.3+**).
+
+A legacy [YAML fail-safe package](home-assistant-failsafe.md) still exists for older setups;
+prefer the integration and disable the package when both would run.
 
 Choose your deployment path:
 
@@ -12,15 +14,22 @@ Choose your deployment path:
 | [Supervisor app](#supervisor-add-on) | HAOS or Supervised — recommended for most HA users |
 | [Docker + hass_ingress](#docker-with-hass_ingress) | Standalone container on the same network as HA |
 | [Standalone Docker](#standalone-docker) | Direct `:8000` access; optional local admin login |
+| [HA custom integration](home-assistant-integration.md) | Fail-safe + Updates in HA (pairs with any of the above) |
 
-After connecting, complete [entity mapping](#inverter-entity-discovery) and optionally
-[import the fail-safe package](#home-assistant-packages).
+After connecting, complete [entity mapping](#inverter-entity-discovery). For fail-safe,
+use the [custom integration](home-assistant-integration.md) (or optionally the
+[legacy package](#home-assistant-packages)).
 
 ---
 
 ## Long-lived access token {#long-lived-access-token}
 
-Required for Docker and Proxmox deployments (the HA app uses the Supervisor token automatically when fields are left empty).
+Required for Docker and Proxmox when Solar must **write** inverter entities
+(the HA app uses the Supervisor token when fields are left empty). Prefer
+**IndieAuth** in Solar Settings when available.
+
+The HACS integration talks **to** Solar with a **pairing code** (not this LLAT).
+Scripts may still use env `API_TOKEN`.
 
 1. In Home Assistant, open your **Profile** (bottom-left avatar).
 2. Scroll to **Security** → **Long-Lived Access Tokens**.

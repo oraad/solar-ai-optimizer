@@ -24,7 +24,7 @@ from ..models import Override
 
 log = logging.getLogger("api.session")
 
-AuthMode = Literal["ingress", "local", "token", "open", "none"]
+AuthMode = Literal["ingress", "local", "token", "client", "open", "none"]
 
 SESSION_COOKIE = "solar_session"
 
@@ -38,6 +38,8 @@ PUBLIC_API_PREFIXES = (
     "/api/auth/login",
     "/api/auth/logout",
     "/api/auth/status",
+    "/api/pair/redeem",
+    "/api/ha/oauth/callback",
 )
 
 
@@ -184,21 +186,39 @@ def _token_session() -> SessionUser:
     )
 
 
+def _client_session(client_id: str, name: str) -> SessionUser:
+    return SessionUser(
+        user_id=f"client:{client_id}",
+        username=name,
+        display_name=name,
+        is_admin=True,
+        auth_mode="client",
+    )
+
+
 def _secret_matches(provided: str, secret: str) -> bool:
     if not secret:
         return False
     return hmac.compare_digest(provided, secret)
 
 
+def _match_provided_token(provided: str, settings: Settings) -> SessionUser | None:
+    for secret in (settings.api_token, settings.mcp_token):
+        if _secret_matches(provided, secret):
+            return _token_session()
+    from ..auth.api_clients import match_client_token
+
+    client = match_client_token(settings.data_dir, provided)
+    if client is not None and client.id:
+        return _client_session(client.id, client.name)
+    return None
+
+
 def parse_bearer_token(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
     auth = conn.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
-    provided = auth[7:]
-    for secret in (settings.api_token, settings.mcp_token):
-        if _secret_matches(provided, secret):
-            return _token_session()
-    return None
+    return _match_provided_token(auth[7:], settings)
 
 
 def parse_query_token(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
@@ -206,10 +226,21 @@ def parse_query_token(conn: HTTPConnection, settings: Settings) -> SessionUser |
     token = conn.query_params.get("token", "").strip()
     if not token:
         return None
-    for secret in (settings.api_token, settings.mcp_token):
-        if _secret_matches(token, secret):
-            return _token_session()
-    return None
+    return _match_provided_token(token, settings)
+
+
+def credentials_configured(settings: Settings) -> bool:
+    """Local password, env tokens, or minted paired clients lock the API."""
+    if settings.local_auth_enabled or settings.api_token or settings.mcp_token:
+        return True
+    from ..auth.api_clients import has_paired_clients
+
+    return has_paired_clients(settings.data_dir)
+
+
+def has_auth_lock(settings: Settings) -> bool:
+    """True when anonymous LAN-open must be disabled."""
+    return bool(settings.ingress_trusted or credentials_configured(settings))
 
 
 def parse_local_cookie(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
@@ -234,12 +265,7 @@ def parse_local_cookie(conn: HTTPConnection, settings: Settings) -> SessionUser 
 
 
 def open_session(settings: Settings) -> SessionUser | None:
-    if (
-        settings.local_auth_enabled
-        or settings.api_token
-        or settings.mcp_token
-        or settings.ingress_trusted
-    ):
+    if has_auth_lock(settings):
         return None
     return SessionUser(
         user_id=None,
@@ -311,11 +337,7 @@ def is_public_api_path(path: str) -> bool:
 
 
 def requires_auth_gate(path: str, settings: Settings) -> bool:
-    if (
-        not settings.local_auth_enabled
-        and not settings.api_token
-        and not settings.mcp_token
-    ):
+    if not credentials_configured(settings):
         return False
     if is_public_api_path(path):
         return False

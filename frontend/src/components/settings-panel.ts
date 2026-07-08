@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
-import { api, getApiToken, setApiToken } from "../api.js";
+import { api, getApiToken, getBase, setApiToken } from "../api.js";
 import { entityLabel, fieldLabel, INVERTER_READ_ENTITY_KEYS, optimizationPriorityLabel, pvLabel, sectionTitle } from "../field-labels.js";
 import { entityHelp, fieldHelp, priorityEffectHelp, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
@@ -566,6 +566,18 @@ export class SettingsPanel extends LitElement {
   @state() private raw = "";
   @state() private busy = false;
   @state() private apiToken = "";
+  @state() private pairCode: string | null = null;
+  @state() private pairExpiresIn = 0;
+  @state() private pairClients: Array<{
+    id: string;
+    name: string;
+    created_at?: string;
+    last_used_at?: string | null;
+  }> = [];
+  @state() private pairBusy = false;
+  @state() private haOauthConnected = false;
+  @state() private haOauthDegraded = false;
+  @state() private haOauthBusy = false;
   @state() private mpcAvailable = false;
   @state() private mlAvailable = false;
   @state() private mlLoadEnabled = false;
@@ -624,6 +636,8 @@ export class SettingsPanel extends LitElement {
     if (this.config) this.setDraft(this.config);
     void this.loadConfig();
     void this.loadCapabilities();
+    void this.refreshPairStatus();
+    void this.refreshHaOauthStatus();
     this.maybeResumeUpdateWatch();
   }
 
@@ -1157,28 +1171,244 @@ export class SettingsPanel extends LitElement {
     const d = this.draft as unknown as Record<string, any>;
     const ha = (d.ha ?? {}) as Record<string, unknown>;
     const hasToken = Boolean(ha.has_token);
-    return this.renderSectionPanel(
-      t("ui.settings.haConnection"),
-      sectionHelp("ha"),
-      html`
-        <div class="fields">
-          ${this.renderField("ha", "base_url", String(ha.base_url ?? ""))}
-          <div class="field">
-            <label>${this.lbl("ha", "token")}</label>
-            <input
-              type="password"
-              placeholder=${hasToken ? t("ui.settings.tokenStoredPlaceholder") : t("ui.settings.tokenNewPlaceholder")}
-              .value=${String(ha.token ?? "")}
-              @input=${(e: Event) =>
-                this.setField("ha", "token", (e.target as HTMLInputElement).value)}
-            />
+    return html`
+      ${this.renderSectionPanel(
+        t("ui.settings.haConnection"),
+        sectionHelp("ha"),
+        html`
+          <div class="fields">
+            ${this.renderField("ha", "base_url", String(ha.base_url ?? ""))}
+            <div class="field">
+              <label>${this.lbl("ha", "token")}</label>
+              <input
+                type="password"
+                placeholder=${hasToken ? t("ui.settings.tokenStoredPlaceholder") : t("ui.settings.tokenNewPlaceholder")}
+                .value=${String(ha.token ?? "")}
+                @input=${(e: Event) =>
+                  this.setField("ha", "token", (e.target as HTMLInputElement).value)}
+              />
+            </div>
+            ${typeof ha.verify_ssl === "boolean"
+              ? this.renderField("ha", "verify_ssl", ha.verify_ssl)
+              : null}
           </div>
-          ${typeof ha.verify_ssl === "boolean"
-            ? this.renderField("ha", "verify_ssl", ha.verify_ssl)
-            : null}
-        </div>
-      `,
-    );
+        `,
+      )}
+      ${this.renderPairingSection()}
+    `;
+  }
+
+  private async refreshPairStatus(): Promise<void> {
+    try {
+      const status = await api.pairStatus();
+      this.pairClients = status.clients ?? [];
+      if (status.pending) {
+        this.pairExpiresIn = status.pending.expires_in;
+      } else if (!this.pairCode) {
+        this.pairExpiresIn = 0;
+      }
+    } catch {
+      /* optional until backend deployed */
+    }
+  }
+
+  private async refreshHaOauthStatus(): Promise<void> {
+    if (this.session?.is_addon) {
+      this.haOauthConnected = false;
+      this.haOauthDegraded = false;
+      return;
+    }
+    try {
+      const status = await api.haOauthStatus();
+      this.haOauthConnected = status.connected;
+      this.haOauthDegraded = status.degraded;
+    } catch {
+      /* optional until backend deployed */
+    }
+  }
+
+  private async startPairing(): Promise<void> {
+    this.pairBusy = true;
+    try {
+      const started = await api.pairStart();
+      this.pairCode = started.code;
+      this.pairExpiresIn = started.expires_in;
+      showToast({ message: t("ui.settings.pairCodeIssued"), variant: "success" });
+      await this.refreshPairStatus();
+    } catch (e) {
+      showToast({
+        message: e instanceof Error ? e.message : t("ui.settings.pairFailed"),
+        variant: "error",
+      });
+    } finally {
+      this.pairBusy = false;
+    }
+  }
+
+  private async cancelPairing(): Promise<void> {
+    this.pairBusy = true;
+    try {
+      await api.pairCancel();
+      this.pairCode = null;
+      this.pairExpiresIn = 0;
+      await this.refreshPairStatus();
+    } finally {
+      this.pairBusy = false;
+    }
+  }
+
+  private async revokePairClient(id: string): Promise<void> {
+    this.pairBusy = true;
+    try {
+      await api.pairRevoke(id);
+      await this.refreshPairStatus();
+      showToast({ message: t("ui.settings.pairClientRevoked"), variant: "success" });
+    } catch (e) {
+      showToast({
+        message: e instanceof Error ? e.message : t("ui.settings.pairFailed"),
+        variant: "error",
+      });
+    } finally {
+      this.pairBusy = false;
+    }
+  }
+
+  private async startHaOauth(): Promise<void> {
+    this.haOauthBusy = true;
+    try {
+      const d = this.draft as unknown as Record<string, any> | null;
+      const haUrl = String((d?.ha as Record<string, unknown> | undefined)?.base_url ?? "").trim();
+      const publicBase = `${window.location.origin}${getBase()}`;
+      const started = await api.haOauthStart(publicBase, haUrl || undefined);
+      window.open(started.authorize_url, "_blank", "noopener,noreferrer");
+      showToast({ message: t("ui.settings.haOauthWindowOpened"), variant: "success" });
+    } catch (e) {
+      showToast({
+        message: e instanceof Error ? e.message : t("ui.settings.haOauthFailed"),
+        variant: "error",
+      });
+    } finally {
+      this.haOauthBusy = false;
+    }
+  }
+
+  private async disconnectHaOauth(): Promise<void> {
+    this.haOauthBusy = true;
+    try {
+      await api.haOauthDisconnect();
+      this.haOauthConnected = false;
+      this.haOauthDegraded = false;
+      showToast({ message: t("ui.settings.haOauthDisconnected"), variant: "success" });
+    } catch (e) {
+      showToast({
+        message: e instanceof Error ? e.message : t("ui.settings.haOauthFailed"),
+        variant: "error",
+      });
+    } finally {
+      this.haOauthBusy = false;
+    }
+  }
+
+  private renderPairingSection() {
+    const isAddon = Boolean(this.session?.is_addon);
+    return html`
+      ${this.renderSectionPanel(
+        t("ui.settings.pairTitle"),
+        t("ui.settings.pairIntro"),
+        html`
+          <p class="label">${t("ui.settings.pairHint")}</p>
+          ${this.pairCode
+            ? html`
+                <p style="font-size:1.75rem;letter-spacing:0.12em;font-weight:700">
+                  ${this.pairCode}
+                </p>
+                <p class="label">
+                  ${t("ui.settings.pairExpires", { seconds: String(this.pairExpiresIn) })}
+                </p>
+                <div class="buttons">
+                  <button type="button" ?disabled=${this.pairBusy} @click=${() => void this.cancelPairing()}>
+                    ${t("ui.settings.pairCancel")}
+                  </button>
+                </div>
+              `
+            : html`
+                <div class="buttons">
+                  <button type="button" ?disabled=${this.pairBusy} @click=${() => void this.startPairing()}>
+                    ${t("ui.settings.pairGenerate")}
+                  </button>
+                  <button type="button" ?disabled=${this.pairBusy} @click=${() => void this.refreshPairStatus()}>
+                    ${t("ui.settings.pairRefresh")}
+                  </button>
+                </div>
+              `}
+          ${this.pairClients.length
+            ? html`
+                <ul style="list-style:none;padding:0;margin:1rem 0 0">
+                  ${this.pairClients.map(
+                    (c) => html`
+                      <li
+                        style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)"
+                      >
+                        <span>
+                          <strong>${c.name}</strong>
+                          <span class="label"> ${c.id}</span>
+                        </span>
+                        <button
+                          type="button"
+                          ?disabled=${this.pairBusy}
+                          @click=${() => void this.revokePairClient(c.id)}
+                        >
+                          ${t("ui.settings.pairRevoke")}
+                        </button>
+                      </li>
+                    `,
+                  )}
+                </ul>
+              `
+            : html`<p class="label">${t("ui.settings.pairNoClients")}</p>`}
+        `,
+        "immediate",
+      )}
+      ${isAddon
+        ? nothing
+        : this.renderSectionPanel(
+            t("ui.settings.haOauthTitle"),
+            t("ui.settings.haOauthIntro"),
+            html`
+              <p class="label">
+                ${this.haOauthConnected
+                  ? this.haOauthDegraded
+                    ? t("ui.settings.haOauthDegraded")
+                    : t("ui.settings.haOauthConnected")
+                  : t("ui.settings.haOauthDisconnectedStatus")}
+              </p>
+              <div class="buttons">
+                <button
+                  type="button"
+                  ?disabled=${this.haOauthBusy}
+                  @click=${() => void this.startHaOauth()}
+                >
+                  ${t("ui.settings.haOauthConnect")}
+                </button>
+                <button
+                  type="button"
+                  ?disabled=${this.haOauthBusy || !this.haOauthConnected}
+                  @click=${() => void this.refreshHaOauthStatus()}
+                >
+                  ${t("ui.settings.pairRefresh")}
+                </button>
+                <button
+                  type="button"
+                  ?disabled=${this.haOauthBusy || !this.haOauthConnected}
+                  @click=${() => void this.disconnectHaOauth()}
+                >
+                  ${t("ui.settings.haOauthDisconnect")}
+                </button>
+              </div>
+            `,
+            "immediate",
+          )}
+    `;
   }
 
   private renderDisplayPreferencesSection() {

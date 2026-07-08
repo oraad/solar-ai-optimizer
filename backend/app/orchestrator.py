@@ -99,7 +99,28 @@ class Orchestrator:
         self._admin_resolver = resolver
 
     def _resolve_ha(self) -> tuple[str, str, bool]:
-        """HA connection: UI config wins when set, else environment/Supervisor."""
+        """Resolve HA URL/token.
+
+        Order:
+        1. Add-on: SUPERVISOR_TOKEN always wins (ignore YAML ha.token).
+        2. External: IndieAuth access from DATA_DIR (caller refreshes async) →
+           YAML ha.token (LLAT) → env HA_TOKEN.
+        """
+        verify = self.cfg.ha.verify_ssl if self.cfg.ha.base_url else self.settings.ha_verify_ssl
+        if self.settings.is_addon:
+            return (
+                "http://supervisor/core",
+                self.settings.supervisor_token,
+                True,
+            )
+
+        from .ha import oauth as ha_oauth
+
+        stored = ha_oauth.load_oauth(self.settings.data_dir)
+        if stored and stored.get("access_token") and not stored.get("degraded"):
+            base = str(stored.get("ha_base_url") or self.settings.ha_base_url)
+            return base, str(stored["access_token"]), verify
+
         ha = self.cfg.ha
         if ha.base_url and ha.token:
             return ha.base_url, ha.token, ha.verify_ssl
@@ -108,6 +129,21 @@ class Orchestrator:
             self.settings.ha_token,
             self.settings.ha_verify_ssl,
         )
+
+    async def refresh_ha_oauth_if_needed(self) -> None:
+        """Refresh IndieAuth access token and reconnect when it changes."""
+        if self.settings.is_addon:
+            return
+        from .ha import oauth as ha_oauth
+
+        before = ha_oauth.load_oauth(self.settings.data_dir) or {}
+        old = before.get("access_token")
+        token = await ha_oauth.ensure_access_token(
+            self.settings.data_dir,
+            verify_ssl=self.settings.ha_verify_ssl,
+        )
+        if token and token != old:
+            await self._reconnect_ha()
 
     async def _reconnect_ha(self) -> None:
         """Tear down and rebuild the HA client + live stream with new credentials."""
@@ -411,6 +447,8 @@ class Orchestrator:
         return telemetry
 
     async def _control_cycle_body(self) -> Decision | None:
+        with contextlib.suppress(Exception):
+            await self.refresh_ha_oauth_if_needed()
         if self.settings.demo_mode:
             telemetry = await self._demo_sample()
         else:

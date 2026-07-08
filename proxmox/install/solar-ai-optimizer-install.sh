@@ -50,6 +50,13 @@ solar_show_admin_credentials
 
 solar_install_reset_script
 
+echo
+echo "Optional: Install the Solar AI Optimizer Home Assistant integration via HACS"
+echo "for fail-safe watchdog and software updates in Settings → Updates."
+echo "Generate a pairing code in the Solar dashboard (Settings), then add the integration."
+echo "Docs: https://oraad.github.io/solar-ai-optimizer/home-assistant-integration/"
+echo
+
 motd_ssh
 customize
 solar_write_update_command

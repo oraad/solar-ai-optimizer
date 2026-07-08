@@ -21,6 +21,8 @@ Les dispositions de l'assistant :
 
 Ouvrez le tableau de bord à`http://<lxc-ip>:8000`.
 
+**Home Assistant :** Installez l'[intégration HACS](home-assistant-integration.md) pour le fail-safe et l'entité Update. Générez un code d'appairage dans les paramètres Solar, puis ajoutez l'intégration dans HA (Core 2026.3.0+).
+
 Le script d'installation écrit`/opt/solar-ai-optimizer/solar.env`avec`TRUST_INGRESS_HEADERS=true`(fait confiance aux en-têtes et aux ensembles d'utilisateurs d'entrée HA`X-Frame-Options: SAMEORIGIN`pour le panneau de la barre latérale) et les informations d'identification de l'administrateur local générées automatiquement. Le nom d'utilisateur et le mot de passe sont imprimés une seule fois à la fin de l'installation — enregistrez-les.
 
 ## Installation rapide (Alpine)

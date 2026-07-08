@@ -9,6 +9,17 @@
       "admin_required": "يتطلب صلاحيات المسؤول",
       "admin_required_override": "يتطلب صلاحيات المسؤول لهذا التجاوز"
     },
+    "pair": {
+      "rate_limited": "محاولات اقتران كثيرة جداً؛ حاول لاحقاً.",
+      "invalid_or_expired": "رمز اقتران غير صالح أو منتهٍ.",
+      "conflict": "رمز الاقتران مستخدم مسبقاً.",
+      "failed": "تعذّر بدء الاقتران.",
+      "client_not_found": "العميل المقترن غير موجود."
+    },
+    "ha_oauth": {
+      "addon_unsupported": "IndieAuth غير مستخدم عند التشغيل كإضافة Home Assistant.",
+      "invalid_url": "عنوان عام أو Home Assistant غير صالح."
+    },
     "override": {
       "kill_switch_confirm": "يتطلب kill_switch تأكيد confirm=true",
       "no_fields": "لم يتم تقديم حقول تجاوز",

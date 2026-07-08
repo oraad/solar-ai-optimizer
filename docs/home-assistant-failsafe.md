@@ -1,5 +1,12 @@
 # Home Assistant fail-safe (heartbeat watchdog)
 
+**Recommended:** install the [HACS custom integration](home-assistant-integration.md)
+(Home Assistant **2026.3+**). It polls Solar health and runs the watchdog inside HA —
+no YAML package required.
+
+The sections below describe the **legacy YAML package** for older installs. If you use
+the integration, **disable this package** to avoid double grid-charge actions.
+
 When the solar-ai-optimizer stops or hangs, Home Assistant can detect a stale
 heartbeat and enable grid charge at maximum current — the same resilience
 action the optimizer applies on graceful shutdown or via the kill switch.
@@ -10,7 +17,7 @@ action the optimizer applies on graceful shutdown or via the kill switch.
 - Inverter **write** entities mapped in Settings → Inverter (grid charge enable + max grid charge current)
 - Battery **Max grid charge current (A)** set in Settings → Battery
 
-## Step 1 — Import the HA package
+## Step 1 — Import the HA package (legacy)
 
 Enable packages in `configuration.yaml` if needed — see
 [Home Assistant setup → Enable packages](home-assistant-setup.md#enable-packages-in-configurationyaml).

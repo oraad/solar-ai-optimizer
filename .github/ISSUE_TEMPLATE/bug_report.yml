@@ -30,10 +30,20 @@ body:
       options:
         - Docker Compose
         - Home Assistant add-on
+        - Proxmox LXC
         - Local development
         - Other
     validations:
       required: true
+  - type: dropdown
+    id: ha_integration
+    attributes:
+      label: Home Assistant integration
+      description: Are you using the HACS Solar AI Optimizer integration?
+      options:
+        - Yes (HACS / custom component)
+        - No (YAML fail-safe or none)
+        - Not applicable
   - type: textarea
     id: logs
     attributes:

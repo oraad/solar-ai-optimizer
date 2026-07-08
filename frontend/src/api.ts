@@ -214,6 +214,58 @@ export const api = {
     patchJSON<{ include_prereleases: boolean }>("/api/system/update/preferences", {
       include_prereleases: includePrereleases,
     }),
+  pairStart: () =>
+    postJSON<{ code: string; expires_at: string; expires_in: number }>(
+      "/api/pair/start",
+      {},
+    ),
+  pairStatus: () =>
+    getJSON<{
+      pending: { expires_at: string; expires_in: number } | null;
+      clients: Array<{
+        id: string;
+        name: string;
+        created_at?: string;
+        last_used_at?: string | null;
+      }>;
+      install_id: string;
+    }>("/api/pair/status"),
+  pairCancel: () => postJSON<{ ok: boolean }>("/api/pair/cancel", {}),
+  pairRevoke: async (clientId: string): Promise<void> => {
+    const res = await fetch(
+      `${getBase()}/api/pair/clients/${encodeURIComponent(clientId)}`,
+      fetchInit({ method: "DELETE" }),
+    );
+    if (!res.ok && res.status !== 204) {
+      throw new Error(await parseError(res, "/api/pair/clients"));
+    }
+  },
+  haOauthStatus: () =>
+    getJSON<{
+      connected: boolean;
+      auth_mode: string | null;
+      expires_at: string | null;
+      public_base_url: string | null;
+      ha_base_url: string | null;
+      degraded: boolean;
+    }>("/api/ha/oauth/status"),
+  haOauthStart: (publicBaseUrl: string, haBaseUrl?: string) =>
+    postJSON<{ authorize_url: string; state: string; expires_at: string }>(
+      "/api/ha/oauth/start",
+      {
+        public_base_url: publicBaseUrl,
+        ...(haBaseUrl ? { ha_base_url: haBaseUrl } : {}),
+      },
+    ),
+  haOauthDisconnect: async (): Promise<void> => {
+    const res = await fetch(
+      `${getBase()}/api/ha/oauth/disconnect`,
+      fetchInit({ method: "DELETE" }),
+    );
+    if (!res.ok && res.status !== 204) {
+      throw new Error(await parseError(res, "/api/ha/oauth/disconnect"));
+    }
+  },
   applyUpdate: async (version?: string): Promise<{ target_version: string; is_downgrade: boolean }> => {
     const body = version ? JSON.stringify({ version }) : "{}";
     const res = await fetch(

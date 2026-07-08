@@ -6,9 +6,9 @@
   ],
   "config_flow": true,
   "documentation": "https://oraad.github.io/solar-ai-optimizer/home-assistant-integration/",
-  "issue_tracker": "https://github.com/oraad/solar-ai-optimizer/issues",
   "integration_type": "service",
   "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/oraad/solar-ai-optimizer/issues",
   "requirements": [],
-  "version": "0.6.11-beta.2"
+  "version": "0.6.11-beta.3"
 }

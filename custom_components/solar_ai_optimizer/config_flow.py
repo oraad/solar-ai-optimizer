@@ -40,6 +40,7 @@ from .const import (
     DEFAULT_STALE_SECONDS,
     DOMAIN,
 )
+from .repairs import async_check_failsafe_repair, failsafe_entity_ids
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,6 +74,13 @@ USER_SCHEMA = vol.Schema(
 REAUTH_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_PAIR_CODE): str,
+    }
+)
+
+RECONFIGURE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HOST): str,
+        vol.Optional(CONF_VERIFY_SSL, default=True): bool,
     }
 )
 
@@ -168,35 +176,86 @@ class SolarAiConfigFlow(ConfigFlow, domain=DOMAIN):
                 else:
                     errors["base"] = "invalid_auth"
 
-                if not errors and token and install_id:
-                    await self.async_set_unique_id(str(install_id))
-                    self._abort_if_unique_id_configured()
+                if not errors:
+                    if token and install_id:
+                        await self.async_set_unique_id(str(install_id))
+                        self._abort_if_unique_id_configured()
 
-                    data = {
-                        CONF_HOST: host,
-                        CONF_VERIFY_SSL: verify_ssl,
-                        CONF_ACCESS_TOKEN: token,
-                        CONF_CLIENT_ID: client_id,
-                        CONF_INSTALL_ID: str(install_id),
-                    }
-                    options = {
-                        key: user_input[key]
-                        for key in (
-                            CONF_GRID_CHARGE_ENABLE,
-                            CONF_MAX_GRID_CHARGE_CURRENT,
-                            CONF_STALE_SECONDS,
-                            CONF_DEBOUNCE_SECONDS,
+                        data = {
+                            CONF_HOST: host,
+                            CONF_VERIFY_SSL: verify_ssl,
+                            CONF_ACCESS_TOKEN: token,
+                            CONF_CLIENT_ID: client_id,
+                            CONF_INSTALL_ID: str(install_id),
+                        }
+                        options = {
+                            key: user_input[key]
+                            for key in (
+                                CONF_GRID_CHARGE_ENABLE,
+                                CONF_MAX_GRID_CHARGE_CURRENT,
+                                CONF_STALE_SECONDS,
+                                CONF_DEBOUNCE_SECONDS,
+                            )
+                            if key in user_input and user_input[key] not in (None, "")
+                        }
+                        title = f"Solar AI Optimizer ({str(install_id)[:8]})"
+                        return self.async_create_entry(
+                            title=title, data=data, options=options
                         )
-                        if key in user_input and user_input[key] not in (None, "")
-                    }
-                    title = f"Solar AI Optimizer ({install_id[:8]})"
-                    return self.async_create_entry(
-                        title=title, data=data, options=options
-                    )
+                    errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="user",
             data_schema=USER_SCHEMA,
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Allow changing host / SSL without re-pairing."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            host = str(user_input[CONF_HOST]).strip().rstrip("/")
+            verify_ssl = bool(user_input.get(CONF_VERIFY_SSL, True))
+            session = async_get_clientsession(self.hass)
+            client = SolarAiClient(
+                host=host,
+                access_token=entry.data.get(CONF_ACCESS_TOKEN, ""),
+                verify_ssl=verify_ssl,
+                session=session,
+            )
+            try:
+                health = await client.get_health()
+            except ClientError:
+                errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Unexpected error during reconfigure")
+                errors["base"] = "unknown"
+            else:
+                install_id = health.get("install_id") or entry.data.get(CONF_INSTALL_ID)
+                if install_id:
+                    await self.async_set_unique_id(str(install_id))
+                    self._abort_if_unique_id_mismatch(reason="wrong_install")
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={
+                        CONF_HOST: host,
+                        CONF_VERIFY_SSL: verify_ssl,
+                    },
+                )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                RECONFIGURE_SCHEMA,
+                {
+                    CONF_HOST: entry.data.get(CONF_HOST),
+                    CONF_VERIFY_SSL: entry.data.get(CONF_VERIFY_SSL, True),
+                },
+            ),
             errors=errors,
         )
 
@@ -232,6 +291,7 @@ class SolarAiConfigFlow(ConfigFlow, domain=DOMAIN):
                 redeemed = await client.redeem_pair(pair_code)
                 token = redeemed["access_token"]
                 client_id = redeemed.get("client_id")
+                redeemed_install = redeemed.get("install_id")
             except ClientResponseError as err:
                 if err.status in (400, 409):
                     errors["base"] = "invalid_pair_code"
@@ -243,6 +303,13 @@ class SolarAiConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected reauth error")
                 errors["base"] = "unknown"
             else:
+                expected = entry.data.get(CONF_INSTALL_ID) or entry.unique_id
+                if (
+                    redeemed_install
+                    and expected
+                    and str(redeemed_install) != str(expected)
+                ):
+                    return self.async_abort(reason="wrong_install")
                 return self.async_update_reload_and_abort(
                     entry,
                     data_updates={
@@ -266,6 +333,13 @@ class SolarAiOptionsFlow(OptionsFlowWithReload):
     ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
+            switch_id, number_id = failsafe_entity_ids(user_input, {})
+            async_check_failsafe_repair(
+                self.hass,
+                self.config_entry.entry_id,
+                switch_id=switch_id,
+                number_id=number_id,
+            )
             return self.async_create_entry(data=user_input)
 
         return self.async_show_form(

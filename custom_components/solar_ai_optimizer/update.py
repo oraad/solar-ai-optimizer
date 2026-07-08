@@ -4,15 +4,21 @@ from __future__ import annotations
 
 from typing import Any
 
+from aiohttp import ClientError, ClientResponseError
 from homeassistant.components.update import (
     UpdateEntity,
     UpdateEntityFeature,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SolarAiConfigEntry
+from .const import DOMAIN
+from .coordinator import SolarAiCoordinator
 from .entity import SolarAiEntity
+
+PARALLEL_UPDATES = 1
 
 
 async def async_setup_entry(
@@ -32,7 +38,7 @@ class SolarAiUpdateEntity(SolarAiEntity, UpdateEntity):
     _attr_translation_key = "firmware"
     _attr_title = "Solar AI Optimizer"
 
-    def __init__(self, coordinator: Any) -> None:
+    def __init__(self, coordinator: SolarAiCoordinator) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{coordinator.config_entry.unique_id}_update"
 
@@ -118,5 +124,18 @@ class SolarAiUpdateEntity(SolarAiEntity, UpdateEntity):
         _ = backup
         _ = kwargs
         client = self.coordinator.config_entry.runtime_data.client
-        await client.apply_update(version=version)
+        try:
+            await client.apply_update(version=version)
+        except ClientResponseError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="update_failed",
+                translation_placeholders={"error": str(err.status)},
+            ) from err
+        except ClientError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="update_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
         await self.coordinator.async_request_refresh()

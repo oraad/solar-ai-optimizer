@@ -2,7 +2,7 @@
 
 Solar AI Optimizer is an **external application** that connects to Home Assistant over REST
 and WebSocket. For fail-safe and software updates from HA itself, install the
-**[HACS custom integration](home-assistant-integration.md)** (Home Assistant **2026.3+**).
+**[HACS custom integration](home-assistant-integration.md)** (Home Assistant **2026.7+**).
 
 A legacy [YAML fail-safe package](home-assistant-failsafe.md) still exists for older setups;
 prefer the integration and disable the package when both would run.

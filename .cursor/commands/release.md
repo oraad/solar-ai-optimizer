@@ -82,19 +82,20 @@ Do **not** re-run the full Docker test suite after merge if CI will run the same
 - Open a PR and merge to `main` (use `gh` for GitHub tasks).
 - **Pages does not run on tags** — doc changes must land on `main` before tagging (`.github/workflows/pages.yml` triggers on push to `main` only).
 
-## 4. Gate: CI and Pages green on the merge commit
+## 4. Gate: CI, Validate HA, and Pages green on the merge commit
 
-After merge, wait for **both** workflows triggered by that push (they run in parallel — watch once, then confirm Pages):
+After merge, wait for workflows triggered by that push (they run in parallel — watch once, then confirm Pages):
 
 ```bash
 git fetch origin main
 MERGE_SHA="$(git rev-parse origin/main)"
-gh run list --commit "$MERGE_SHA" --limit 5
+gh run list --commit "$MERGE_SHA" --limit 8
 gh run watch --exit-status $(gh run list --workflow=ci.yml --commit "$MERGE_SHA" --json databaseId --jq '.[0].databaseId')
+gh run watch --exit-status $(gh run list --workflow=validate-ha.yml --commit "$MERGE_SHA" --json databaseId --jq '.[0].databaseId')
 gh run list --workflow=pages.yml --commit "$MERGE_SHA" --limit 1
 ```
 
-**Stop here** until CI and Pages both succeed. Do not tag.
+**Stop here** until **CI**, **Validate HA** (`validate-ha.yml`), and **Pages** all succeed. Do not tag.
 
 Site: https://oraad.github.io/solar-ai-optimizer/
 
@@ -115,19 +116,32 @@ Replace `{VERSION}` with the value in `VERSION` (tag has `v` prefix; `VERSION` d
 
 `.github/workflows/release.yml` then:
 
-- Verifies tag (without `v`) matches `VERSION`
+- Verifies tag (without `v`) matches `VERSION` **and** `custom_components/solar_ai_optimizer/manifest.json`
+- Builds `dist/solar_ai_optimizer.zip` via `scripts/package-ha-integration.sh` (flat domain root; excludes `tests/`)
 - Pushes multi-arch image to `ghcr.io/oraad/solar-ai-optimizer` (see **Release kinds** table for stable vs pre-release tags)
 - Extracts `## [{VERSION}]` from `CHANGELOG.md` via `scripts/changelog-excerpt.py`
-- Creates GitHub Release with CHANGELOG body + auto-generated notes (`prerelease: true` when `{VERSION}` contains a `-` suffix)
+- Creates **one** GitHub Release with CHANGELOG body + auto-generated notes, attaching **`solar_ai_optimizer.zip`** (`prerelease: true` when `{VERSION}` contains a `-` suffix; zip attached on betas too)
 
 ## 6. Gate: Release workflow green
 
 ```bash
 gh run watch --exit-status $(gh run list --workflow=release.yml --limit=1 --json databaseId --jq '.[0].databaseId')
 gh release view v{VERSION}
+gh release view v{VERSION} --json assets --jq '.assets[].name'
+# must include: solar_ai_optimizer.zip
 ```
 
-For pre-releases, confirm `prerelease: true` in the release view. Report the release URL and image tags when complete.
+For pre-releases, confirm `prerelease: true` in the release view. Report the release URL, image tags, and zip asset when complete.
+
+### Follow-up: enable HACS `zip_release` (chicken-egg)
+
+Do **not** set `hacs.json` `"zip_release": true` until at least one GitHub Release already lists `solar_ai_optimizer.zip`. Enabling the flag without the named asset breaks HACS installs.
+
+After the first zip-bearing release succeeds:
+
+1. PR that sets in `hacs.json`: `"zip_release": true`, `"filename": "solar_ai_optimizer.zip"`
+2. Update install docs (en/ar/fr) to describe HACS version picker / zip download
+3. Merge and confirm `validate-ha.yml` green
 
 ## Pitfalls
 
@@ -139,8 +153,11 @@ For pre-releases, confirm `prerelease: true` in the release view. Report the rel
 | Hotfix PR after tagging | Second CI/Pages cycle; include CRLF/version fixes in the release PR |
 | `v{VERSION}` ≠ `VERSION` | Release job fails at verify step |
 | Missing `## [{VERSION}]` in CHANGELOG | Release succeeds but notes are auto-generated only |
-| Tag before CI/Pages green | Broken release or outdated docs live |
+| Tag before CI / Validate HA / Pages green | Broken release or outdated docs live |
 | Expecting Pages on tag push | Pages never runs; only `main` push deploys docs |
+| Set `hacs.json` `zip_release: true` before a zip-bearing release | HACS install/update fails (missing named asset) |
+| Extra unnamed `.zip` assets on the GitHub Release | HACS zip_release can pick the wrong file |
+| Release missing `solar_ai_optimizer.zip` | `fail_on_unmatched_files: true` fails the release job (correct) |
 | Re-running local Docker tests after merge | Wasted time; CI already runs the same suites |
 | `type=raw,value=latest` left unconditional in workflow | Beta becomes `:latest`; `:latest` self-update hosts get unintended build |
 | Non-semver suffix (`0.6.1beta`) | `docker/metadata-action` semver parsing fails; use `0.6.1-beta.1` |

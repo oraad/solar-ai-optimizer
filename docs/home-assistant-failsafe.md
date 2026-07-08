@@ -1,7 +1,7 @@
 # Home Assistant fail-safe (heartbeat watchdog)
 
 **Recommended:** install the [HACS custom integration](home-assistant-integration.md)
-(Home Assistant **2026.3+**). It polls Solar health and runs the watchdog inside HA —
+(Home Assistant **2026.7+**). It polls Solar health and runs the watchdog inside HA —
 no YAML package required.
 
 The sections below describe the **legacy YAML package** for older installs. If you use

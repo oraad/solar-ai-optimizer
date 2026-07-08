@@ -22,6 +22,17 @@
           "max_grid_charge_current": "Optional inverter number entity set to max amps on fail-safe."
         }
       },
+      "reconfigure": {
+        "title": "Reconfigure Solar AI Optimizer",
+        "description": "Update the Solar host URL or SSL verification. Pairing credentials are kept.",
+        "data": {
+          "host": "Host URL",
+          "verify_ssl": "Verify SSL certificate"
+        },
+        "data_description": {
+          "host": "Base URL of Solar AI Optimizer reachable from Home Assistant."
+        }
+      },
       "reauth_confirm": {
         "title": "Re-authenticate Solar AI Optimizer",
         "description": "Generate a new pairing code in Solar and enter it here.",
@@ -38,19 +49,27 @@
     },
     "abort": {
       "already_configured": "This Solar install is already configured.",
-      "reauth_successful": "Re-authentication successful."
+      "reauth_successful": "Re-authentication successful.",
+      "reconfigure_successful": "Reconfiguration successful.",
+      "wrong_install": "The host belongs to a different Solar install."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Fail-safe options",
-        "description": "Configure Home Assistant entities used when Solar heartbeat becomes stale.",
+        "description": "Configure Home Assistant entities used when Solar heartbeat becomes stale. Set both fail-safe entities or neither.",
         "data": {
           "grid_charge_enable": "Grid charge enable switch",
           "max_grid_charge_current": "Max grid charge current number",
           "stale_seconds": "Heartbeat stale threshold (seconds)",
           "debounce_seconds": "Fail-safe debounce (seconds)"
+        },
+        "data_description": {
+          "grid_charge_enable": "Optional inverter switch turned on when heartbeat is stale beyond debounce.",
+          "max_grid_charge_current": "Optional inverter number entity set to max amps on fail-safe.",
+          "stale_seconds": "Maximum age of the Solar heartbeat pulse before the install is unhealthy.",
+          "debounce_seconds": "How long the heartbeat must remain stale before the fail-safe latches."
         }
       }
     }
@@ -76,6 +95,17 @@
       "firmware": {
         "name": "Software"
       }
+    }
+  },
+  "exceptions": {
+    "update_failed": {
+      "message": "Unable to install Solar AI Optimizer update: {error}"
+    }
+  },
+  "issues": {
+    "failsafe_incomplete": {
+      "title": "Fail-safe configuration incomplete",
+      "description": "Both a grid-charge enable switch and a max grid-charge current number entity are required for the fail-safe watchdog. Open the integration options and set both entities, or clear both."
     }
   }
 }

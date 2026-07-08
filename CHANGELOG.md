@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.3] - 2026-07-08
+
+### Added
+
+- HACS integration IQS checklist (`quality_scale.yaml`), diagnostics, reconfigure flow, fail-safe incomplete repair, icons, and typed coordinator models
+- `validate-ha.yml` (hassfest, HACS action, PHCC tests) and `solar_ai_optimizer.zip` packaging on GitHub Releases
+- `scripts/package-ha-integration.sh` for flat-domain release zips (PR dry-run artifact)
+
+### Changed
+
+- HACS minimum Home Assistant version bumped to **2026.7.0** (`hacs.json`); CI uses PHCC / HA 2026.7.1
+- Integration docs expanded (en/ar/fr): removal, options, entities, troubleshooting, limitations, use cases
+- Release runbook gates on `validate-ha.yml` and requires `solar_ai_optimizer.zip` on the GitHub Release (`zip_release` flip is a follow-up after the first zip-bearing release)
+- HA integration CI requires **≥95%** coverage and **mypy --strict** on the integration package (IQS Silver/Platinum checklist honesty)
+
 ## [0.6.11-beta.2] - 2026-07-08
 
 ### Added

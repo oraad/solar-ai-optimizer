@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
-
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
@@ -16,28 +13,17 @@ from homeassistant.util import dt as dt_util
 
 from . import SolarAiConfigEntry
 from .const import CONF_STALE_SECONDS, DEFAULT_STALE_SECONDS
+from .coordinator import SolarAiCoordinator
 from .entity import SolarAiEntity
+from .helpers import parse_pulse
+
+PARALLEL_UPDATES = 0
 
 HEALTHY_SENSOR = BinarySensorEntityDescription(
     key="healthy",
     translation_key="healthy",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
 )
-
-
-def _parse_pulse(value: Any) -> datetime | None:
-    if value is None or value == "":
-        return None
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-    if isinstance(value, str):
-        parsed = dt_util.parse_datetime(value)
-        if parsed is None:
-            return None
-        if parsed.tzinfo is None:
-            return dt_util.as_local(parsed)
-        return parsed
-    return None
 
 
 async def async_setup_entry(
@@ -56,7 +42,9 @@ class SolarAiHealthyBinarySensor(SolarAiEntity, BinarySensorEntity):
 
     entity_description = HEALTHY_SENSOR
 
-    def __init__(self, coordinator: Any, entry: SolarAiConfigEntry) -> None:
+    def __init__(
+        self, coordinator: SolarAiCoordinator, entry: SolarAiConfigEntry
+    ) -> None:
         super().__init__(coordinator)
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_healthy"
@@ -76,7 +64,7 @@ class SolarAiHealthyBinarySensor(SolarAiEntity, BinarySensorEntity):
         """Return True when the Solar heartbeat is fresh."""
         if not self.coordinator.data:
             return None
-        pulse = _parse_pulse(self.coordinator.data.get("heartbeat_last_pulse"))
+        pulse = parse_pulse(self.coordinator.data.get("heartbeat_last_pulse"))
         if pulse is None:
             return False
         age = (dt_util.utcnow() - dt_util.as_utc(pulse)).total_seconds()

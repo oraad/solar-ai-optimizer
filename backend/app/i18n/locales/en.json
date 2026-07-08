@@ -16,6 +16,9 @@
       "grid_charge_disabled": "Grid charge control is disabled in settings.",
       "shedding_disabled": "Load shedding control is disabled in settings."
     },
+    "debug": {
+      "rate_limit": "Too many requests; try again shortly."
+    },
     "validation": {
       "field": "{loc}: {msg}"
     },

@@ -25,6 +25,7 @@ from . import __version__
 from .api import (
     api_router,
     auth_router,
+    debug_router,
     metrics_router,
     system_update_router,
     ws_router,
@@ -113,6 +114,14 @@ async def lifespan(app: FastAPI):
     app.state.scheduler = scheduler
     log.info("Scheduler started.")
 
+    from .services.ha_addon_update import register_ha_addon_update_job
+
+    register_ha_addon_update_job(scheduler, settings)
+
+    from .mcp.mount import mount_mcp_http
+
+    mount_mcp_http(app, orchestrator, settings)
+
     try:
         yield
     finally:
@@ -155,6 +164,8 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware, allow_frames=settings.ingress_trusted)
     app.add_middleware(AuthGateMiddleware)
     app.add_middleware(LocaleMiddleware)
+    # UserContextMiddleware must be registered after AuthGateMiddleware so session
+    # resolves before the gate reads it (Starlette insert(0, ...) reverses order).
     app.add_middleware(UserContextMiddleware)
     app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -170,6 +181,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(metrics_router)
     app.include_router(api_router)
+    app.include_router(debug_router)
     app.include_router(system_update_router)
     app.include_router(ws_router)
 

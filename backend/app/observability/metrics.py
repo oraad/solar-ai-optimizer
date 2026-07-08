@@ -18,6 +18,9 @@ class Metrics:
     ha_ws_restarts: int = 0
     heartbeat_pulses_total: int = 0
     heartbeat_failures: int = 0
+    mcp_tool_calls_total: int = 0
+    mcp_auth_failures_total: int = 0
+    mcp_simulate_calls_total: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return {k: int(v) for k, v in self.__dict__.items()}

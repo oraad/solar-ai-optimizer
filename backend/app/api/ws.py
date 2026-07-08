@@ -30,12 +30,7 @@ async def _ws_authorized(websocket: WebSocket) -> bool:
         session = await resolve_session(websocket, settings, resolver)
         websocket.state.session = session
 
-    if session.authenticated:
-        return True
-
-    if settings.local_auth_enabled or settings.api_token:
-        return False
-    return True
+    return session.authenticated
 
 
 @ws_router.websocket("/ws")

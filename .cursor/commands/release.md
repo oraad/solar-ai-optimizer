@@ -33,7 +33,7 @@ All steps below use `{VERSION}` (no `v` prefix in files; tag is `v{VERSION}`).
 | Stable | `0.6.1` | `v0.6.1` | `:0.6.1`, `:0.6`, `:latest` | normal |
 | Pre-release | `0.6.1-beta.1` | `v0.6.1-beta.1` | `:0.6.1-beta.1` only | `prerelease: true` |
 
-Pre-release images are installed by **explicit tag** (`ghcr.io/oraad/solar-ai-optimizer:0.6.1-beta.1`). The **Software updates** UI lists stable releases by default; admins can enable **Include beta releases** to list and install betas (notifications remain stable-only).
+Pre-release images are installed by **explicit tag** (`ghcr.io/oraad/solar-ai-optimizer:0.6.1-beta.1`). The **Software updates** UI lists stable releases by default on Docker/compose hosts; admins can enable **Include beta releases** to list and install betas (notifications remain stable-only). **Home Assistant Apps** use the Supervisor channel: the HA manifest (`solar_ai_optimizer/config.yaml` `version`) is bumped on **stable** releases only; pre-releases do not change the store version until GA.
 
 ## 1. Prepare version and changelog (single branch)
 
@@ -53,13 +53,13 @@ Pre-release images are installed by **explicit tag** (`ghcr.io/oraad/solar-ai-op
      python scripts/sync-version.py
    ```
 
-   `sync-version.py` normalizes `VERSION` to `<version>\n` (LF), and updates `solar_ai_optimizer/config.yaml` and `frontend/package.json`. Repo `.gitattributes` enforces LF on checkout/commit.
+   `sync-version.py` normalizes `VERSION` to `<version>\n` (LF), updates `frontend/package.json`, and updates `solar_ai_optimizer/config.yaml` **only on stable releases** (pre-releases preserve the last stable HA store version). Repo `.gitattributes` enforces LF on checkout/commit.
 
 3. Update `CHANGELOG.md`: move `## [Unreleased]` items into `## [{VERSION}] - YYYY-MM-DD`; leave `## [Unreleased]` empty. Brackets must match `VERSION` exactly.
 4. Update `docs/` when UI or setup changed (see `.github/PULL_REQUEST_TEMPLATE.md`).
 5. **Do not commit** unless the user explicitly asks; stage changes and report `git status`.
 
-After a pre-release, `main` carries the beta version until the next release PR bumps to final stable (e.g. `0.6.1-beta.2` → `0.6.1`).
+After a pre-release, `main` carries the beta `VERSION` and image tags until the next stable release PR (e.g. `0.6.1-beta.2` → `0.6.1`). The HA app store manifest stays on the last stable until that stable sync runs.
 
 ## 2. Local checks (once, before opening the PR)
 

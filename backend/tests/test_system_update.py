@@ -22,6 +22,7 @@ from app.api.system_update import (
     UPDATE_PROGRESS_FILE,
     _clear_stale_lock,
     _clear_update_progress,
+    _compare_versions,
     _is_newer,
     _is_proxmox_deployment,
     _load_update_progress,
@@ -31,6 +32,7 @@ from app.api.system_update import (
     _resolve_image,
     _resolve_restore_image,
     _save_update_preferences,
+    _version_relation,
     _write_update_progress,
     router as system_update_router,
 )
@@ -459,10 +461,49 @@ def test_resolve_image_replaces_tag():
         ("0.5.2", "0.5.2", False),
         ("0.6.0-beta", "0.5.9", True),
         ("1.0.0", "0.9.9", True),
+        ("0.6.10", "0.6.10-beta.2", True),
+        ("0.6.10-beta.2", "0.6.10", False),
+        ("0.6.10-beta.2", "0.6.10-beta.1", True),
+        ("0.6.10-beta.1", "0.6.10-beta.2", False),
+        ("0.6.10-rc.1", "0.6.10-beta.2", True),
+        ("0.6.10-alpha.1", "0.6.10-beta.1", False),
     ],
 )
 def test_is_newer(latest, current, expected):
     assert _is_newer(latest, current) is expected
+
+
+@pytest.mark.parametrize(
+    ("version", "current", "expected"),
+    [
+        ("0.6.10-beta.2", "0.6.10-beta.2", "current"),
+        ("0.6.10", "0.6.10-beta.2", "newer"),
+        ("0.6.10-beta.2", "0.6.10", "older"),
+        ("0.6.10-beta.1", "0.6.10-beta.2", "older"),
+        ("0.6.10-alpha.1", "0.6.10-beta.1", "older"),
+        ("0.6.10-beta.2", "0.6.10-rc.1", "older"),
+        ("0.6.10-rc.1", "0.6.10", "older"),
+        ("0.6.10-rc.1", "0.6.10-rc.1", "current"),
+        ("0.6.10-alpha.1", "0.6.10-rc.1", "older"),
+        ("0.6.10", "0.6.10", "current"),
+    ],
+)
+def test_version_relation(version, current, expected):
+    assert _version_relation(version, current) == expected
+
+
+@pytest.mark.parametrize(
+    ("left", "right", "expected"),
+    [
+        ("0.6.10-alpha.1", "0.6.10-beta.1", -1),
+        ("0.6.10-beta.1", "0.6.10-beta.2", -1),
+        ("0.6.10-beta.2", "0.6.10-rc.1", -1),
+        ("0.6.10-rc.1", "0.6.10", -1),
+        ("0.6.10", "0.6.10-beta.2", 1),
+    ],
+)
+def test_compare_versions(left, right, expected):
+    assert _compare_versions(left, right) == expected
 
 
 @pytest.mark.parametrize(
@@ -857,4 +898,116 @@ def test_post_update_with_beta_version(
     assert res.json()["target_version"] == "9.9.10-beta"
     mock_list.assert_called()
     assert mock_list.call_args.kwargs.get("include_prereleases") is True
+    mock_spawn.assert_called_once()
+
+
+@patch("app.api.system_update.__version__", "0.6.10-beta.2")
+@patch("app.api.system_update._fetch_releases", new_callable=AsyncMock)
+@patch("app.api.system_update._fetch_latest_release", new_callable=AsyncMock)
+def test_only_exact_version_marked_current_with_beta_and_stable(
+    mock_fetch, mock_list, update_client, monkeypatch, tmp_path
+):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("SELF_UPDATE_ENABLED", "true")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    settings = get_settings()
+    _save_update_preferences(settings, True)
+
+    mock_fetch.return_value = (
+        {
+            "tag_name": "v0.6.10",
+            "body": "Stable",
+            "html_url": "https://example.com/stable",
+            "published_at": "2026-07-08T12:00:00Z",
+        },
+        False,
+    )
+    mock_list.return_value = (
+        [
+            {
+                "tag_name": "v0.6.10",
+                "body": "Stable",
+                "html_url": "https://example.com/stable",
+                "published_at": "2026-07-08T12:00:00Z",
+                "prerelease": False,
+                "draft": False,
+            },
+            {
+                "tag_name": "v0.6.10-beta.2",
+                "body": "Beta",
+                "html_url": "https://example.com/beta",
+                "published_at": "2026-07-07T12:00:00Z",
+                "prerelease": True,
+                "draft": False,
+            },
+        ],
+        False,
+    )
+
+    with (
+        patch("app.api.system_update._docker_cli_available", return_value=True),
+        patch("app.api.system_update._docker_socket_available", return_value=True),
+    ):
+        res = update_client.get(
+            "/api/system/update",
+            headers={"X-Remote-User-Id": "admin-1"},
+        )
+
+    data = res.json()
+    assert data["current_version"] == "0.6.10-beta.2"
+    current_rows = [r for r in data["releases"] if r["relation"] == "current"]
+    assert len(current_rows) == 1
+    assert current_rows[0]["version"] == "0.6.10-beta.2"
+
+    stable = next(r for r in data["releases"] if r["version"] == "0.6.10")
+    assert stable["relation"] == "newer"
+    assert stable["installable"] is True
+    assert data["update_available"] is True
+    assert data["latest_version"] == "0.6.10"
+
+
+@patch("app.api.system_update.__version__", "0.6.10-beta.2")
+@patch("app.api.system_update._spawn_updater")
+@patch("app.api.system_update._fetch_releases", new_callable=AsyncMock)
+@patch("app.api.system_update._docker_cli_available", return_value=True)
+@patch("app.api.system_update._docker_socket_available", return_value=True)
+def test_post_update_beta_to_stable_same_base(
+    mock_socket, mock_cli, mock_list, mock_spawn, update_client, monkeypatch
+):
+    monkeypatch.setenv("SELF_UPDATE_ENABLED", "true")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    mock_list.return_value = (
+        [
+            {
+                "tag_name": "v0.6.10",
+                "body": "Stable",
+                "html_url": "https://example.com/stable",
+                "published_at": "2026-07-08T12:00:00Z",
+                "prerelease": False,
+                "draft": False,
+            },
+            {
+                "tag_name": "v0.6.10-beta.2",
+                "body": "Beta",
+                "html_url": "https://example.com/beta",
+                "published_at": "2026-07-07T12:00:00Z",
+                "prerelease": True,
+                "draft": False,
+            },
+        ],
+        False,
+    )
+
+    res = update_client.post(
+        "/api/system/update",
+        headers={"X-Remote-User-Id": "admin-1"},
+        json={"version": "0.6.10"},
+    )
+    assert res.status_code == 202
+    assert res.json()["target_version"] == "0.6.10"
+    assert res.json()["is_downgrade"] is False
     mock_spawn.assert_called_once()

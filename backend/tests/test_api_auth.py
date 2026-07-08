@@ -83,3 +83,35 @@ def test_ingress_bypasses_token(authed_client, monkeypatch):
 def test_metrics_requires_token(authed_client):
     res = authed_client.get("/metrics")
     assert res.status_code == 401
+
+
+def test_metrics_with_bearer_token(authed_client):
+    res = authed_client.get(
+        "/metrics",
+        headers={"Authorization": "Bearer secret-token"},
+    )
+    assert res.status_code == 200
+    assert "solar_control_cycles_total" in res.text
+
+
+def test_me_requires_token(authed_client):
+    res = authed_client.get("/api/me")
+    assert res.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/forecast",
+        "/api/plan",
+        "/api/grid-stats",
+        "/api/history/telemetry",
+        "/api/history/decisions",
+        "/api/history/executions",
+        "/api/history/shed-executions",
+        "/api/history/grid-events",
+    ],
+)
+def test_operational_reads_require_token(authed_client, path):
+    res = authed_client.get(path)
+    assert res.status_code == 401

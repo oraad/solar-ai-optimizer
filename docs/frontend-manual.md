@@ -271,7 +271,7 @@ before each install. If the service does not come back after an install, use **R
 from the backups section. Use **Check for updates** to refresh the release list. The top
 bar **UPDATE** badge appears when a newer **stable** version is available.
 
-Home Assistant add-on installs are updated via Supervisor (the release list is informational).
+Home Assistant App installs are updated via Supervisor. The in-app **Software updates** section is not shown on HA App deployments.
 
 !!! note "Image version"
     One-click install requires **v0.5.5+** (Docker CLI in the image). v0.5.2–0.5.4 need a

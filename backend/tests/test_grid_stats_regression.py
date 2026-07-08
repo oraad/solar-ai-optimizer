@@ -42,22 +42,20 @@ def test_compute_stats_with_sqlite_grid_events() -> None:
     asyncio.run(_run())
 
 
-def test_grid_stats_endpoint_fail_soft() -> None:
+def test_grid_stats_endpoint_fail_soft(monkeypatch) -> None:
     """Endpoint returns default stats when compute_stats fails."""
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-
     from app.api.routes import router
+    from tests.conftest import wire_orchestrator_site_tz
+    from tests.conftest_auth import api_with_router, clear_auth_env
 
+    clear_auth_env(monkeypatch)
     orch = MagicMock()
     orch.latest_grid_stats = None
     orch.collector.latest = None
     orch.reactive.compute_stats = AsyncMock(side_effect=RuntimeError("db down"))
+    wire_orchestrator_site_tz(orch)
 
-    app = FastAPI()
-    app.state.orchestrator = orch
-    app.include_router(router)
-    res = TestClient(app).get("/api/grid-stats")
+    res = api_with_router(router, orch).get("/api/grid-stats")
 
     assert res.status_code == 200
     body = res.json()

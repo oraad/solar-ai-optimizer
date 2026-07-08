@@ -80,6 +80,7 @@ nav:
   - Home Assistant Setup: home-assistant-setup.md
   - Home Assistant Fail-safe: home-assistant-failsafe.md
   - Configuration: configuration.md
+  - MCP (AI agents): mcp.md
   - Proxmox Deployment: proxmox.md
   - Security: security.md
 

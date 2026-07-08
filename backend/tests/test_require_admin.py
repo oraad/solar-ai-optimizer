@@ -221,3 +221,72 @@ def test_empty_override_rejected(guarded_client):
     )
     assert res.status_code == 400
     assert "No override fields" in res.json()["detail"]
+
+
+@pytest.fixture
+def viewer_history_mocks(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.api.routes.repo.get_recent_decisions",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.repo.get_recent_executions",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.repo.get_recent_shed_executions",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.repo.get_telemetry_since",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.repo.get_grid_events_since",
+        AsyncMock(return_value=[]),
+    )
+
+
+def test_viewer_can_read_forecast(guarded_client):
+    orch = guarded_client.app.state.orchestrator
+    orch.forecast.current = None
+    res = guarded_client.get("/api/forecast", headers={"X-Remote-User-Id": "viewer-1"})
+    assert res.status_code == 200
+    assert res.json() == {}
+
+
+def test_viewer_can_read_plan(guarded_client):
+    orch = guarded_client.app.state.orchestrator
+    orch.latest_decision = None
+    orch.latest_results = []
+    orch.latest_shed_results = []
+    orch.shadow_mode = True
+    orch.paused = False
+    res = guarded_client.get("/api/plan", headers={"X-Remote-User-Id": "viewer-1"})
+    assert res.status_code == 200
+
+
+def test_viewer_can_read_grid_stats(guarded_client):
+    orch = guarded_client.app.state.orchestrator
+    orch.collector.latest = None
+    orch.latest_grid_stats = None
+    orch.reactive.compute_stats = AsyncMock(return_value=MagicMock(model_dump=lambda **_: {"currently_present": None}))
+    res = guarded_client.get("/api/grid-stats", headers={"X-Remote-User-Id": "viewer-1"})
+    assert res.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/history/telemetry",
+        "/api/history/decisions",
+        "/api/history/executions",
+        "/api/history/shed-executions",
+        "/api/history/grid-events",
+    ],
+)
+def test_viewer_can_read_history(guarded_client, viewer_history_mocks, path):
+    res = guarded_client.get(path, headers={"X-Remote-User-Id": "viewer-1"})
+    assert res.status_code == 200

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from ..observability.metrics import metrics
+from .session import SessionUser, require_authenticated
 
 metrics_router = APIRouter()
+
+RequireSession = Depends(require_authenticated)
 
 
 def _prometheus_body(request: Request) -> str:
@@ -57,5 +60,8 @@ def _prometheus_body(request: Request) -> str:
 
 
 @metrics_router.get("/metrics")
-async def prometheus_metrics(request: Request) -> Response:
+async def prometheus_metrics(
+    request: Request,
+    _session: SessionUser = RequireSession,
+) -> Response:
     return Response(content=_prometheus_body(request), media_type="text/plain; version=0.0.4")

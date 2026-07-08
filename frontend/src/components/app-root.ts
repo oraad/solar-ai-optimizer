@@ -467,6 +467,7 @@ export class SolarApp extends LitElement {
   };
 
   private onUpdateInfo = (e: Event): void => {
+    if (this.session?.is_addon) return;
     const detail = (e as CustomEvent<UpdateInfo>).detail;
     if (detail) this.updateInfo = detail;
   };
@@ -558,13 +559,14 @@ export class SolarApp extends LitElement {
       void this.bootstrap();
       this.pollTimer = window.setInterval(() => void this.refreshSlow(), 60_000);
     }
-    if (this.isAdmin) {
+    if (this.isAdmin && !this.session?.is_addon) {
       this.lastForcedUpdateCheck = Date.now();
       void this.refreshUpdateInfo(true);
     }
   }
 
   private async refreshUpdateInfo(refresh = false): Promise<void> {
+    if (this.session?.is_addon) return;
     try {
       this.updateInfo = await api.updateInfo({ refresh });
     } catch {
@@ -650,7 +652,10 @@ export class SolarApp extends LitElement {
   private get brandSubtitle(): string {
     const version = this.session?.version ? `v${this.session.version}` : "";
     const updateHint =
-      this.isAdmin && this.updateInfo?.update_available && this.updateInfo.latest_version
+      this.isAdmin &&
+      !this.session?.is_addon &&
+      this.updateInfo?.update_available &&
+      this.updateInfo.latest_version
         ? t("ui.app.versionAvailable", { version: this.updateInfo.latest_version })
         : "";
     const withVersion = (text: string) =>
@@ -724,7 +729,10 @@ export class SolarApp extends LitElement {
       }
       await this.loadEntities();
       const now = Date.now();
-      if (now - this.lastForcedUpdateCheck >= UPDATE_FORCE_INTERVAL_MS) {
+      if (
+        !this.session?.is_addon &&
+        now - this.lastForcedUpdateCheck >= UPDATE_FORCE_INTERVAL_MS
+      ) {
         this.lastForcedUpdateCheck = now;
         await this.refreshUpdateInfo(true);
       }
@@ -804,7 +812,7 @@ export class SolarApp extends LitElement {
         className: this.status.engine_active === "mpc" ? "good" : "warn",
       });
     }
-    if (!this.showingViewerUi && this.updateInfo?.update_in_progress) {
+    if (!this.showingViewerUi && !this.session?.is_addon && this.updateInfo?.update_in_progress) {
       const chip = updateChipLabel(this.updateInfo.update_progress);
       alerts.push({
         label: chip,
@@ -812,7 +820,7 @@ export class SolarApp extends LitElement {
         title: t("ui.app.updateInProgressTitle"),
         onClick: () => this.setTab("settings"),
       });
-    } else if (!this.showingViewerUi && this.updateInfo?.update_available) {
+    } else if (!this.showingViewerUi && !this.session?.is_addon && this.updateInfo?.update_available) {
       alerts.push({
         label: t("ui.app.update"),
         className: "warn",

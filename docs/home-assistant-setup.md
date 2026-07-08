@@ -56,6 +56,7 @@ App options (Supervisor UI) map to environment variables via `run.sh`:
 
 | App option | Environment variable |
 |---------------|---------------------|
+| `prerelease_updates` | `ADDON_PRERELEASE_UPDATES` |
 | `shadow_mode` | `SHADOW_MODE` |
 | `log_level` | `LOG_LEVEL` |
 | `ha_base_url` / `ha_token` | `HA_BASE_URL` / `HA_TOKEN` |
@@ -64,6 +65,13 @@ App options (Supervisor UI) map to environment variables via `run.sh`:
 
 Ingress is trusted automatically when running as a Supervisor app (`SUPERVISOR_TOKEN`); set `TRUST_INGRESS_HEADERS=true` for external Docker/Proxmox deployments. This enables proxied user identity and `X-Frame-Options: SAMEORIGIN` for the sidebar panel.
 See [Roles and access](ingress-auth.md) for admin vs viewer behavior.
+
+### App updates
+
+- The HA **app store manifest** promotes **stable** releases only. Pre-release builds publish to GHCR but do not change the store version until a stable GA release.
+- Update via **Settings → Apps → Solar AI Optimizer → Update** when Supervisor shows an update.
+- The in-app **Software updates** section is hidden on HA App installs (updates are managed by Supervisor).
+- Optional **Pre-release updates** (app configuration): when enabled and the app is restarted, the optimizer checks for newer beta/RC builds and logs when one is available. Update manually via **Settings → Apps** when Supervisor offers a matching version. Users already on a beta build stay on it until a stable GA release or manual reinstall.
 
 ---
 

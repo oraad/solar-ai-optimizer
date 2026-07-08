@@ -95,14 +95,63 @@ def _normalize_version(tag: str) -> str | None:
     return cleaned
 
 
+def _split_version(version: str) -> tuple[tuple[int, int, int], tuple[str, ...] | None]:
+    cleaned = _normalize_version(version) or version.lstrip("vV").strip()
+    base, sep, suffix = cleaned.partition("-")
+    numeric = _parse_version(base)
+    if not sep:
+        return numeric, None
+    return numeric, tuple(suffix.split("."))
+
+
+def _compare_prerelease_id(left: str, right: str) -> int:
+    if left.isdigit() and right.isdigit():
+        left_num, right_num = int(left), int(right)
+        if left_num != right_num:
+            return 1 if left_num > right_num else -1
+        return 0
+    if left != right:
+        return 1 if left > right else -1
+    return 0
+
+
+def _compare_prerelease(
+    left: tuple[str, ...],
+    right: tuple[str, ...],
+) -> int:
+    for left_id, right_id in zip(left, right):
+        cmp = _compare_prerelease_id(left_id, right_id)
+        if cmp != 0:
+            return cmp
+    if len(left) != len(right):
+        return 1 if len(left) > len(right) else -1
+    return 0
+
+
+def _compare_versions(left: str, right: str) -> int:
+    num_left, pre_left = _split_version(left)
+    num_right, pre_right = _split_version(right)
+    if num_left != num_right:
+        return 1 if num_left > num_right else -1
+    if pre_left is None and pre_right is None:
+        return 0
+    if pre_left is None:
+        return 1
+    if pre_right is None:
+        return -1
+    return _compare_prerelease(pre_left, pre_right)
+
+
 def _is_newer(latest: str, current: str) -> bool:
-    return _parse_version(latest) > _parse_version(current)
+    return _compare_versions(latest, current) > 0
 
 
 def _version_relation(version: str, current: str) -> ReleaseRelation:
-    if _parse_version(version) == _parse_version(current):
+    norm_version = _normalize_version(version) or version.lstrip("vV").strip()
+    norm_current = _normalize_version(current) or current.lstrip("vV").strip()
+    if norm_version == norm_current:
         return "current"
-    if _is_newer(version, current):
+    if _compare_versions(version, current) > 0:
         return "newer"
     return "older"
 
@@ -725,7 +774,9 @@ async def build_update_info(
     deployment = _detect_deployment(settings)
     can_apply = _can_apply(settings)
 
-    include_prereleases = _load_update_preferences(settings)
+    include_prereleases = (
+        False if settings.is_addon else _load_update_preferences(settings)
+    )
     release, release_from_cache = await _fetch_latest_release(force=force_release_refresh)
     releases_raw, _ = await _fetch_releases(
         include_prereleases=include_prereleases,
@@ -853,7 +904,9 @@ async def apply_update(
         releases_raw, _ = await _fetch_releases(include_prereleases=False, force=True)
     target_version = _resolve_target_version(releases_raw, requested, current)
 
-    if _parse_version(target_version) == _parse_version(current):
+    target_norm = _normalize_version(target_version) or target_version
+    current_norm = _normalize_version(current) or current
+    if target_norm == current_norm:
         raise api_error("api.update.already_running_version", 400)
     if _version_below_min(target_version):
         raise api_error(

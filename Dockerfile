@@ -28,10 +28,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl docker-cli \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt backend/requirements-extras.txt ./
+COPY backend/requirements.txt backend/requirements-extras.txt backend/requirements-mcp.txt ./
 ARG INSTALL_EXTRAS=1
+ARG INSTALL_MCP=1
 RUN pip install --upgrade pip && pip install -r requirements.txt \
-    && if [ "$INSTALL_EXTRAS" = "1" ]; then pip install -r requirements-extras.txt; fi
+    && if [ "$INSTALL_EXTRAS" = "1" ]; then pip install -r requirements-extras.txt; fi \
+    && if [ "$INSTALL_MCP" = "1" ]; then pip install -r requirements-mcp.txt; fi
 
 COPY VERSION ./VERSION
 COPY backend/app ./app
@@ -83,8 +85,9 @@ RUN npm ci
 
 # ---- Stage 3: test runner ----
 FROM app AS test
-COPY backend/requirements-dev.txt ./
-RUN pip install -r requirements-dev.txt
+COPY backend/requirements-dev.txt backend/requirements-mcp.txt ./
+RUN pip install -r requirements-dev.txt \
+    && pip install -r requirements-mcp.txt
 COPY VERSION ./VERSION
 COPY scripts ./scripts
 RUN sed -i 's/\r$//' /app/scripts/docker-self-update.sh /app/scripts/recreate_from_inspect.py /app/scripts/lib/pull-progress.sh \

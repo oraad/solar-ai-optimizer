@@ -16,12 +16,14 @@ from ..config import LoadSheddingConfig
 from ..models import GridStats, Override, utcnow
 from ..orchestrator import Orchestrator
 from ..storage import repo
-from .session import SessionUser, assert_override_allowed, get_session, require_admin, require_authenticated
+from .session import SessionUser, assert_override_allowed, require_admin, require_authenticated
 from .timezone import site_tz_for
 
 log = logging.getLogger("api.routes")
 
 router = APIRouter(prefix="/api", tags=["solar"])
+
+RequireSession = Depends(require_authenticated)
 
 
 def _orch(request: Request) -> Orchestrator:
@@ -41,20 +43,18 @@ def _dump(data, site_tz: ZoneInfo):  # noqa: ANN001
 
 
 @router.get("/me")
-async def me(request: Request) -> dict:
+async def me(
+    request: Request,
+    session: SessionUser = RequireSession,
+) -> dict:
     from ..config import get_settings
 
-    settings = get_settings()
-    session = get_session(request)
-    if not session.authenticated and (
-        settings.local_auth_enabled or settings.api_token
-    ):
-        raise api_error("api.auth.unauthorized", 401)
-    return session.to_me_dict(settings)
+    return session.to_me_dict(get_settings())
 
 
 @router.get("/health")
 async def health(request: Request) -> dict:
+    from ..config import get_settings
     from ..observability.metrics import metrics
 
     orch = _orch(request)
@@ -65,6 +65,7 @@ async def health(request: Request) -> dict:
     return _dump(
         {
             "status": "ok",
+            "mcp_enabled": get_settings().mcp_enabled,
             "ha_connected": status.ha_connected,
             "shadow_mode": status.shadow_mode,
             "paused": status.paused,
@@ -91,13 +92,19 @@ async def health(request: Request) -> dict:
 
 
 @router.get("/status")
-async def status(request: Request) -> dict:
+async def status(
+    request: Request,
+    _session: SessionUser = RequireSession,
+) -> dict:
     orch = _orch(request)
     return _loc(orch.build_status(), site_tz_for(orch))
 
 
 @router.get("/forecast")
-async def forecast(request: Request) -> dict:
+async def forecast(
+    request: Request,
+    _session: SessionUser = RequireSession,
+) -> dict:
     orch = _orch(request)
     tz = site_tz_for(orch)
     cur = orch.forecast.current
@@ -117,7 +124,10 @@ async def forecast_refresh(
 
 
 @router.get("/plan")
-async def plan(request: Request) -> dict:
+async def plan(
+    request: Request,
+    _session: SessionUser = RequireSession,
+) -> dict:
     orch = _orch(request)
     tz = site_tz_for(orch)
     decision = orch.latest_decision
@@ -146,7 +156,10 @@ async def force_cycle(
 
 
 @router.get("/grid-stats")
-async def grid_stats(request: Request) -> dict:
+async def grid_stats(
+    request: Request,
+    _session: SessionUser = RequireSession,
+) -> dict:
     orch = _orch(request)
     tz = site_tz_for(orch)
     telemetry = orch.collector.latest
@@ -163,7 +176,9 @@ async def grid_stats(request: Request) -> dict:
 
 @router.get("/history/telemetry")
 async def history_telemetry(
-    request: Request, hours: int = Query(default=24, ge=1, le=720)
+    request: Request,
+    hours: int = Query(default=24, ge=1, le=720),
+    _session: SessionUser = RequireSession,
 ) -> list[dict]:
     orch = _orch(request)
     tz = site_tz_for(orch)
@@ -174,7 +189,9 @@ async def history_telemetry(
 
 @router.get("/history/decisions")
 async def history_decisions(
-    request: Request, limit: int = Query(default=100, ge=1, le=1000)
+    request: Request,
+    limit: int = Query(default=100, ge=1, le=1000),
+    _session: SessionUser = RequireSession,
 ) -> list[dict]:
     orch = _orch(request)
     rows = await repo.get_recent_decisions(limit=limit)
@@ -183,7 +200,9 @@ async def history_decisions(
 
 @router.get("/history/grid-events")
 async def history_grid_events(
-    request: Request, days: int = Query(default=7, ge=1, le=90)
+    request: Request,
+    days: int = Query(default=7, ge=1, le=90),
+    _session: SessionUser = RequireSession,
 ) -> list[dict]:
     orch = _orch(request)
     tz = site_tz_for(orch)
@@ -192,26 +211,7 @@ async def history_grid_events(
     return _dump([e.model_dump(mode="json") for e in events], tz)
 
 
-def _config_view(cfg) -> dict:
-    """Serialise config for the UI, masking the HA token (never leak secrets)."""
-    ha = cfg.ha.model_dump()
-    ha["token"] = ""  # masked; a blank token on save means "leave unchanged"
-    ha["has_token"] = bool(cfg.ha.token)
-    return {
-        "ha": ha,
-        "site": cfg.site.model_dump(),
-        "battery": cfg.battery.model_dump(),
-        "reserve": cfg.reserve.model_dump(),
-        "forecast": cfg.forecast.model_dump(),
-        "control": cfg.control.model_dump(),
-        "fail_safe": cfg.fail_safe.model_dump(),
-        "engine": cfg.engine.model_dump(),
-        "inverter": cfg.inverter.model_dump(),
-        "load_shedding": cfg.load_shedding.model_dump(),
-        "grid_charge": cfg.grid_charge.model_dump(),
-    }
-
-
+from ..services.config_view import config_view
 def _shedding_entity_ids(load_shedding: LoadSheddingConfig) -> set[str]:
     ids: set[str] = set()
     for tier in load_shedding.tiers:
@@ -353,7 +353,7 @@ async def get_config(
     _admin: SessionUser = Depends(require_admin),
 ) -> dict:
     """Full (non-secret) effective config surfaced to the dashboard for editing."""
-    return _config_view(_orch(request).cfg)
+    return config_view(_orch(request).cfg)
 
 
 @router.get("/config/load-shedding")
@@ -401,7 +401,7 @@ async def put_config(
         if detail.startswith("api.config."):
             raise HTTPException(status_code=422, detail=t(detail)) from e
         raise HTTPException(status_code=422, detail=detail) from e
-    return {"ok": True, "config": _config_view(cfg)}
+    return {"ok": True, "config": config_view(cfg)}
 
 
 @router.post("/config/reset")
@@ -410,7 +410,7 @@ async def reset_config(
     _admin: SessionUser = Depends(require_admin),
 ) -> dict:
     cfg = await _orch(request).reset_config()
-    return {"ok": True, "config": _config_view(cfg)}
+    return {"ok": True, "config": config_view(cfg)}
 
 
 @router.get("/model/export")
@@ -499,7 +499,9 @@ async def clear_override(
 
 @router.get("/history/executions")
 async def history_executions(
-    request: Request, limit: int = Query(default=100, ge=1, le=1000)
+    request: Request,
+    limit: int = Query(default=100, ge=1, le=1000),
+    _session: SessionUser = RequireSession,
 ) -> list[dict]:
     rows = await repo.get_recent_executions(limit=limit)
     return localize_payload(rows, site_tz=site_tz_for(_orch(request)))  # type: ignore[return-value]
@@ -507,7 +509,9 @@ async def history_executions(
 
 @router.get("/history/shed-executions")
 async def history_shed_executions(
-    request: Request, limit: int = Query(default=100, ge=1, le=1000)
+    request: Request,
+    limit: int = Query(default=100, ge=1, le=1000),
+    _session: SessionUser = RequireSession,
 ) -> list[dict]:
     rows = await repo.get_recent_shed_executions(limit=limit)
     return localize_payload(rows, site_tz=site_tz_for(_orch(request)))  # type: ignore[return-value]

@@ -97,6 +97,24 @@ class Settings(BaseSettings):
     self_update_port: int = Field(default=8000)
     self_update_health_timeout: int = Field(default=120)
 
+    # HA app option: opt into pre-release update checks (Supervisor channel).
+    addon_prerelease_updates: bool = Field(default=False, alias="ADDON_PRERELEASE_UPDATES")
+
+    # MCP server (optional agent control plane)
+    mcp_enabled: bool = Field(default=False)
+    mcp_http_path: str = Field(default="/mcp")
+    mcp_token: str = Field(default="")
+    mcp_rate_limit_enabled: bool = Field(default=True)
+    solar_api_url: str = Field(default="http://127.0.0.1:8000")
+
+    @property
+    def effective_mcp_token(self) -> str:
+        return self.mcp_token or self.api_token
+
+    @property
+    def mcp_auth_configured(self) -> bool:
+        return bool(self.effective_mcp_token)
+
     @property
     def is_addon(self) -> bool:
         return bool(self.supervisor_token)

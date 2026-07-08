@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app.api.auth import AuthGateMiddleware, UserContextMiddleware
 from app.api.routes import router
 from app.models import SystemStatus, utcnow
+from tests.conftest import wire_orchestrator_site_tz
 
 
 @pytest.fixture
@@ -29,6 +30,7 @@ def guarded_client(monkeypatch):
         last_updated=utcnow(),
     )
     orch.apply_override = AsyncMock(return_value={"ok": True})
+    wire_orchestrator_site_tz(orch)
     monkeypatch.setenv("TRUST_INGRESS_HEADERS", "true")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("HA_TOKEN", "")

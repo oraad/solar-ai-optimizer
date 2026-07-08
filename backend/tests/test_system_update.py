@@ -35,6 +35,7 @@ from app.api.system_update import (
     router as system_update_router,
 )
 from app.models import SystemStatus, utcnow
+from tests.conftest import wire_orchestrator_site_tz
 
 SAMPLE_RELEASES = [
     {
@@ -95,6 +96,7 @@ def update_client(monkeypatch, tmp_path):
         paused=False,
         last_updated=utcnow(),
     )
+    wire_orchestrator_site_tz(orch)
     monkeypatch.setenv("TRUST_INGRESS_HEADERS", "true")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("HA_TOKEN", "")

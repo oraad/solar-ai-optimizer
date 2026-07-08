@@ -11,16 +11,19 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 
 from .. import __version__
 from ..i18n import api_error, t
 from ..i18n.serialize import localize_payload
 from ..config import Settings, get_settings
+from ..orchestrator import Orchestrator
 from .session import SessionUser, require_admin
+from .timezone import site_tz_for
 
 log = logging.getLogger("api.system_update")
 
@@ -714,6 +717,7 @@ async def build_update_info(
     settings: Settings | None = None,
     *,
     force_release_refresh: bool = False,
+    site_tz: ZoneInfo | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
     _clear_stale_lock(settings)
@@ -788,16 +792,25 @@ async def build_update_info(
         "backups": _list_backups(settings),
         "downgrade_warning": t("api.update.downgrade_warning"),
         "update_failed": update_failed,
-        }
+        },
+        site_tz=site_tz,
     )
+
+
+def _orch(request: Request) -> Orchestrator:
+    return request.app.state.orchestrator
 
 
 @router.get("/update")
 async def get_update_info(
+    request: Request,
     _admin: SessionUser = Depends(require_admin),
     refresh: bool = Query(False),
 ) -> dict[str, Any]:
-    return await build_update_info(force_release_refresh=refresh)
+    return await build_update_info(
+        force_release_refresh=refresh,
+        site_tz=site_tz_for(_orch(request)),
+    )
 
 
 @router.patch("/update/preferences")

@@ -5,10 +5,30 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from zoneinfo import ZoneInfo
+
 from ..models import Msg
+from ..tz import format_site_local_iso, is_utc_serializable, parse_api_utc
 from . import get_locale, normalize_skip_key, skip_reason_label, t
 
 _SKIP_FIELDS = frozenset({"skipped_reason"})
+
+_DATETIME_KEYS = frozenset({
+    "ts",
+    "last_updated",
+    "generated_at",
+    "last_seen",
+    "time",
+    "heartbeat_last_pulse",
+    "forecast_generated_at",
+    "captured_at",
+    "created_at",
+    "checked_at",
+    "release_checked_at",
+    "published_at",
+    "started_at",
+    "updated_at",
+})
 
 
 def encode_msg(value: Msg) -> str:
@@ -197,7 +217,33 @@ def _localize_value(value: Any, locale: str | None) -> Any:
     return value
 
 
-def localize_payload(obj: Any, *, locale: str | None = None) -> Any:
+def _convert_datetime_value(value: str, site_tz: ZoneInfo) -> str:
+    if not is_utc_serializable(value):
+        return value
+    return format_site_local_iso(parse_api_utc(value), site_tz)
+
+
+def apply_site_timezone(obj: Any, site_tz: ZoneInfo) -> Any:
+    """Recursively convert UTC ISO datetime strings to site-local ISO."""
+    if isinstance(obj, dict):
+        out: dict[str, Any] = {}
+        for k, v in obj.items():
+            if k in _DATETIME_KEYS and isinstance(v, str):
+                out[k] = _convert_datetime_value(v, site_tz)
+            else:
+                out[k] = apply_site_timezone(v, site_tz)
+        return out
+    if isinstance(obj, list):
+        return [apply_site_timezone(item, site_tz) for item in obj]
+    return obj
+
+
+def localize_payload(
+    obj: Any,
+    *,
+    locale: str | None = None,
+    site_tz: ZoneInfo | None = None,
+) -> Any:
     """Walk JSON-like structures and resolve Msg dicts / add skip labels."""
     loc = locale or get_locale()
     if isinstance(obj, dict):
@@ -224,13 +270,32 @@ def localize_payload(obj: Any, *, locale: str | None = None) -> Any:
             ):
                 out[k] = msg_text(v, locale=loc)
                 continue
-            out[k] = localize_payload(v, locale=loc)
-        return out
-    if isinstance(obj, list):
-        return [localize_payload(item, locale=loc) for item in obj]
-    return _localize_value(obj, loc)
+            out[k] = localize_payload(v, locale=loc, site_tz=site_tz)
+        result: Any = out
+    elif isinstance(obj, list):
+        result = [localize_payload(item, locale=loc, site_tz=site_tz) for item in obj]
+    else:
+        result = _localize_value(obj, loc)
+
+    if site_tz is not None:
+        return apply_site_timezone(result, site_tz)
+    return result
 
 
-def localize_model(model: Any, *, locale: str | None = None) -> dict[str, Any]:
+def localize_model(
+    model: Any,
+    *,
+    locale: str | None = None,
+    site_tz: ZoneInfo | None = None,
+) -> dict[str, Any]:
     dumped = model.model_dump(mode="json")
-    return localize_payload(dumped, locale=locale)
+    return localize_payload(dumped, locale=locale, site_tz=site_tz)
+
+
+def serialize_api_payload(
+    obj: Any,
+    *,
+    locale: str | None = None,
+    site_tz: ZoneInfo,
+) -> Any:
+    return localize_payload(obj, locale=locale, site_tz=site_tz)

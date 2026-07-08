@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.10-beta.2] - 2026-07-08
+
+### Changed
+
+- Heartbeat pulses Home Assistant with site-local wall clock (Settings → Site timezone); HA fail-safe package template uses `as_datetime | as_local` and a tunable stale threshold helper
+- API and WebSocket timestamps are serialized in site-local ISO with offset; internal storage and staleness logic remain UTC
+
 ## [0.6.10-beta.1] - 2026-07-06
 
 ### Added

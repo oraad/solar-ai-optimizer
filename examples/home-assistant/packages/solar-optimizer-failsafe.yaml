@@ -5,8 +5,18 @@ input_datetime:
     has_date: true
     has_time: true
 
-# Set initial to match Settings → Battery → Max grid charge current (A)
+# Stale threshold for binary_sensor.solar_optimizer_healthy (seconds).
 input_number:
+  solar_optimizer_heartbeat_stale_s:
+    name: Solar Optimizer Heartbeat Stale Threshold
+    min: 30
+    max: 600
+    step: 10
+    unit_of_measurement: s
+    mode: box
+    initial: 120
+
+# Set initial to match Settings → Battery → Max grid charge current (A)
   solar_optimizer_max_grid_charge_a:
     name: Solar Optimizer Max Grid Charge Current
     min: 0
@@ -22,8 +32,11 @@ template:
         unique_id: solar_optimizer_healthy
         state: >
           {% set ts = states('input_datetime.solar_optimizer_heartbeat') %}
-          {% if ts in ['unknown', 'unavailable', ''] %} false
-          {% else %} {{ (now() - as_datetime(ts)).total_seconds() < 120 }}
+          {% set stale_s = states('input_number.solar_optimizer_heartbeat_stale_s') | int(120) %}
+          {% if ts in ['unknown', 'unavailable', ''] %}
+            false
+          {% else %}
+            {{ (now() - (ts | as_datetime | as_local)).total_seconds() < stale_s }}
           {% endif %}
 
 automation:

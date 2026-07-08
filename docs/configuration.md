@@ -16,7 +16,7 @@ the dashboard is the primary interface for operators.
 Key sections (all editable in Settings):
 
 - Home Assistant connection
-- **Site** — IANA timezone or **Auto** (from Open-Meteo at site latitude/longitude); site coordinates; drives forecast day boundaries, load/temperature learning buckets, and dashboard timestamps
+- **Site** — IANA timezone or **Auto** (from Open-Meteo at site latitude/longitude); site coordinates; drives forecast day boundaries, load/temperature learning buckets, dashboard display, API/WebSocket timestamps, and HA heartbeat pulse wall clock (should match Home Assistant's configured timezone)
 - Inverter entity map (read sensors + write controls)
 - Battery specs and reserve policy
 - Forecast provider, PV arrays, temperature model

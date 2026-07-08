@@ -14,6 +14,7 @@ from app.i18n import msg
 from app.i18n.middleware import LocaleMiddleware
 from app.i18n.serialize import localize_payload
 from app.models import Decision, ReserveTarget, SystemStatus, utcnow
+from tests.conftest import wire_orchestrator_site_tz
 
 
 def _orch_with_decision(decision: Decision | None = None) -> MagicMock:
@@ -32,6 +33,7 @@ def _orch_with_decision(decision: Decision | None = None) -> MagicMock:
     )
     orch.latest_decision = decision
     orch.forecast.current = None
+    wire_orchestrator_site_tz(orch)
     orch.ha.is_reachable.return_value = True
     orch.shadow_mode = True
     orch.paused = False

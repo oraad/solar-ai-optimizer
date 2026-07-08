@@ -89,14 +89,7 @@ jobs:
           test -f hacs.json
           python -c "import json; json.load(open('custom_components/solar_ai_optimizer/manifest.json'))"
           python -c "import json; d=json.load(open('hacs.json')); assert d['homeassistant']=='2026.3.0'"
-          python -c "
-from pathlib import Path
-import json
-version = Path('VERSION').read_text(encoding='utf-8').strip()
-manifest = json.loads(Path('custom_components/solar_ai_optimizer/manifest.json').read_text(encoding='utf-8'))
-assert manifest['version'] == version, (manifest['version'], version)
-print('manifest version ok', version)
-"
+          python -c "from pathlib import Path; import json; version = Path('VERSION').read_text(encoding='utf-8').strip(); manifest = json.loads(Path('custom_components/solar_ai_optimizer/manifest.json').read_text(encoding='utf-8')); assert manifest['version'] == version, (manifest['version'], version); print('manifest version ok', version)"
       - name: Integration unit tests (no Home Assistant Core)
         run: |
           python -m venv .venv-ha

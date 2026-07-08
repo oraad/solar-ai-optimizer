@@ -11,6 +11,20 @@ The [Solar AI Optimizer](https://github.com/oraad/solar-ai-optimizer) HACS integ
 
 IndieAuth (Solar → HA) for inverter writes remains available in Solar **Settings**; it is **not** required for the fail-safe or Update entity.
 
+## Two install paths, two version numbers
+
+This monorepo ships **two products** with independent semver:
+
+| Product | Version file | GitHub tag | What it installs |
+|---|---|---|---|
+| **Solar app** (Docker / HA Apps) | `VERSION` | `v0.6.x` | Container image + HA app store manifest; **bundles** the current integration zip |
+| **HACS integration** | `INTEGRATION_VERSION` | `integration-v0.1.x` | `solar_ai_optimizer.zip` only (no Docker image) |
+
+- **HA App** — Settings → Apps → add repository → install the Solar container (see [Home Assistant setup](home-assistant-setup.md)).
+- **HACS integration** — companion fail-safe / Update entity for Docker, Proxmox, or Core installs (this page).
+
+The integration talks to Solar over HTTP; pair it with an app release that is **at or above** your last stable app version. App and integration versions do not need to match (e.g. app `0.6.11` + integration `0.1.0`).
+
 ## Supported deployments
 
 | Deployment | Fail-safe / health entities | Update entity Install |
@@ -22,17 +36,17 @@ IndieAuth (Solar → HA) for inverter writes remains available in Solar **Settin
 ## Install (HACS)
 
 1. HACS → Integrations → Custom repositories → add  
-   `https://github.com/oraad/solar-ai-optimizer` as **Integration**.
+   `https://github.com/oraad/solar-ai-optimizer` as **Integration** (not Add-on).
 2. Install **Solar AI Optimizer**, then restart Home Assistant.
 3. Settings → Devices & services → Add integration → **Solar AI Optimizer**.
 
-Until `zip_release` is enabled in `hacs.json` (after the first GitHub Release that attaches `solar_ai_optimizer.zip`), HACS installs from the repository archive and extracts `custom_components/solar_ai_optimizer/`. After that flip, use the HACS version picker (GitHub Releases; stable by default, betas selectable).
+HACS installs from GitHub Releases using `solar_ai_optimizer.zip` (`zip_release` in `hacs.json`). Use the HACS version picker — stable by default; betas selectable. Integration-only releases use tags like `integration-v0.1.0`; app releases (`v0.6.x`) also attach the zip at the current `INTEGRATION_VERSION`.
 
 ### Manual install
 
 Copy `custom_components/solar_ai_optimizer/` into your HA `config/custom_components/` directory and restart.
 
-After zip releases exist: download **`solar_ai_optimizer.zip`** from the [GitHub Releases](https://github.com/oraad/solar-ai-optimizer/releases) page and extract so `manifest.json` lands in `config/custom_components/solar_ai_optimizer/`.
+Or download **`solar_ai_optimizer.zip`** from the [GitHub Releases](https://github.com/oraad/solar-ai-optimizer/releases) page (app `v*` or `integration-v*` tag) and extract so `manifest.json` lands in `config/custom_components/solar_ai_optimizer/`.
 
 ### Removal
 
@@ -138,12 +152,12 @@ The Update entity always appears. **Install** is offered only when Solar reports
 - IndieAuth (Solar → HA) for inverter writes is separate from this integration.
 - Do not run the legacy YAML fail-safe package together with the integration watchdog.
 - Automatic discovery is not supported — configure host URL and pairing manually.
-- HACS `zip_release` for release assets is enabled only **after** a GitHub Release that includes `solar_ai_optimizer.zip` (see release runbook).
 
 ## Troubleshooting
 
 | Symptom | What to try |
 |---|---|
+| HACS: “add-on repository” / not an integration | Add the repo as **Integration**, not Add-on. If the latest **stable** app tag predates `custom_components/`, install a beta/zip release manually or wait for the next stable app release that bundles the integration. |
 | Cannot connect | Check host URL from HA Core network; not ingress URL; firewall / TLS |
 | Invalid / expired pairing code | Generate a new code in Solar Settings |
 | Unhealthy binary sensor | Confirm Solar heartbeat is writing; raise stale seconds; check HA time sync |

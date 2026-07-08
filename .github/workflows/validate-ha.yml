@@ -12,10 +12,13 @@ on:
       - "custom_components/**"
       - "hacs.json"
       - "VERSION"
+      - "INTEGRATION_VERSION"
       - "scripts/sync-version.py"
+      - "scripts/changelog-excerpt.py"
       - "scripts/package-ha-integration.sh"
       - ".github/workflows/validate-ha.yml"
       - ".github/workflows/release.yml"
+      - ".github/workflows/release-integration.yml"
 
 concurrency:
   group: validate-ha-${{ github.ref }}
@@ -69,7 +72,7 @@ jobs:
           test -f hacs.json
           python -c "import json; json.load(open('custom_components/solar_ai_optimizer/manifest.json'))"
           python -c "import json; d=json.load(open('hacs.json')); assert d['homeassistant']=='2026.7.0', d"
-          python -c "from pathlib import Path; import json; version = Path('VERSION').read_text(encoding='utf-8').strip(); manifest = json.loads(Path('custom_components/solar_ai_optimizer/manifest.json').read_text(encoding='utf-8')); assert manifest['version'] == version, (manifest['version'], version); print('manifest version ok', version)"
+          python -c "from pathlib import Path; import json; integration = Path('INTEGRATION_VERSION').read_text(encoding='utf-8').strip(); manifest = json.loads(Path('custom_components/solar_ai_optimizer/manifest.json').read_text(encoding='utf-8')); assert manifest['version'] == integration, (manifest['version'], integration); print('manifest version ok', integration)"
           python scripts/sync-version.py --check
 
       - name: Install PHCC and run tests

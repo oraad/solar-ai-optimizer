@@ -1,4 +1,4 @@
-name: Release
+name: Release (app)
 
 on:
   push:
@@ -11,18 +11,20 @@ permissions:
 
 jobs:
   release:
+    if: ${{ !startsWith(github.ref_name, 'integration-v') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - name: Verify release tag matches VERSION and integration manifest
+      - name: Verify app release tag matches VERSION
         run: |
           tag="${GITHUB_REF_NAME#v}"
           version="$(tr -d '\r\n' < VERSION)"
+          integration="$(tr -d '\r\n' < INTEGRATION_VERSION)"
           test "$version" = "$tag"
           manifest="$(python -c "import json; print(json.load(open('custom_components/solar_ai_optimizer/manifest.json'))['version'])")"
-          test "$manifest" = "$tag"
-          echo "tag=$tag version=$version manifest=$manifest"
+          test "$manifest" = "$integration"
+          echo "tag=$tag app=$version integration=$integration manifest=$manifest"
 
       - name: Package HA integration zip
         run: |
@@ -69,14 +71,16 @@ jobs:
         run: |
           bash scripts/check-python.sh
           tag="${GITHUB_REF_NAME#v}"
-          if python scripts/changelog-excerpt.py --version "$tag" > release-notes.md; then
-            echo "Using CHANGELOG excerpt for v$tag"
+          if python scripts/changelog-excerpt.py --kind app --version "$tag" > release-notes.md; then
+            integration="$(tr -d '\r\n' < INTEGRATION_VERSION)"
+            echo "" >> release-notes.md
+            echo "Bundled HACS integration zip: **${integration}** (manifest inside zip)." >> release-notes.md
+            echo "Using CHANGELOG excerpt for app v$tag"
           else
             echo "No CHANGELOG section for v$tag — release will use auto-generated notes only"
             rm -f release-notes.md
           fi
 
-      # Single softprops create: Docker is already on GHCR; attach HA zip once.
       - uses: softprops/action-gh-release@v3
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}

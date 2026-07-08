@@ -5,5 +5,6 @@
 *.sh text eol=lf
 run.sh text eol=lf
 
-# Canonical version file — release workflow compares tag to raw VERSION on Linux.
+# Canonical version files — release workflows compare tags on Linux.
 VERSION text eol=lf
+INTEGRATION_VERSION text eol=lf

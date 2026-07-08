@@ -11,12 +11,12 @@ ROOT = Path(__file__).resolve().parents[3]
 INTEGRATION = ROOT / "custom_components" / "solar_ai_optimizer"
 
 
-def test_manifest_version_matches_repo() -> None:
-    """manifest.json version tracks root VERSION."""
-    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+def test_manifest_version_matches_integration_version() -> None:
+    """manifest.json version tracks INTEGRATION_VERSION (not app VERSION)."""
+    integration_version = (ROOT / "INTEGRATION_VERSION").read_text(encoding="utf-8").strip()
     manifest = json.loads((INTEGRATION / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["domain"] == "solar_ai_optimizer"
-    assert manifest["version"] == version
+    assert manifest["version"] == integration_version
     assert manifest["config_flow"] is True
     assert "quality_scale" not in manifest
 
@@ -30,11 +30,13 @@ def test_strings_and_translations_match() -> None:
     assert strings == en
 
 
-def test_hacs_min_version() -> None:
-    """hacs.json minimum HA version is 2026.7.0 without zip_release yet."""
+def test_hacs_zip_release_configured() -> None:
+    """hacs.json uses zip_release with named asset."""
     hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
     assert hacs["homeassistant"] == "2026.7.0"
-    assert "zip_release" not in hacs
+    assert hacs["zip_release"] is True
+    assert hacs["filename"] == "solar_ai_optimizer.zip"
+    assert hacs["hide_default_branch"] is True
 
 
 def test_client_strips_trailing_slash() -> None:

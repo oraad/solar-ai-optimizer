@@ -147,7 +147,7 @@ docker run -d --name solar-optimizer --restart unless-stopped \
 
 **المتطلبات الأساسية:** نظام التشغيل Home Assistant أو التثبيت الخاضع للإشراف مع إمكانية الوصول إلى متجر التطبيقات.
 
-[![افتح مثيل Home Assistant واعرض مربع حوار إضافة المستودع.](https://my.home-assistant.io/badges/redirect_repository.svg)](https://my.home-assistant.io/redirect/repository/?owner=oraad&repository=solar-ai-optimizer)
+[![افتح مثيل Home Assistant واعرض مربع حوار إضافة مستودع التطبيق.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Foraad%2Fsolar-ai-optimizer)
 
 1. **الإعدادات → التطبيقات → متجر التطبيقات → ⋮ → المستودعات المخصصة** → أضف:
    ```

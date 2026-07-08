@@ -1,9 +1,6 @@
 # إعداد مساعد المنزل
 
-يتكامل Solar AI Optimizer مع Home Assistant باعتباره **تطبيقًا خارجيًا** — إنه كذلك بالفعل
-**ليس** تكامل مخصص لـ HACS أو`custom_components/`منصة. يتصل المحسن
-عبر REST وWebSocket، يقوم بتعيين الكيانات العاكسة من الإعدادات، ويستخدم بشكل اختياري صغير
-HA **حزمة YAML** لأتمتة نبضات القلب الآمنة.
+يتكامل Solar AI Optimizer مع Home Assistant كـ **تطبيق خارجي**. لتفعيل fail-safe والتحديثات من HA، ثبّت **[تكامل HACS](https://oraad.github.io/solar-ai-integration/home-assistant-integration/)** من [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration) (Home Assistant **2026.7+**).
 
 اختر مسار النشر الخاص بك:
 
@@ -38,7 +35,7 @@ HA **حزمة YAML** لأتمتة نبضات القلب الآمنة.
 
 ## تطبيق المشرف {#supervisor-add-on}
 
-[![افتح مثيل Home Assistant واعرض مربع حوار إضافة المستودع.](https://my.home-assistant.io/badges/redirect_repository.svg)](https://my.home-assistant.io/redirect/repository/?owner=oraad&repository=solar-ai-optimizer)
+[![افتح مثيل Home Assistant واعرض مربع حوار إضافة مستودع التطبيق.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Foraad%2Fsolar-ai-optimizer)
 
 1. **الإعدادات → التطبيقات → متجر التطبيقات → ⋮ → المستودعات المخصصة** → أضف:
    ```

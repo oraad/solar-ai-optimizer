@@ -38,7 +38,7 @@ Faites pivoter périodiquement les jetons et révoquez les jetons inutilisés à
 
 ## Application Superviseur {#supervisor-add-on}
 
-[![Ouvrez votre instance Home Assistant et affichez la boîte de dialogue d'ajout de dépôt.](https://my.home-assistant.io/badges/redirect_repository.svg)](https://my.home-assistant.io/redirect/repository/?owner=oraad&repository=solar-ai-optimizer)
+[![Ouvrez votre instance Home Assistant et affichez la boîte de dialogue d'ajout de dépôt d'application.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Foraad%2Fsolar-ai-optimizer)
 
 1. **Paramètres → Applications → Boutique d'applications → ⋮ → Dépôts personnalisés** → ajouter :
    ```

@@ -12,6 +12,7 @@ export type SettingsNavId =
   | "engine"
   | "forecast_temp"
   | "safety"
+  | "system_mcp"
   | "system";
 
 export interface SettingsNavItem {
@@ -40,6 +41,7 @@ export const SETTINGS_NAV: SettingsNavItem[] = [
   { id: "engine", category: "engine", labelKey: "settings.sections.engine" },
   { id: "forecast_temp", category: "forecast", labelKey: "ui.settings.nav.temperature" },
   { id: "safety", category: "safety", labelKey: "ui.settings.nav.safety" },
+  { id: "system_mcp", category: "system", labelKey: "ui.settings.nav.mcp" },
   { id: "system", category: "system", labelKey: "ui.settings.nav.system" },
 ];
 

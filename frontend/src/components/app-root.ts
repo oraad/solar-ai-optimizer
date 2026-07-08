@@ -79,6 +79,7 @@ export class SolarApp extends LitElement {
         display: block;
         min-height: 100%;
         box-sizing: border-box;
+        --app-chrome-height: 72px;
       }
       .topbar {
         position: sticky;
@@ -316,6 +317,24 @@ export class SolarApp extends LitElement {
     if (path.includes(this)) return;
     this.statusMenuOpen = false;
   };
+  private topbarObserver: ResizeObserver | null = null;
+  private applyChromeHeight = (): void => {
+    const topbar = this.renderRoot?.querySelector(".topbar");
+    if (!(topbar instanceof HTMLElement)) return;
+    const h = Math.ceil(topbar.getBoundingClientRect().height);
+    const px = `${h}px`;
+    this.style.setProperty("--app-chrome-height", px);
+    document.documentElement.style.setProperty("--app-chrome-height", px);
+  };
+
+  protected firstUpdated(): void {
+    const topbar = this.renderRoot.querySelector(".topbar");
+    if (topbar instanceof HTMLElement) {
+      this.applyChromeHeight();
+      this.topbarObserver = new ResizeObserver(() => this.applyChromeHeight());
+      this.topbarObserver.observe(topbar);
+    }
+  }
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -349,6 +368,8 @@ export class SolarApp extends LitElement {
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.topbarObserver?.disconnect();
+    this.topbarObserver = null;
     this.compactMql?.removeEventListener("change", this.onCompactChange);
     this.navMql?.removeEventListener("change", this.onNavNarrowChange);
     document.removeEventListener("click", this.onDocClick, true);

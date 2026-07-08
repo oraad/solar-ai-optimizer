@@ -48,6 +48,7 @@ export function buildSetupChecklist(
   status: SystemStatus | null,
   draft: AppConfigView | null,
   entitiesConnected: boolean,
+  mcpReady?: boolean,
 ): ChecklistItem[] {
   const d = draft as unknown as Record<string, unknown> | null;
   const read = (d?.inverter as Record<string, unknown> | undefined)?.read as
@@ -130,6 +131,16 @@ export function buildSetupChecklist(
       optional: true,
       labelKey: "ui.settings.checklist.gridChargeWrites",
       navId: "setup_inverter",
+    });
+  }
+
+  if (mcpReady !== undefined) {
+    items.push({
+      id: "mcp",
+      done: mcpReady,
+      optional: true,
+      labelKey: "ui.settings.checklist.agentAccess",
+      navId: "system_mcp",
     });
   }
 

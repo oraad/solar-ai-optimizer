@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.2] - 2026-07-08
+
+### Added
+
+- Settings **Agent access** section (`system_mcp`): read-only MCP status, security guidance, HTTP endpoint copy, and local agent (stdio) client config snippet
+- `/api/health` MCP fields: `mcp_http_path`, `mcp_auth_configured`, `mcp_http_mounted`, `mcp_http_url`, and tool/auth failure counts (no secrets exposed)
+- Mobile settings subsection strip and scroll-spy on narrow layouts; optional setup checklist item for agent access
+
+### Changed
+
+- Settings scroll offsets use measured `--app-chrome-height` from the app topbar (fixes section titles under sticky chrome)
+- Settings scroll-spy uses dynamic `IntersectionObserver` margins and `scrollend`/stability release after nav jumps
+- Settings search hides category/subsection pills; sticky save bar respects `--card-pad`
+
+### Fixed
+
+- Settings desktop sidebar no longer slides behind the app topbar on scroll
+
 ## [0.6.11-beta.1] - 2026-07-08
 
 ### Added

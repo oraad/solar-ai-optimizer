@@ -65,12 +65,26 @@ async def health(request: Request) -> dict:
     forecast = orch.forecast.current
     fs = orch.cfg.fail_safe
     hb = orch.heartbeat.last_pulse_at
+    mcp_http_mounted = bool(
+        settings.mcp_enabled
+        and (settings.is_addon or settings.mcp_auth_configured)
+    )
+    mcp_path = settings.mcp_http_path.rstrip("/") or "/mcp"
+    mcp_http_url = None
+    if mcp_http_mounted:
+        mcp_http_url = f"{str(request.base_url).rstrip('/')}{mcp_path}"
     return _dump(
         {
             "status": "ok",
             "install_id": get_or_create_install_id(settings.data_dir),
             "version": __version__,
             "mcp_enabled": settings.mcp_enabled,
+            "mcp_http_path": mcp_path,
+            "mcp_auth_configured": settings.mcp_auth_configured,
+            "mcp_http_mounted": mcp_http_mounted,
+            "mcp_http_url": mcp_http_url,
+            "mcp_tool_calls_total": metrics.mcp_tool_calls_total,
+            "mcp_auth_failures_total": metrics.mcp_auth_failures_total,
             "is_addon": settings.is_addon,
             "ha_connected": status.ha_connected,
             "shadow_mode": status.shadow_mode,

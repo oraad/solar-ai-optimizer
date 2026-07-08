@@ -67,3 +67,41 @@ def test_health_includes_monitoring_fields(client):
     assert body["heartbeat_configured"] is True
     assert body["heartbeat_last_pulse"] == "2026-07-08T08:27:00+03:00"
     assert body["time"].endswith("+03:00")
+
+
+def test_health_mcp_fields_disabled_by_default(client):
+    res = client.get("/api/health")
+    body = res.json()
+    assert body["mcp_enabled"] is False
+    assert body["mcp_http_path"] == "/mcp"
+    assert body["mcp_auth_configured"] is False
+    assert body["mcp_http_mounted"] is False
+    assert body["mcp_http_url"] is None
+    assert body["mcp_tool_calls_total"] == 0
+    assert "mcp_token" not in body
+    assert "api_token" not in body
+
+
+def test_health_mcp_mounted_when_enabled_with_token(client, monkeypatch):
+    monkeypatch.setenv("MCP_ENABLED", "true")
+    monkeypatch.setenv("MCP_TOKEN", "agent-secret")
+    get_settings.cache_clear()
+    res = client.get("/api/health")
+    body = res.json()
+    assert body["mcp_enabled"] is True
+    assert body["mcp_auth_configured"] is True
+    assert body["mcp_http_mounted"] is True
+    assert body["mcp_http_url"] == "http://testserver/mcp"
+
+
+def test_health_mcp_misconfigured_when_enabled_without_token(client, monkeypatch):
+    monkeypatch.setenv("MCP_ENABLED", "true")
+    monkeypatch.setenv("MCP_TOKEN", "")
+    monkeypatch.setenv("API_TOKEN", "")
+    get_settings.cache_clear()
+    res = client.get("/api/health")
+    body = res.json()
+    assert body["mcp_enabled"] is True
+    assert body["mcp_auth_configured"] is False
+    assert body["mcp_http_mounted"] is False
+    assert body["mcp_http_url"] is None

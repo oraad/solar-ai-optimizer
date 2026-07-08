@@ -466,6 +466,29 @@ class Orchestrator:
         return decision
 
     def _decide(self, telemetry, forecast, telemetry_stale: bool = False) -> Decision:
+        return self._compute_decision(
+            telemetry, forecast, telemetry_stale, count_mpc_fallback=True
+        )
+
+    def simulate_decision(self) -> Decision | None:
+        """Dry-run decision using cached telemetry; no writes, DB, or metrics."""
+        telemetry = self.collector.latest
+        if telemetry is None:
+            return None
+        forecast = self.forecast.current
+        stale = self._telemetry_stale(telemetry)
+        return self._compute_decision(
+            telemetry, forecast, stale, count_mpc_fallback=False
+        )
+
+    def _compute_decision(
+        self,
+        telemetry,
+        forecast,
+        telemetry_stale: bool,
+        *,
+        count_mpc_fallback: bool,
+    ) -> Decision:
         plan_opt, plan_gc, plan_shed = self._plan_flags()
         kwargs = {
             "telemetry_stale": telemetry_stale,
@@ -486,9 +509,10 @@ class Orchestrator:
                     **kwargs,
                 )
             except Exception as e:  # noqa: BLE001
-                from .observability.metrics import metrics
+                if count_mpc_fallback:
+                    from .observability.metrics import metrics
 
-                metrics.mpc_fallbacks += 1
+                    metrics.mpc_fallbacks += 1
                 log.warning("MPC decide failed (%s); falling back to rules.", e)
         return self.engine.decide(
             telemetry,

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.10-beta.3] - 2026-07-08
+
+### Added
+
+- Home Assistant app option **Pre-release updates** (`prerelease_updates`, default off): when enabled, the add-on checks GitHub for beta/RC builds and logs when a newer version is available
+- Optional MCP control plane (FastMCP): DOCKER Compose profile, add-on options, and `/mcp` mount for agent tooling
+
+### Changed
+
+- HA app store manifest (`solar_ai_optimizer/config.yaml` `version`) tracks **stable releases only**; pre-releases no longer bump the Supervisor-offered version
+- On HA Apps installs, in-app **Software updates** section and UPDATE badge are hidden; updates are managed in Home Assistant → Settings → Apps
+- Operational API reads (`/api/status`, forecasts, plan, grid stats, all `/api/history/*`, `/metrics`, `WS /ws`) now require an authenticated session at the route level; viewers retain access via HA ingress identity
+- Direct access to port `8000` without ingress headers is denied on add-on and `TRUST_INGRESS_HEADERS` deployments (no anonymous open session when ingress is trusted)
+- WebSocket accepts `?token=` matching `API_TOKEN` or `MCP_TOKEN` for bearer-only deployments
+
+### Fixed
+
+- HA Supervisor was offered beta builds because pre-release `VERSION` was synced into the app manifest; store version stays on last stable (currently `0.6.9`) until GA
+- Exact semver matching for “Running” / current release in Software updates (beta vs stable on the same base version no longer both show as current)
+- HA ingress viewers can read full History (decisions, executions, shed activity) again after MCP hardening had incorrectly required admin on those routes
+
 ## [0.6.10-beta.2] - 2026-07-08
 
 ### Changed

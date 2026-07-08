@@ -116,17 +116,53 @@ ADMIN_USER_IDS=abc123,def456
 
 ## API reference
 
+Auth levels:
+
+- **Public** — no session required (health probes and login bootstrap only).
+- **Session** — requires an authenticated caller (HA ingress identity, local login cookie, or bearer token). Viewers and admins both qualify.
+- **Admin** — requires `is_admin` (HA owner/admin group, local admin, bearer token, or open dev mode).
+
+Operational reads (`/api/status`, forecasts, history, etc.) require **Session**. Only `GET /api/health` and the `/api/auth/*` bootstrap routes are **Public**.
+
 | Endpoint | Auth | Description |
 |----------|------|-------------|
-| `GET /api/me` | Session | Current user and role |
+| `GET /api/health` | Public | Liveness probe |
+| `GET /api/auth/status` | Public | `{ local_auth_enabled, login_required }` |
 | `POST /api/auth/login` | Public | Local admin login; sets cookie |
 | `POST /api/auth/logout` | Public | Clears session cookie |
-| `GET /api/auth/status` | Public | `{ local_auth_enabled, login_required }` |
-| `GET /api/health` | Public | Liveness probe |
-| `GET /api/config` | Admin | Full dashboard config (viewers denied) |
+| `GET /api/me` | Session | Current user and role |
+| `GET /api/status` | Session | Live dashboard status |
+| `GET /api/forecast` | Session | Forecast chart data |
+| `GET /api/plan` | Session | Latest decision and execution results |
+| `GET /api/grid-stats` | Session | Grid presence statistics |
+| `GET /api/history/telemetry` | Session | Telemetry time series |
+| `GET /api/history/decisions` | Session | Recent decision audit rows |
+| `GET /api/history/executions` | Session | Recent inverter write audit |
+| `GET /api/history/shed-executions` | Session | Recent shed write audit |
+| `GET /api/history/grid-events` | Session | Grid presence events |
 | `GET /api/config/load-shedding` | Session | Read-only load shedding config for viewer dashboard tab |
+| `POST /api/override` | Session | Admin: any override field; viewer: `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `force_grid_charge`, `force_shed_off`, `kill_switch` (`kill_switch` requires `confirm=true`) |
+| `WS /ws` | Session | Live status push (use `?token=` when `API_TOKEN` / `MCP_TOKEN` is set) |
+| `GET /metrics` | Session | Prometheus metrics (`Authorization: Bearer` when auth is configured) |
+| `GET /api/config` | Admin | Full dashboard config (viewers denied) |
 | `GET /api/entities` | Admin | HA entity list for Settings autocomplete |
-| `POST /api/override` | Session | Admin: any override field; viewer: `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `force_grid_charge`, `kill_switch` (`kill_switch` requires `confirm=true`) |
+| `GET /api/shed/device-companions` | Admin | Shed tier companion discovery |
+| `GET /api/shed/snapshots` | Admin | Pending shed snapshots |
+| `POST /api/forecast/refresh` | Admin | Manual forecast refresh |
+| `POST /api/cycle` | Admin | Run control cycle |
+| `POST /api/override/clear` | Admin | Clear all overrides |
+| `PUT /api/config` | Admin | Apply config patch |
+| `POST /api/config/reset` | Admin | Reset config to defaults |
+| `GET /api/model/export` | Admin | Export learned model |
+| `POST /api/model/import` | Admin | Import learned model |
+| `POST /api/model/retrain` | Admin | Retrain ML load model |
+| `POST /api/assistant/ask` | Admin | LLM assistant |
+| `GET /api/debug/trace` | Admin | Decision forensics trace |
+| `POST /api/debug/simulate` | Admin | Dry-run decision simulation |
+| `GET /api/system/update` | Admin | Self-update status |
+| `PATCH /api/system/update/preferences` | Admin | Self-update preferences |
+| `POST /api/system/update` | Admin | Trigger self-update |
+| `POST /api/system/update/restore` | Admin | Restore previous image |
 
 ## Security checklist
 

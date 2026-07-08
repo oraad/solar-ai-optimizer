@@ -88,3 +88,29 @@ def test_me_token_mode(me_client, monkeypatch):
     res = me_client.get("/api/me", headers={"Authorization": "Bearer secret"})
     assert res.status_code == 200
     assert res.json()["auth_mode"] == "token"
+
+
+def test_me_reports_is_addon(me_client, monkeypatch):
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "supervisor-secret")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    res = me_client.get(
+        "/api/me",
+        headers={
+            "X-Remote-User-Id": "ha-1",
+            "X-Remote-User-Name": "admin",
+        },
+    )
+    assert res.status_code == 200
+    assert res.json()["is_addon"] is True
+
+
+def test_me_is_addon_false_without_supervisor_token(me_client, monkeypatch):
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    res = me_client.get("/api/me")
+    assert res.status_code == 200
+    assert res.json()["is_addon"] is False

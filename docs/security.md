@@ -29,6 +29,8 @@ Do not open public issues for undisclosed vulnerabilities.
 
 Full access-control details: [Roles and access](ingress-auth.md).
 
+Operational API reads require an authenticated session (HA ingress identity, local login cookie, or bearer token). Only `GET /api/health` and `/api/auth/*` bootstrap routes are anonymous.
+
 ## Viewer role (ingress)
 
 Non-admin Home Assistant users authenticated via ingress are **viewers**. They may read live

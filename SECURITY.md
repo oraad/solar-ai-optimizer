@@ -27,8 +27,12 @@ Do not open public issues for undisclosed vulnerabilities.
 
 Non-admin HA users authenticated via ingress are **viewers**. They may read live status, forecasts, and history, and may POST limited overrides only:
 
-- `shadow_mode`, `pause_engine`, `kill_switch` (with `confirm=true`)
+- `shadow_mode`, `pause_engine`, `pause_shedding`, `pause_grid_charge`, `pause_optimization`, `force_grid_charge`, `force_shed_off`, `kill_switch` (with `confirm=true`)
 
-Viewers are denied config reads (`GET /api/config`), entity enumeration (`GET /api/entities`), config writes, the Assistant, reserve pin, force grid charge, and other admin-only routes. Enforcement is on the backend; the dashboard hides controls as defense-in-depth.
+Each `pause_*` field is bidirectional: `true` pauses, `false` resumes.
+
+Viewers are denied config reads (`GET /api/config`), entity enumeration (`GET /api/entities`),
+config writes, the Assistant, reserve pin, and other admin-only routes.
+Enforcement is on the backend; the dashboard hides controls as defense-in-depth.
 
 Do not expose port `8000` directly if viewers should not bypass HA ingress identity headers.

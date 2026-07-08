@@ -22,6 +22,7 @@ except Exception:
     opts = {}
 # Map add-on option keys -> app env vars.
 mapping = {
+    'prerelease_updates': 'ADDON_PRERELEASE_UPDATES',
     'shadow_mode': 'SHADOW_MODE',
     'log_level': 'LOG_LEVEL',
     'log_format': 'LOG_FORMAT',
@@ -35,6 +36,8 @@ mapping = {
     'solcast_api_key': 'SOLCAST_API_KEY',
     'solcast_resource_id': 'SOLCAST_RESOURCE_ID',
     'api_token': 'API_TOKEN',
+    'mcp_enabled': 'MCP_ENABLED',
+    'mcp_token': 'MCP_TOKEN',
 }
 for key, val in opts.items():
     env = mapping.get(key, key.upper())

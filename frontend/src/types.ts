@@ -156,6 +156,7 @@ export interface SessionInfo {
   is_admin: boolean;
   login_required: boolean;
   version: string;
+  is_addon?: boolean;
 }
 
 export type DeploymentKind = "addon" | "docker" | "compose" | "proxmox" | "unknown";

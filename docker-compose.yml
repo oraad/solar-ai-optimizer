@@ -63,6 +63,27 @@ services:
       - frontend-node-modules:/ui/node_modules
     command: ["npm", "test"]
 
+  mcp-stdio:
+    profiles: ["mcp"]
+    image: solar-ai-optimizer
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+      args:
+        INSTALL_EXTRAS: "1"
+        INSTALL_MCP: "1"
+    entrypoint: ["python", "-m", "app.mcp", "stdio"]
+    environment:
+      SOLAR_API_URL: http://host.docker.internal:8000
+      MCP_TOKEN: ${MCP_TOKEN:-}
+      API_TOKEN: ${API_TOKEN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      solar:
+        condition: service_healthy
+
   # Docs screenshots — Playwright image + cached node_modules (profile: docs).
   # Pin: Dockerfile docs-screenshots stage ↔ frontend/package.json playwright version.
   docs-screenshots:

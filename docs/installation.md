@@ -166,7 +166,7 @@ The app pulls the pre-built image `ghcr.io/oraad/solar-ai-optimizer` (matching t
 (database, runtime config, learned model). App options map to environment variables
 via `run.sh` (shadow mode, log level, Solcast keys, API token, etc.).
 
-The manifest `version` must match a [released](https://github.com/oraad/solar-ai-optimizer/releases) GHCR tag; `main` may briefly be ahead of the latest release.
+The manifest `version` tracks the latest **stable** release offered in the HA app store. During a pre-release cycle on `main`, `VERSION` in the repo may be a beta tag while the manifest stays on the last stable until GA.
 
 Full HA wiring (entities, packages, ingress auth): [Home Assistant setup](home-assistant-setup.md).
 

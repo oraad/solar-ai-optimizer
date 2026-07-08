@@ -746,7 +746,7 @@
       "newerAvailable": "A newer release is available.",
       "checkUpdates": "Check for updates",
       "checking": "Checking…",
-      "haSupervisorNote": "Install specific versions via Home Assistant Supervisor.",
+      "haSupervisorNote": "App updates are managed in Home Assistant → Settings → Apps. Enable Pre-release updates in this app's configuration to check for beta/RC builds.",
       "proxmoxNote": "On Proxmox you can also run update inside the LXC for host-side upgrades.",
       "credentialsOk": "Credentials detected.",
       "credentialsMissing": "Credentials missing or incomplete.",

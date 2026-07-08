@@ -32,6 +32,7 @@ INGRESS_USER_ID = "X-Remote-User-Id"
 INGRESS_USER_NAME = "X-Remote-User-Name"
 INGRESS_DISPLAY_NAME = "X-Remote-User-Display-Name"
 
+# Exact-path match via is_public_api_path(); not a prefix.
 PUBLIC_API_PREFIXES = (
     "/api/health",
     "/api/auth/login",
@@ -63,6 +64,7 @@ class SessionUser:
             "is_admin": self.is_admin,
             "login_required": login_required,
             "version": __version__,
+            "is_addon": settings.is_addon,
         }
 
 
@@ -172,15 +174,7 @@ def parse_ingress_headers(conn: HTTPConnection) -> tuple[str, str | None, str | 
     return user_id, username, display
 
 
-def parse_bearer_token(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
-    if not settings.api_token:
-        return None
-    auth = conn.headers.get("Authorization", "")
-    expected = f"Bearer {settings.api_token}"
-    if len(auth) != len(expected):
-        return None
-    if not hmac.compare_digest(auth, expected):
-        return None
+def _token_session() -> SessionUser:
     return SessionUser(
         user_id="api-token",
         username="api-token",
@@ -188,6 +182,34 @@ def parse_bearer_token(conn: HTTPConnection, settings: Settings) -> SessionUser 
         is_admin=True,
         auth_mode="token",
     )
+
+
+def _secret_matches(provided: str, secret: str) -> bool:
+    if not secret:
+        return False
+    return hmac.compare_digest(provided, secret)
+
+
+def parse_bearer_token(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
+    auth = conn.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    provided = auth[7:]
+    for secret in (settings.api_token, settings.mcp_token):
+        if _secret_matches(provided, secret):
+            return _token_session()
+    return None
+
+
+def parse_query_token(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
+    """WebSocket clients pass ?token= when browsers cannot send Authorization."""
+    token = conn.query_params.get("token", "").strip()
+    if not token:
+        return None
+    for secret in (settings.api_token, settings.mcp_token):
+        if _secret_matches(token, secret):
+            return _token_session()
+    return None
 
 
 def parse_local_cookie(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
@@ -212,7 +234,12 @@ def parse_local_cookie(conn: HTTPConnection, settings: Settings) -> SessionUser 
 
 
 def open_session(settings: Settings) -> SessionUser | None:
-    if settings.local_auth_enabled or settings.api_token:
+    if (
+        settings.local_auth_enabled
+        or settings.api_token
+        or settings.mcp_token
+        or settings.ingress_trusted
+    ):
         return None
     return SessionUser(
         user_id=None,
@@ -260,6 +287,11 @@ async def resolve_session(
     if bearer:
         return bearer
 
+    if conn.scope.get("type") == "websocket":
+        query_token = parse_query_token(conn, settings)
+        if query_token:
+            return query_token
+
     open_ = open_session(settings)
     if open_:
         return open_
@@ -279,7 +311,11 @@ def is_public_api_path(path: str) -> bool:
 
 
 def requires_auth_gate(path: str, settings: Settings) -> bool:
-    if not settings.local_auth_enabled and not settings.api_token:
+    if (
+        not settings.local_auth_enabled
+        and not settings.api_token
+        and not settings.mcp_token
+    ):
         return False
     if is_public_api_path(path):
         return False

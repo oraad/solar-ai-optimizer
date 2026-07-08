@@ -16,6 +16,9 @@
       "grid_charge_disabled": "Le contrôle de charge réseau est désactivé dans les paramètres.",
       "shedding_disabled": "Le contrôle du délestage est désactivé dans les paramètres."
     },
+    "debug": {
+      "rate_limit": "Trop de requêtes ; réessayez dans un instant."
+    },
     "validation": {
       "field": "{loc} : {msg}"
     },

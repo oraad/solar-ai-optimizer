@@ -664,12 +664,14 @@ export class SettingsPanel extends LitElement {
   }
 
   private maybeResumeUpdateWatch(): void {
+    if (this.session?.is_addon) return;
     if (this.updateWatchActive || this.updateBusy) return;
     if (!this.updateInfo?.update_in_progress) return;
     void this.resumeUpdateWatch();
   }
 
   private async resumeUpdateWatch(): Promise<void> {
+    if (this.session?.is_addon) return;
     this.updateWatchActive = true;
     this.updateBusy = true;
     const toastId = "update-resume";
@@ -1270,6 +1272,7 @@ export class SettingsPanel extends LitElement {
   }
 
   private async refreshUpdateInfo(): Promise<void> {
+    if (this.session?.is_addon) return;
     const toastId = "update-check";
     this.updateChecking = true;
     showToast({
@@ -1318,6 +1321,7 @@ export class SettingsPanel extends LitElement {
   }
 
   private syncUpdateInfoFromPoll(info: UpdateInfo): void {
+    if (this.session?.is_addon) return;
     this.updateInfo = info;
     if (info.update_progress) {
       this.updateProgress = info.update_progress;
@@ -1434,6 +1438,7 @@ export class SettingsPanel extends LitElement {
   }
 
   private async applyUpdate(version?: string): Promise<void> {
+    if (this.session?.is_addon) return;
     const info = this.updateInfo;
     if (!info?.can_apply) return;
     const release = version
@@ -1503,6 +1508,7 @@ export class SettingsPanel extends LitElement {
   }
 
   private async restoreBackup(backupName?: string): Promise<void> {
+    if (this.session?.is_addon) return;
     const info = this.updateInfo;
     if (!info?.can_apply) return;
     const name = backupName ?? info.backups?.[0]?.name;
@@ -1680,6 +1686,7 @@ export class SettingsPanel extends LitElement {
   }
 
   private async setIncludePrereleases(enabled: boolean): Promise<void> {
+    if (this.session?.is_addon) return;
     if (this.updateChecking || this.updateBusy) return;
     try {
       await api.updatePreferences(enabled);
@@ -2522,7 +2529,9 @@ export class SettingsPanel extends LitElement {
         return html`
           ${this.renderDisplayPreferencesSection()}
           ${this.renderSecuritySection()}
-          ${this.renderUpdatesSection()}
+          ${this.session?.is_addon
+            ? html`<p class="label">${t("ui.settings.haSupervisorNote")}</p>`
+            : this.renderUpdatesSection()}
           ${this.renderConfigBackupSection()}
           ${this.renderModelSection()}
           ${this.renderAdvancedSection()}

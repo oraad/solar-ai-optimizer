@@ -9,8 +9,10 @@ import pytest
 from starlette.requests import Request
 
 from app.api.session import (
+    ANONYMOUS,
     INGRESS_USER_ID,
     make_session_cookie,
+    open_session,
     parse_ingress_headers,
     resolve_session,
     verify_local_password,
@@ -111,4 +113,30 @@ async def test_admin_allowlist():
     )
     req = _request({INGRESS_USER_ID: "user-1"})
     session = await resolve_session(req, settings, None)
+    assert session.is_admin is True
+
+
+@pytest.mark.asyncio
+async def test_open_session_denied_when_ingress_trusted_without_headers():
+    settings = _settings(trust_ingress_headers=True)
+    req = _request()
+    session = await resolve_session(req, settings, None)
+    assert session is ANONYMOUS
+    assert session.authenticated is False
+
+
+def test_open_session_still_admin_when_ingress_untrusted():
+    settings = _settings(trust_ingress_headers=False)
+    session = open_session(settings)
+    assert session is not None
+    assert session.auth_mode == "open"
+    assert session.is_admin is True
+
+
+@pytest.mark.asyncio
+async def test_mcp_token_bearer_admin():
+    settings = _settings(mcp_token="mcp-only", api_token="")
+    req = _request({"Authorization": "Bearer mcp-only"})
+    session = await resolve_session(req, settings, None)
+    assert session.auth_mode == "token"
     assert session.is_admin is True

@@ -9,6 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.auth import AuthGateMiddleware, UserContextMiddleware
 from app.api.routes import router
 from app.models import SystemStatus, utcnow
 
@@ -29,6 +30,11 @@ def client(monkeypatch):
         paused=False,
         last_updated=utcnow(),
     )
+    monkeypatch.setenv("API_TOKEN", "history-token")
+    monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
     monkeypatch.setattr(
         "app.api.routes.repo.get_recent_executions",
         AsyncMock(return_value=[{"ts": "2026-07-08T05:27:00", "capability": "target_soc", "applied": True}]),
@@ -39,12 +45,18 @@ def client(monkeypatch):
     )
     app = FastAPI()
     app.state.orchestrator = orch
+    app.state.admin_resolver = AsyncMock()
+    app.add_middleware(AuthGateMiddleware)
+    app.add_middleware(UserContextMiddleware)
     app.include_router(router)
     return TestClient(app)
 
 
 def test_history_executions(client):
-    res = client.get("/api/history/executions?limit=10")
+    res = client.get(
+        "/api/history/executions?limit=10",
+        headers={"Authorization": "Bearer history-token"},
+    )
     assert res.status_code == 200
     body = res.json()
     assert isinstance(body, list)
@@ -53,7 +65,10 @@ def test_history_executions(client):
 
 
 def test_history_shed_executions(client):
-    res = client.get("/api/history/shed-executions?limit=10")
+    res = client.get(
+        "/api/history/shed-executions?limit=10",
+        headers={"Authorization": "Bearer history-token"},
+    )
     assert res.status_code == 200
     body = res.json()
     assert isinstance(body, list)

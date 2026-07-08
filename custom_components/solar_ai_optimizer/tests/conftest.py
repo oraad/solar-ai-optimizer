@@ -7,7 +7,6 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.solar_ai_optimizer.const import (
@@ -28,12 +27,9 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
 
 
 @pytest.fixture(autouse=True)
-async def unload_solar_entries(hass: HomeAssistant) -> Generator[None]:
-    """Unload domain entries so coordinator refresh timers do not linger."""
-    yield
-    for entry in list(hass.config_entries.async_entries(DOMAIN)):
-        await hass.config_entries.async_unload(entry.entry_id)
-    await hass.async_block_till_done()
+def expected_lingering_timers() -> bool:
+    """Coordinators schedule refresh interval timers that outlive the test."""
+    return True
 
 
 @pytest.fixture

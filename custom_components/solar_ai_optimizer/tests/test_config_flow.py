@@ -207,6 +207,7 @@ async def test_reauth_flow(
     )
     assert result2["type"] is FlowResultType.ABORT
     assert result2["reason"] == "reauth_successful"
+    await hass.async_block_till_done()
 
 
 async def test_reauth_wrong_install(
@@ -293,6 +294,7 @@ async def test_reconfigure_flow(
     assert mock_config_entry.data[CONF_HOST] == "http://192.168.1.20:8000"
     assert mock_config_entry.data[CONF_VERIFY_SSL] is False
     assert mock_config_entry.data[CONF_ACCESS_TOKEN] == "sol_c_test_token"
+    await hass.async_block_till_done()
 
 
 async def test_reconfigure_errors(
@@ -348,6 +350,7 @@ async def test_options_flow(
     )
     assert result2["type"] is FlowResultType.CREATE_ENTRY
     assert mock_config_entry.options["stale_seconds"] == 90
+    await hass.async_block_till_done()
 
 
 async def test_options_flow_failsafe_repair(
@@ -367,3 +370,4 @@ async def test_options_flow_failsafe_repair(
         )
         is not None
     )
+    await hass.async_block_till_done()

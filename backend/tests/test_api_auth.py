@@ -12,6 +12,7 @@ from app.api.auth import AuthGateMiddleware, UserContextMiddleware
 from app.api.metrics import metrics_router
 from app.api.routes import router
 from app.models import SystemStatus, utcnow
+from tests.conftest import wire_orchestrator_site_tz
 
 
 @pytest.fixture
@@ -29,6 +30,7 @@ def authed_client(monkeypatch):
         paused=False,
         last_updated=utcnow(),
     )
+    wire_orchestrator_site_tz(orch)
     monkeypatch.setenv("API_TOKEN", "secret-token")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("HA_TOKEN", "")

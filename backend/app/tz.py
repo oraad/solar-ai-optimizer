@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+import re
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
+from .dates import parse_datetime
+from .models import as_utc
+
 log = logging.getLogger("tz")
+
+_OFFSET = re.compile(r"[+-]\d{2}:?\d{2}$")
+_NAIVE_ISO = re.compile(
+    r"^\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$"
+)
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
@@ -34,6 +43,30 @@ def resolve_site_tz(name: str, *, auto_hint: str | None = None) -> ZoneInfo:
 
 def to_site_local(dt: datetime, tz: ZoneInfo) -> datetime:
     return dt.astimezone(tz)
+
+
+def parse_api_utc(value: str) -> datetime:
+    """Parse an API/DB ISO string as UTC-aware."""
+    return as_utc(parse_datetime(value.strip()))
+
+
+def format_site_local_iso(dt: datetime, tz: ZoneInfo) -> str:
+    """UTC-aware instant → site-local ISO string with offset."""
+    return to_site_local(as_utc(dt), tz).isoformat()
+
+
+def is_utc_serializable(value: str) -> bool:
+    """True when a string should be converted from UTC to site-local."""
+    text = value.strip()
+    if not text:
+        return False
+    if text.endswith("Z"):
+        return True
+    if text.endswith("+00:00") or text.endswith("-00:00"):
+        return True
+    if _OFFSET.search(text):
+        return False
+    return bool(_NAIVE_ISO.match(text))
 
 
 async def fetch_auto_timezone(

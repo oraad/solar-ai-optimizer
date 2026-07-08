@@ -14,6 +14,7 @@ from ..i18n import reset_locale, resolve_request_locale, set_locale, t
 from ..i18n.serialize import localize_model, localize_payload
 from ..orchestrator import Orchestrator
 from .session import get_session, resolve_session
+from .timezone import site_tz_for
 
 log = logging.getLogger("api.ws")
 
@@ -52,12 +53,24 @@ async def ws_status(websocket: WebSocket) -> None:
         await websocket.accept()
         queue = orch.subscribe()
         with contextlib.suppress(Exception):
-            await websocket.send_json(localize_model(orch.build_status(), locale=loc))
+            await websocket.send_json(
+                localize_model(
+                    orch.build_status(),
+                    locale=loc,
+                    site_tz=site_tz_for(orch),
+                )
+            )
         try:
             while True:
                 try:
                     status = await asyncio.wait_for(queue.get(), timeout=30.0)
-                    await websocket.send_json(localize_payload(status, locale=loc))
+                    await websocket.send_json(
+                        localize_payload(
+                            status,
+                            locale=loc,
+                            site_tz=site_tz_for(orch),
+                        )
+                    )
                 except asyncio.TimeoutError:
                     await websocket.send_json({"type": "ping"})
         except WebSocketDisconnect:

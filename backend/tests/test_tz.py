@@ -9,7 +9,14 @@ import pytest
 
 from app.config import SiteConfig
 from app.config_migration import migrate_config_data, migrate_v3_to_v4, migrate_v4_to_v5
-from app.tz import fetch_auto_timezone, resolve_site_tz, to_site_local
+from app.tz import (
+    fetch_auto_timezone,
+    format_site_local_iso,
+    is_utc_serializable,
+    parse_api_utc,
+    resolve_site_tz,
+    to_site_local,
+)
 
 
 def test_resolve_site_tz_explicit():
@@ -81,6 +88,15 @@ def test_to_site_local():
     utc = datetime(2026, 6, 21, 20, 0, tzinfo=timezone.utc)
     local = to_site_local(utc, resolve_site_tz("Africa/Johannesburg"))
     assert local.hour == 22
+
+
+def test_format_site_local_iso_and_parse_api_utc():
+    utc = datetime(2026, 7, 8, 5, 27, tzinfo=timezone.utc)
+    iso = format_site_local_iso(utc, resolve_site_tz("Asia/Riyadh"))
+    assert iso == "2026-07-08T08:27:00+03:00"
+    parsed = parse_api_utc("2026-07-08T05:27:00")
+    assert parsed.hour == 5
+    assert is_utc_serializable("2026-07-08T08:27:00+03:00") is False
 
 
 @pytest.mark.asyncio

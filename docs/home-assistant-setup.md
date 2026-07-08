@@ -175,9 +175,10 @@ The package creates:
 
 | Entity | Purpose |
 |--------|---------|
-| `input_datetime.solar_optimizer_heartbeat` | Heartbeat timestamp (pulsed by optimizer) |
+| `input_datetime.solar_optimizer_heartbeat` | Heartbeat timestamp (site-local wall clock, pulsed by optimizer) |
+| `input_number.solar_optimizer_heartbeat_stale_s` | Stale threshold (seconds) for healthy sensor |
 | `input_number.solar_optimizer_max_grid_charge_a` | Max grid charge current for fail-safe automation |
-| `binary_sensor.solar_optimizer_healthy` | Template sensor (stale if heartbeat &gt; 120s) |
+| `binary_sensor.solar_optimizer_healthy` | Template sensor (`as_datetime \| as_local` age check) |
 
 Before reloading, edit placeholders:
 

@@ -21,9 +21,10 @@ The package defines:
 
 | Entity | Purpose |
 |--------|---------|
-| `input_datetime.solar_optimizer_heartbeat` | Heartbeat timestamp (updated by the optimizer) |
+| `input_datetime.solar_optimizer_heartbeat` | Heartbeat timestamp (updated by the optimizer in site-local wall time) |
+| `input_number.solar_optimizer_heartbeat_stale_s` | Stale threshold in seconds for the healthy sensor (default 120) |
 | `input_number.solar_optimizer_max_grid_charge_a` | Max grid charge current for the fail-safe automation |
-| `binary_sensor.solar_optimizer_healthy` | Template sensor (stale if heartbeat &gt; 120s) |
+| `binary_sensor.solar_optimizer_healthy` | Template sensor (stale if heartbeat &gt; threshold) |
 
 Edit placeholders before reloading:
 
@@ -43,6 +44,8 @@ In the dashboard **Settings** → **Fail-safe**:
 | Heartbeat entity | `input_datetime.solar_optimizer_heartbeat` (default) |
 | Shutdown fail-safe enabled | On (default) |
 
+Set **Settings → Site → Timezone** to match Home Assistant's configured timezone so heartbeat wall clock and the fail-safe template agree.
+
 Save changes.
 
 Verify in **Developer tools** → **States** that `input_datetime.solar_optimizer_heartbeat` updates every control loop interval (default ~30s).
@@ -53,18 +56,25 @@ If you already created the helper manually with a different entity ID, set **Hea
 
 ```text
 Package creates     →  input_datetime.solar_optimizer_heartbeat
-Optimizer (alive)   →  pulses that entity each control cycle
-HA template sensor  →  binary_sensor.solar_optimizer_healthy (fresh if < 120s)
+                      input_number.solar_optimizer_heartbeat_stale_s
+Optimizer (alive)   →  pulses heartbeat each control cycle (site-local wall clock)
+HA template sensor  →  binary_sensor.solar_optimizer_healthy (as_datetime | as_local age check)
 HA automation       →  if unhealthy for 2 min → grid ON + max current
 Optimizer shutdown  →  grid ON + max current (before process exits)
 Kill switch         →  grid ON + max current + pause + restore sheds
 ```
 
+### Timezone
+
+The optimizer writes the heartbeat as a **naive site-local** `YYYY-MM-DD HH:MM:SS` string. The template parses it with `as_datetime | as_local` so age is compared against `now()` in Home Assistant's timezone. Align **Settings → Site → Timezone** with HA's timezone setting.
+
+**Existing installs:** merge updates from [`solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml) and reload **Helpers** and **Template** entities.
+
 ## Tuning
 
 | Parameter | Suggested | Notes |
 |-----------|-----------|--------|
-| Template stale threshold | 90–120s | ~3–4× default 30s control loop |
+| `input_number.solar_optimizer_heartbeat_stale_s` | 90–120 | ~3–4× default 30s control loop |
 | Automation `for:` | 2–3 min | Survives restarts without false triggers |
 | `input_number.solar_optimizer_max_grid_charge_a` | Match optimizer grid charge config | HA has no direct read of optimizer settings |
 
@@ -79,6 +89,6 @@ Kill switch         →  grid ON + max current + pause + restore sheds
 `GET /api/health` includes:
 
 - `heartbeat_configured` — heartbeat entity set and enabled
-- `heartbeat_last_pulse` — last successful pulse (ISO timestamp)
+- `heartbeat_last_pulse` — last successful pulse (site-local ISO timestamp)
 
 Metrics counters: `heartbeat_pulses_total`, `heartbeat_failures`.

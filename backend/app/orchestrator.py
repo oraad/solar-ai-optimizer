@@ -220,6 +220,8 @@ class Orchestrator:
         # Best-effort initial forecast + sample (don't crash startup on failure).
         with contextlib.suppress(Exception):
             await self.forecast.refresh()
+        with contextlib.suppress(Exception):
+            await self.forecast.ensure_resolved_timezone()
         if self.settings.demo_mode:
             await self._control_cycle_body()
         else:
@@ -296,7 +298,10 @@ class Orchestrator:
         if not fs.heartbeat_enabled:
             return
         with contextlib.suppress(Exception):
-            await self.heartbeat.pulse(fs.heartbeat_entity)
+            await self.heartbeat.pulse(
+                fs.heartbeat_entity,
+                site_tz=self.forecast.site_tz(),
+            )
 
     async def shutdown(self) -> None:
         if self.cfg.fail_safe.shutdown_failsafe_enabled and self._grid_charge_mapped():

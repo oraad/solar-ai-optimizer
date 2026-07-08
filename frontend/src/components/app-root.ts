@@ -102,16 +102,22 @@ export class SolarApp extends LitElement {
         flex-wrap: wrap;
       }
       .brand { display: flex; align-items: center; gap: 12px; }
-      .brand .sun {
-        font-size: 1.5rem;
+      .brand .mark {
         width: 38px;
         height: 38px;
         display: grid;
         place-items: center;
         border-radius: 11px;
         background: linear-gradient(150deg, var(--accent), var(--accent-2));
-        color: #1a1205;
         box-shadow: var(--shadow);
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .brand .mark img {
+        width: 30px;
+        height: 30px;
+        object-fit: contain;
+        display: block;
       }
       .brand h1 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
       .brand .sub { font-size: 0.72rem; color: var(--muted); }
@@ -994,7 +1000,9 @@ export class SolarApp extends LitElement {
       <div class="topbar">
         <div class="topbar-inner">
           <div class="brand">
-            <span class="sun">&#9728;</span>
+            <span class="mark" aria-hidden="true">
+              <img src="./brand-mark.png" alt="" width="30" height="30" />
+            </span>
             <div>
               <h1>${t("app.title")}</h1>
               <div class="sub">${this.brandSubtitle}</div>

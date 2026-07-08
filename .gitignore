@@ -47,3 +47,6 @@ coverage/
 
 # MkDocs build output
 site/
+
+# Brand design workspace (export outputs live in brand/ and frontend/public/)
+custom_components/solar_ai_optimizer/brand/_candidates/

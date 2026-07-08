@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
-import { api, getApiToken, getBase, setApiToken } from "../api.js";
+import { api, getApiToken, getBase, setApiToken, type HealthInfo } from "../api.js";
 import { entityLabel, fieldLabel, INVERTER_READ_ENTITY_KEYS, optimizationPriorityLabel, pvLabel, sectionTitle } from "../field-labels.js";
 import { entityHelp, fieldHelp, priorityEffectHelp, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
@@ -33,6 +33,11 @@ import {
   validateConfigDraft,
   type ValidationIssue,
 } from "../settings-utils.js";
+import {
+  readSettingsMobileNavHeightPx,
+  releaseAfterProgrammaticScroll,
+  sectionObserverRootMargin,
+} from "../scroll-offset.js";
 import type { AppConfigView, EntityInfo, ReleaseSummary, SessionInfo, SystemStatus, UpdateInfo, UpdateProgress } from "../types.js";
 import { renderMarkdown } from "../markdown.js";
 import {
@@ -68,6 +73,28 @@ const WRITE_DOMAIN: Record<string, string> = {
 };
 const WRITE_ENTITY_KEYS = Object.keys(WRITE_DOMAIN);
 
+const MCP_STDIO_SNIPPET = `{
+  "mcpServers": {
+    "solar-ai-optimizer": {
+      "command": "docker",
+      "args": [
+        "compose",
+        "--profile",
+        "mcp",
+        "-f",
+        "docker-compose.yml",
+        "run",
+        "--rm",
+        "--no-TTY",
+        "mcp-stdio"
+      ],
+      "env": {
+        "MCP_TOKEN": "<your-token>"
+      }
+    }
+  }
+}`;
+
 function isScalar(v: unknown): v is number | string | boolean {
   return typeof v === "number" || typeof v === "string" || typeof v === "boolean";
 }
@@ -82,6 +109,10 @@ export class SettingsPanel extends LitElement {
   static styles = [
     sharedStyles,
     css`
+      :host {
+        display: block;
+        --settings-mobile-nav-height: 0px;
+      }
       details { margin-bottom: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
       summary { cursor: pointer; font-weight: 600; color: var(--muted); text-transform: capitalize; }
       .summary-label { display: inline-flex; align-items: center; gap: 4px; }
@@ -286,7 +317,11 @@ export class SettingsPanel extends LitElement {
         flex-direction: column;
         gap: 2px;
         position: sticky;
-        top: 8px;
+        top: calc(var(--app-chrome-height, 72px) + 8px);
+        z-index: 1;
+      }
+      .settings-mobile-section-nav {
+        display: none;
       }
       @media (max-width: 899px) {
         .settings-nav {
@@ -295,6 +330,15 @@ export class SettingsPanel extends LitElement {
           overflow-x: auto;
           position: static;
           padding-bottom: 4px;
+          -webkit-overflow-scrolling: touch;
+        }
+        .settings-mobile-section-nav {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          gap: 6px;
+          margin-bottom: 10px;
           -webkit-overflow-scrolling: touch;
         }
       }
@@ -372,7 +416,54 @@ export class SettingsPanel extends LitElement {
       }
       .settings-content { min-width: 0; }
       .settings-nav-target {
-        scroll-margin-top: 72px;
+        scroll-margin-top: calc(var(--app-chrome-height, 72px) + 8px + var(--settings-mobile-nav-height, 0px));
+      }
+      .mcp-status-pill {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--muted);
+      }
+      .mcp-status-pill.active {
+        color: var(--good, #3a8);
+        border-color: color-mix(in srgb, var(--good, #3a8) 40%, var(--border));
+        background: color-mix(in srgb, var(--good, #3a8) 12%, var(--panel-2));
+      }
+      .mcp-status-pill.warn {
+        color: var(--warn, #c90);
+        border-color: color-mix(in srgb, var(--warn, #c90) 40%, var(--border));
+        background: color-mix(in srgb, var(--warn, #c90) 12%, var(--panel-2));
+      }
+      .mcp-snippet {
+        margin: 8px 0 0;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        font-size: 0.72rem;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .env-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+        margin-top: 8px;
+      }
+      .env-table th,
+      .env-table td {
+        text-align: start;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .env-table code {
+        font-size: 0.76rem;
       }
       .section-panel {
         border: 1px solid var(--border);
@@ -527,7 +618,7 @@ export class SettingsPanel extends LitElement {
         position: sticky;
         bottom: 0;
         z-index: 2;
-        margin: 16px -18px -18px;
+        margin: 16px calc(-1 * var(--card-pad, 18px)) calc(-1 * var(--card-pad, 18px));
         padding: 10px 18px calc(10px + env(safe-area-inset-bottom, 0px));
         border-top: 1px solid var(--border);
         background: color-mix(in srgb, var(--panel) 92%, transparent);
@@ -596,6 +687,7 @@ export class SettingsPanel extends LitElement {
   @state() private checklistDismissed = false;
   @state() private validationIssues: ValidationIssue[] = [];
   @state() private dragPriorityIndex: number | null = null;
+  @state() private mcpHealth: HealthInfo | null = null;
 
   private savedSnapshot = "";
   private layoutWide = false;
@@ -603,6 +695,9 @@ export class SettingsPanel extends LitElement {
   private pendingScrollNav: SettingsNavId | null = null;
   private suppressScrollSpy = false;
   private sectionObserver: IntersectionObserver | null = null;
+  private mobileNavObserver: ResizeObserver | null = null;
+  private mcpRefreshTimer: number | null = null;
+  private sectionObserverRootMargin = "";
   private updateWatchToken = 0;
   private onBeforeUnload = (e: BeforeUnloadEvent) => {
     if (this.isDirty) {
@@ -638,7 +733,18 @@ export class SettingsPanel extends LitElement {
     void this.loadCapabilities();
     void this.refreshPairStatus();
     void this.refreshHaOauthStatus();
+    void this.refreshMcpStatus();
+    this.mcpRefreshTimer = window.setInterval(() => void this.refreshMcpStatus(), 30_000);
     this.maybeResumeUpdateWatch();
+  }
+
+  protected firstUpdated(): void {
+    this.syncMobileNavHeight();
+    const stack = this.renderRoot.querySelector(".settings-mobile-nav-stack");
+    if (stack instanceof HTMLElement) {
+      this.mobileNavObserver = new ResizeObserver(() => this.syncMobileNavHeight());
+      this.mobileNavObserver.observe(stack);
+    }
   }
 
   disconnectedCallback(): void {
@@ -649,7 +755,41 @@ export class SettingsPanel extends LitElement {
     this.layoutMedia = null;
     this.sectionObserver?.disconnect();
     this.sectionObserver = null;
+    this.mobileNavObserver?.disconnect();
+    this.mobileNavObserver = null;
+    if (this.mcpRefreshTimer != null) {
+      window.clearInterval(this.mcpRefreshTimer);
+      this.mcpRefreshTimer = null;
+    }
     super.disconnectedCallback();
+  }
+
+  private syncMobileNavHeight(): void {
+    const stack = this.renderRoot.querySelector(".settings-mobile-nav-stack");
+    if (!(stack instanceof HTMLElement) || this.layoutWide || this.searchQuery.trim()) {
+      this.style.setProperty("--settings-mobile-nav-height", "0px");
+      return;
+    }
+    const h = Math.ceil(stack.getBoundingClientRect().height);
+    this.style.setProperty("--settings-mobile-nav-height", `${h}px`);
+    this.syncSectionObserver();
+  }
+
+  private async refreshMcpStatus(): Promise<void> {
+    try {
+      this.mcpHealth = await api.health();
+    } catch {
+      /* optional until backend deployed */
+    }
+  }
+
+  private async copyText(text: string, successKey: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast({ message: t(successKey), variant: "success" });
+    } catch {
+      showToast({ message: t("ui.settings.mcp.copyFailed"), variant: "error" });
+    }
   }
 
   protected updated(changed: Map<PropertyKey, unknown>): void {
@@ -666,11 +806,24 @@ export class SettingsPanel extends LitElement {
           const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
           el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
           el.focus({ preventScroll: true });
-          window.setTimeout(() => {
+          releaseAfterProgrammaticScroll(() => {
             this.suppressScrollSpy = false;
-          }, reduceMotion ? 0 : 500);
+          }, reduceMotion);
         } else {
           this.suppressScrollSpy = false;
+        }
+      });
+    }
+    if (changed.has("searchQuery") || changed.has("layoutWide") || changed.has("mobileCategory")) {
+      queueMicrotask(() => this.syncMobileNavHeight());
+    }
+    if (changed.has("draft") && this.draft) {
+      queueMicrotask(() => {
+        this.syncMobileNavHeight();
+        const stack = this.renderRoot.querySelector(".settings-mobile-nav-stack");
+        if (stack instanceof HTMLElement && !this.mobileNavObserver) {
+          this.mobileNavObserver = new ResizeObserver(() => this.syncMobileNavHeight());
+          this.mobileNavObserver.observe(stack);
         }
       });
     }
@@ -792,11 +945,8 @@ export class SettingsPanel extends LitElement {
   }
 
   private syncSectionObserver(): void {
-    if (!this.layoutWide) {
-      this.sectionObserver?.disconnect();
-      this.sectionObserver = null;
-      return;
-    }
+    const mobileNavHeight = this.layoutWide ? 0 : readSettingsMobileNavHeightPx();
+    const rootMargin = sectionObserverRootMargin(mobileNavHeight);
     if (!this.sectionObserver) {
       this.sectionObserver = new IntersectionObserver(
         (entries) => {
@@ -817,13 +967,24 @@ export class SettingsPanel extends LitElement {
             this.mobileCategory = categoryForNav(id);
           }
         },
-        { rootMargin: "-72px 0px -60% 0px", threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] },
+        { rootMargin, threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] },
       );
+    } else if (this.sectionObserverRootMargin !== rootMargin) {
+      this.sectionObserver.disconnect();
+      this.sectionObserver = null;
+      this.sectionObserverRootMargin = rootMargin;
+      this.syncSectionObserver();
+      return;
     }
+    this.sectionObserverRootMargin = rootMargin;
     this.sectionObserver.disconnect();
     this.renderRoot.querySelectorAll(".settings-nav-target").forEach((el) => {
       this.sectionObserver!.observe(el);
     });
+  }
+
+  private openApiSecuritySection(): void {
+    this.selectNav("system");
   }
 
   private openLoadSheddingTab(): void {
@@ -1494,6 +1655,161 @@ export class SettingsPanel extends LitElement {
       `,
       "browser",
     );
+  }
+
+  private mcpStatusPillClass(): string {
+    const h = this.mcpHealth;
+    if (!h?.mcp_enabled) return "mcp-status-pill";
+    if (h.mcp_http_mounted) return "mcp-status-pill active";
+    return "mcp-status-pill warn";
+  }
+
+  private mcpStatusLabel(): string {
+    const h = this.mcpHealth;
+    if (!h) return t("ui.settings.mcp.statusLoading");
+    if (!h.mcp_enabled) return t("ui.settings.mcp.statusDisabled");
+    if (h.mcp_http_mounted) return t("ui.settings.mcp.statusActive");
+    return t("ui.settings.mcp.statusMisconfigured");
+  }
+
+  private renderMcpDeploymentNote() {
+    if (this.session?.is_addon) {
+      return html`
+        <div class="link-card">
+          <div>
+            <strong>${t("ui.settings.mcp.haAddonTitle")}</strong>
+            <p class="label" style="margin:4px 0 0">${t("ui.settings.mcp.haAddonIntro")}</p>
+          </div>
+        </div>
+      `;
+    }
+    return html`
+      <details>
+        <summary>${t("ui.settings.mcp.envVarsTitle")}</summary>
+        <p class="label">${t("ui.settings.mcp.envVarsIntro")}</p>
+        <table class="env-table">
+          <thead>
+            <tr>
+              <th>${t("ui.settings.mcp.envVarCol")}</th>
+              <th>${t("ui.settings.mcp.envPurposeCol")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>MCP_ENABLED</code></td><td>${t("ui.settings.mcp.envEnabled")}</td></tr>
+            <tr><td><code>MCP_TOKEN</code></td><td>${t("ui.settings.mcp.envToken")}</td></tr>
+            <tr><td><code>MCP_HTTP_PATH</code></td><td>${t("ui.settings.mcp.envPath")}</td></tr>
+            <tr><td><code>SOLAR_API_URL</code></td><td>${t("ui.settings.mcp.envApiUrl")}</td></tr>
+          </tbody>
+        </table>
+        <p class="label">${t("ui.settings.mcp.restartNote")}</p>
+      </details>
+    `;
+  }
+
+  private renderMcpSection() {
+    const h = this.mcpHealth;
+    const httpOpen = Boolean(h?.mcp_enabled);
+    return html`
+      ${this.renderSectionPanel(
+        t("ui.settings.mcp.statusTitle"),
+        sectionHelp("mcp"),
+        html`
+          <p class="label">
+            <span class=${this.mcpStatusPillClass()}>${this.mcpStatusLabel()}</span>
+          </p>
+          <p class="label">${t("ui.settings.mcp.envPersistenceNote")}</p>
+          ${h
+            ? html`
+                <ul class="label" style="margin:8px 0 0;padding-inline-start:1.2em">
+                  <li>
+                    ${h.mcp_enabled
+                      ? t("ui.settings.mcp.lineHttpEnabled")
+                      : t("ui.settings.mcp.lineHttpDisabled")}
+                  </li>
+                  <li>
+                    ${h.mcp_auth_configured
+                      ? t("ui.settings.mcp.lineAuthOk")
+                      : t("ui.settings.mcp.lineAuthMissing")}
+                  </li>
+                  ${h.mcp_tool_calls_total != null
+                    ? html`<li>${t("ui.settings.mcp.lineToolCalls", { count: String(h.mcp_tool_calls_total) })}</li>`
+                    : null}
+                  ${h.mcp_auth_failures_total
+                    ? html`<li style="color:var(--warn)">${t("ui.settings.mcp.lineAuthFailures", { count: String(h.mcp_auth_failures_total) })}</li>`
+                    : null}
+                </ul>
+              `
+            : html`<p class="label">${t("ui.settings.mcp.statusLoading")}</p>`}
+        `,
+      )}
+      ${this.renderSectionPanel(
+        t("ui.settings.mcp.securityTitle"),
+        undefined,
+        html`
+          <p class="label">${t("ui.settings.mcp.securityIntro")}</p>
+          ${h?.mcp_enabled && !h.mcp_http_mounted
+            ? html`<p class="label err" role="alert">${t("ui.settings.mcp.misconfiguredAlert")}</p>`
+            : null}
+        `,
+      )}
+      <details ?open=${httpOpen}>
+        <summary>${t("ui.settings.mcp.httpTitle")}</summary>
+        <p class="label">${t("ui.settings.mcp.httpIntro")}</p>
+        <div class="fields">
+          <div class="field">
+            <label>${t("ui.settings.mcp.httpPathLabel")}</label>
+            <input type="text" readonly .value=${h?.mcp_http_path ?? "/mcp"} />
+          </div>
+          <div class="field" style="grid-column:1/-1">
+            <label>${t("ui.settings.mcp.httpUrlLabel")}</label>
+            <input
+              type="text"
+              readonly
+              .value=${h?.mcp_http_url ?? t("ui.settings.mcp.httpUrlUnavailable")}
+            />
+          </div>
+        </div>
+        <div class="buttons">
+          <button
+            type="button"
+            ?disabled=${!h?.mcp_http_url}
+            @click=${() => void this.copyText(h!.mcp_http_url!, "ui.settings.mcp.copyUrlSuccess")}
+          >
+            ${t("ui.settings.mcp.copyUrl")}
+          </button>
+        </div>
+        <p class="label">${t("ui.settings.mcp.httpBearerNote")}</p>
+      </details>
+      <details>
+        <summary>${t("ui.settings.mcp.stdioTitle")}</summary>
+        <ol class="label">
+          <li>${t("ui.settings.mcp.stdioStep1")}</li>
+          <li>${t("ui.settings.mcp.stdioStep2")}</li>
+          <li>${t("ui.settings.mcp.stdioStep3")}</li>
+          <li>${t("ui.settings.mcp.stdioStep4")}</li>
+        </ol>
+        <pre class="mcp-snippet">${MCP_STDIO_SNIPPET}</pre>
+        <div class="buttons">
+          <button
+            type="button"
+            @click=${() => void this.copyText(MCP_STDIO_SNIPPET, "ui.settings.mcp.copySnippetSuccess")}
+          >
+            ${t("ui.settings.mcp.copySnippet")}
+          </button>
+        </div>
+        <p class="label">${t("ui.settings.mcp.docsHint")}</p>
+      </details>
+      ${this.renderMcpDeploymentNote()}
+      <div class="link-card">
+        <div>
+          <strong>${t("ui.settings.mcp.relatedSecurityTitle")}</strong>
+          <p class="label" style="margin:4px 0 0">${t("ui.settings.mcp.relatedSecurityIntro")}</p>
+        </div>
+        <button type="button" @click=${() => this.openApiSecuritySection()}>
+          ${t("ui.settings.mcp.openApiSecurity")} →
+        </button>
+      </div>
+    `;
   }
 
   private formatPublishedAt(iso: string | null): string {
@@ -2643,7 +2959,11 @@ export class SettingsPanel extends LitElement {
 
   private renderSetupChecklist() {
     if (this.checklistDismissed || !this.draft) return null;
-    const items = buildSetupChecklist(this.status, this.draft, this.entitiesConnected);
+    const mcpReady =
+      this.mcpHealth != null
+        ? Boolean(this.mcpHealth.mcp_enabled && this.mcpHealth.mcp_auth_configured)
+        : undefined;
+    const items = buildSetupChecklist(this.status, this.draft, this.entitiesConnected, mcpReady);
     if (!checklistNeedsAttention(items)) return null;
     const required = items.filter((i) => !i.optional);
     const done = required.filter((i) => i.done).length;
@@ -2701,18 +3021,51 @@ export class SettingsPanel extends LitElement {
   }
 
   private renderCategoryPills() {
+    if (this.layoutWide || this.searchQuery.trim()) return null;
     return html`
-      <div class="category-pills" role="tablist">
+      <div class="category-pills" role="tablist" aria-label=${t("ui.settings.categoryNav")}>
         ${SETTINGS_CATEGORIES.map(
           (cat) => html`
             <button
               type="button"
               role="tab"
               class="nav-pill ${this.mobileCategory === cat ? "active" : ""}"
+              aria-selected=${this.mobileCategory === cat ? "true" : "false"}
               @click=${() => this.selectCategory(cat)}
             >${t(`ui.settings.category.${cat}`)}</button>
           `,
         )}
+      </div>
+    `;
+  }
+
+  private renderMobileSectionNav() {
+    if (this.layoutWide || this.searchQuery.trim()) return null;
+    const items = navItemsForCategory(this.mobileCategory);
+    if (items.length <= 1) return null;
+    return html`
+      <nav class="settings-nav settings-mobile-section-nav" aria-label=${t("ui.settings.sectionNav")}>
+        ${items.map(
+          (item) => html`
+            <button
+              type="button"
+              class="nav-item ${this.activeNav === item.id ? "active" : ""}"
+              aria-selected=${this.activeNav === item.id ? "true" : "false"}
+              aria-controls="settings-section-${item.id}"
+              @click=${() => this.selectNav(item.id)}
+            >${this.navLabel(item.labelKey)}</button>
+          `,
+        )}
+      </nav>
+    `;
+  }
+
+  private renderMobileNavStack() {
+    if (this.layoutWide || this.searchQuery.trim()) return null;
+    return html`
+      <div class="settings-mobile-nav-stack">
+        ${this.renderCategoryPills()}
+        ${this.renderMobileSectionNav()}
       </div>
     `;
   }
@@ -2755,6 +3108,8 @@ export class SettingsPanel extends LitElement {
         return this.renderTemperature();
       case "safety":
         return this.renderSafetySection();
+      case "system_mcp":
+        return this.renderMcpSection();
       case "system":
         return html`
           ${this.renderDisplayPreferencesSection()}
@@ -2829,7 +3184,7 @@ export class SettingsPanel extends LitElement {
         </div>
         ${this.renderSetupChecklist()}
         ${this.renderValidationBanner()}
-        ${this.renderCategoryPills()}
+        ${this.renderMobileNavStack()}
         <div class="settings-shell">
           ${this.renderNavDesktop()}
           <div class="settings-content">${this.renderNavContent()}</div>

@@ -374,6 +374,18 @@
     "importConfig": "Import config",
     "searchPlaceholder": "Search settings…",
     "noSearchResults": "No settings match your search.",
+    "categoryNav": "Settings categories",
+    "sectionNav": "Settings sections",
+    "nav": {
+      "mcp": "Agent access"
+    },
+    "mcp": {
+      "statusTitle": "Agent access status",
+      "statusDisabled": "Disabled",
+      "statusActive": "Active",
+      "statusMisconfigured": "Misconfigured",
+      "openApiSecurity": "Open API security"
+    },
     "loadSheddingTitle": "Load shedding",
     "loadSheddingIntro": "Tiered SOC-based switching is configured on the Load shedding tab (separate save).",
     "openLoadShedding": "Open Load shedding",
@@ -386,7 +398,8 @@
       "inverter": "Inverter",
       "temperature": "Temperature",
       "safety": "Safety",
-      "system": "System"
+      "system": "System",
+      "mcp": "Agent access"
     },
     "category": {
       "setup": "Setup",

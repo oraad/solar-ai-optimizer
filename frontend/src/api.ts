@@ -287,8 +287,21 @@ export const api = {
     if (res.status === 202) return;
     if (!res.ok) throw new Error(await parseError(res, "/api/system/update/restore"));
   },
-  health: () => getJSON<{ status: string }>("/api/health"),
+  health: () => getJSON<HealthInfo>("/api/health"),
 };
+
+export interface HealthInfo {
+  status: string;
+  mcp_enabled?: boolean;
+  mcp_http_path?: string;
+  mcp_auth_configured?: boolean;
+  mcp_http_mounted?: boolean;
+  mcp_http_url?: string | null;
+  mcp_tool_calls_total?: number;
+  mcp_auth_failures_total?: number;
+  is_addon?: boolean;
+  metrics?: Record<string, unknown>;
+}
 
 export type StatusListener = (status: SystemStatus) => void;
 

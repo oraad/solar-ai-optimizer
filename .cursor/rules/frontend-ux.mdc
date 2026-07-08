@@ -14,7 +14,7 @@ One app for admin and viewer; hide tabs/controls by role — never separate apps
 
 - Sticky topbar: brand + live status strip + theme toggle
 - Horizontal tab nav with **labels** (not icon-only); scroll-snap on mobile
-- Settings: desktop sidebar from `SETTINGS_NAV` (`settings-nav.ts`); mobile category pills + search
+- Settings: desktop sidebar from `SETTINGS_NAV` (`settings-nav.ts`); mobile category pills + subsection strip + search; **Agent access (MCP)** under System category (`system_mcp`)
 - Cross-panel links via `solar-navigate-tab` custom events
 
 ## Operator safety

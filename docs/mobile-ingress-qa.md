@@ -34,6 +34,15 @@ Use this checklist when validating the dashboard inside the HA Companion app ing
 - [ ] Overrides segmented controls are tappable.
 - [ ] Assistant chat input stays above the keyboard / safe area.
 
+## Settings
+
+- [ ] Nav jump scroll does not hide section titles under the sticky topbar.
+- [ ] Desktop settings sidebar stays below the app topbar while scrolling.
+- [ ] Mobile category pills and subsection strip scroll horizontally; active section highlights while scrolling.
+- [ ] Settings search hides category/subsection pills and shows cross-category matches.
+- [ ] Agent access (MCP) section shows status pill; misconfigured state is visible when enabled without a token.
+- [ ] Save bar stays visible and respects the bottom safe area.
+
 ## Regression (desktop)
 
 - [ ] Standalone `http://localhost:8000` and desktop ingress in HA sidebar still look correct at 1280×900.

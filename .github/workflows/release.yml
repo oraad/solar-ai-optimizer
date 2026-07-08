@@ -15,11 +15,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Verify release tag matches VERSION
+      - name: Verify release tag matches VERSION and integration manifest
         run: |
           tag="${GITHUB_REF_NAME#v}"
           version="$(tr -d '\r\n' < VERSION)"
           test "$version" = "$tag"
+          manifest="$(python -c "import json; print(json.load(open('custom_components/solar_ai_optimizer/manifest.json'))['version'])")"
+          test "$manifest" = "$tag"
+          echo "tag=$tag version=$version manifest=$manifest"
+
+      - name: Package HA integration zip
+        run: |
+          sudo apt-get update && sudo apt-get install -y zip unzip
+          bash scripts/package-ha-integration.sh
+          unzip -l dist/solar_ai_optimizer.zip | head -n 40
 
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
@@ -67,9 +76,12 @@ jobs:
             rm -f release-notes.md
           fi
 
-      - uses: softprops/action-gh-release@v3
+      # Single softprops create: Docker is already on GHCR; attach HA zip once.
+      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
           body_path: release-notes.md
-          fail_on_unmatched_files: false
+          files: |
+            dist/solar_ai_optimizer.zip
+          fail_on_unmatched_files: true

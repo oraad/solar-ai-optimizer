@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from aiohttp import ClientError, ClientResponseError
 from homeassistant.config_entries import ConfigEntry
@@ -13,11 +12,12 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import SolarAiClient
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, UPDATE_POLL_INTERVAL
+from .models import CoordinatorData, SolarConfigData, UpdateData
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class SolarAiCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class SolarAiCoordinator(DataUpdateCoordinator[CoordinatorData]):
     """Poll Solar health and system update endpoints."""
 
     config_entry: ConfigEntry
@@ -39,37 +39,56 @@ class SolarAiCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.client = client
         self._update_in_progress = False
 
-    async def _async_update_data(self) -> dict[str, Any]:
+    @staticmethod
+    def _format_error(err: BaseException) -> str:
+        """Format aiohttp errors without relying on fragile __str__."""
+        if isinstance(err, ClientResponseError):
+            return f"HTTP {err.status}: {err.message}"
+        return str(err)
+
+    async def _async_update_data(self) -> CoordinatorData:
         """Fetch health always; update info when authorized."""
         try:
             health = await self.client.get_health()
         except ClientResponseError as err:
             if err.status == 401:
                 raise ConfigEntryAuthFailed("Authentication failed") from err
-            raise UpdateFailed(f"Error communicating with Solar API: {err}") from err
+            raise UpdateFailed(
+                f"Error communicating with Solar API: {self._format_error(err)}"
+            ) from err
         except ClientError as err:
-            raise UpdateFailed(f"Error communicating with Solar API: {err}") from err
+            raise UpdateFailed(
+                f"Error communicating with Solar API: {self._format_error(err)}"
+            ) from err
 
-        update: dict[str, Any] | None = None
-        config: dict[str, Any] | None = None
+        update: UpdateData | None = None
+        config: SolarConfigData | None = None
         try:
             update = await self.client.get_update_info()
         except ClientResponseError as err:
             if err.status == 401:
                 raise ConfigEntryAuthFailed("Authentication failed") from err
-            raise UpdateFailed(f"Error fetching update info: {err}") from err
+            raise UpdateFailed(
+                f"Error fetching update info: {self._format_error(err)}"
+            ) from err
         except ClientError as err:
-            raise UpdateFailed(f"Error fetching update info: {err}") from err
+            raise UpdateFailed(
+                f"Error fetching update info: {self._format_error(err)}"
+            ) from err
 
         try:
             config = await self.client.get_config()
         except ClientResponseError as err:
             # Config is best-effort for fail-safe amp defaults; update auth is authoritative.
-            _LOGGER.debug("Config fetch failed (status %s): %s", err.status, err)
+            _LOGGER.debug(
+                "Config fetch failed (status %s): %s",
+                err.status,
+                self._format_error(err),
+            )
         except ClientError as err:
-            _LOGGER.debug("Config fetch failed: %s", err)
+            _LOGGER.debug("Config fetch failed: %s", self._format_error(err))
 
-        update = update or {}
+        update = update or UpdateData()
         update_in_progress = bool(update.get("update_in_progress"))
         self._update_in_progress = update_in_progress
         self.update_interval = (

@@ -21,7 +21,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer
 
 افتح لوحة القيادة في`http://<lxc-ip>:8000`.
 
-**Home Assistant:** ثبّت [تكامل HACS](home-assistant-integration.md) للـ fail-safe وكيان التحديث. أنشئ رمز اقتران من إعدادات Solar ثم أضف التكامل في HA (Core 2026.3.0+).
+**Home Assistant:** ثبّت [تكامل HACS](home-assistant-integration.md) للـ fail-safe وكيان التحديث. أنشئ رمز اقتران من إعدادات Solar ثم أضف التكامل في HA (Core 2026.7.0+).
 
 يكتب البرنامج النصي التثبيت`/opt/solar-ai-optimizer/solar.env`مع`TRUST_INGRESS_HEADERS=true`(يثق في رؤوس ومجموعات المستخدم التي تدخل HA`X-Frame-Options: SAMEORIGIN`للوحة الشريط الجانبي) وبيانات اعتماد المسؤول المحلي التي يتم إنشاؤها تلقائيًا. تتم طباعة اسم المستخدم وكلمة المرور مرة واحدة في نهاية التثبيت - احفظهما.
 

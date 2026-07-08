@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
@@ -20,6 +20,7 @@ from .const import (
     DEFAULT_MAX_GRID_CHARGE_A,
     DEFAULT_STALE_SECONDS,
 )
+from .helpers import option_value, parse_pulse
 
 if TYPE_CHECKING:
     from . import SolarAiConfigEntry
@@ -29,27 +30,11 @@ _LOGGER = logging.getLogger(__name__)
 
 _TICK = timedelta(seconds=15)
 
-
-def _parse_pulse(value: Any) -> datetime | None:
-    if value is None or value == "":
-        return None
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-    if isinstance(value, str):
-        parsed = dt_util.parse_datetime(value)
-        if parsed is None:
-            return None
-        if parsed.tzinfo is None:
-            # Site-local ISO without offset — treat as local HA time.
-            return dt_util.as_local(parsed)
-        return parsed
-    return None
+_T = TypeVar("_T")
 
 
-def _option(entry: SolarAiConfigEntry, key: str, default: Any = None) -> Any:
-    if key in entry.options:
-        return entry.options[key]
-    return entry.data.get(key, default)
+def _option(entry: SolarAiConfigEntry, key: str, default: _T | None = None) -> Any:
+    return option_value(dict(entry.options), dict(entry.data), key, default)
 
 
 class SolarFailsafeWatchdog:
@@ -125,7 +110,7 @@ class SolarFailsafeWatchdog:
 
     def _is_healthy(self) -> bool:
         data = self.coordinator.data or {}
-        pulse = _parse_pulse(data.get("heartbeat_last_pulse"))
+        pulse = parse_pulse(data.get("heartbeat_last_pulse"))
         if pulse is None:
             return False
         age = (dt_util.utcnow() - dt_util.as_utc(pulse)).total_seconds()
@@ -178,15 +163,22 @@ class SolarFailsafeWatchdog:
             amps,
             number_id,
         )
-        await self.hass.services.async_call(
-            "switch",
-            "turn_on",
-            {ATTR_ENTITY_ID: switch_id},
-            blocking=True,
-        )
-        await self.hass.services.async_call(
-            "number",
-            "set_value",
-            {ATTR_ENTITY_ID: number_id, "value": amps},
-            blocking=True,
-        )
+        try:
+            await self.hass.services.async_call(
+                "switch",
+                "turn_on",
+                {ATTR_ENTITY_ID: switch_id},
+                blocking=True,
+            )
+            await self.hass.services.async_call(
+                "number",
+                "set_value",
+                {ATTR_ENTITY_ID: number_id, "value": amps},
+                blocking=True,
+            )
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception(
+                "Fail-safe service calls failed for switch=%s number=%s",
+                switch_id,
+                number_id,
+            )

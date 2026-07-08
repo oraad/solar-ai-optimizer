@@ -17,6 +17,7 @@ from .const import (
 )
 from .coordinator import SolarAiCoordinator
 from .failsafe import SolarFailsafeWatchdog
+from .repairs import async_check_failsafe_repair, failsafe_entity_ids
 
 
 @dataclass
@@ -52,6 +53,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolarAiConfigEntry) -> b
 
     data.failsafe = await SolarFailsafeWatchdog.async_setup(
         hass, entry, coordinator
+    )
+
+    switch_id, number_id = failsafe_entity_ids(entry.options, entry.data)
+    async_check_failsafe_repair(
+        hass, entry.entry_id, switch_id=switch_id, number_id=number_id
     )
     return True
 

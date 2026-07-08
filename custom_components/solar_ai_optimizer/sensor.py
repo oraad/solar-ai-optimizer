@@ -5,59 +5,52 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
 )
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
-from homeassistant.util import dt as dt_util
 
 from . import SolarAiConfigEntry
+from .coordinator import SolarAiCoordinator
 from .entity import SolarAiEntity
+from .helpers import parse_pulse
+from .models import CoordinatorData
 
-
-def _parse_pulse(value: Any) -> datetime | None:
-    if value is None or value == "":
-        return None
-    if isinstance(value, datetime):
-        return value
-    if isinstance(value, str):
-        parsed = dt_util.parse_datetime(value)
-        if parsed is None:
-            return None
-        if parsed.tzinfo is None:
-            return dt_util.as_local(parsed)
-        return parsed
-    return None
+PARALLEL_UPDATES = 0
 
 
 @dataclass(frozen=True, kw_only=True)
 class SolarAiSensorEntityDescription(SensorEntityDescription):
     """Describes a Solar AI sensor."""
 
-    value_fn: Callable[[dict[str, Any]], StateType | datetime]
+    value_fn: Callable[[CoordinatorData], StateType | datetime]
 
 
 SENSORS: tuple[SolarAiSensorEntityDescription, ...] = (
     SolarAiSensorEntityDescription(
         key="version",
         translation_key="version",
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.get("version"),
     ),
     SolarAiSensorEntityDescription(
         key="last_pulse",
         translation_key="last_pulse",
         device_class=SensorDeviceClass.TIMESTAMP,
-        value_fn=lambda data: _parse_pulse(data.get("heartbeat_last_pulse")),
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: parse_pulse(data.get("heartbeat_last_pulse")),
     ),
     SolarAiSensorEntityDescription(
         key="install_visibility",
         translation_key="install_visibility",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
         value_fn=lambda data: data.get("install_id"),
     ),
 )
@@ -83,7 +76,7 @@ class SolarAiSensor(SolarAiEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator: Any,
+        coordinator: SolarAiCoordinator,
         description: SolarAiSensorEntityDescription,
     ) -> None:
         super().__init__(coordinator)

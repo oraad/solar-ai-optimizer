@@ -1,4 +1,4 @@
-name: Release (app)
+name: Release
 
 on:
   push:
@@ -11,7 +11,6 @@ permissions:
 
 jobs:
   release:
-    if: ${{ !startsWith(github.ref_name, 'integration-v') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -20,17 +19,8 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME#v}"
           version="$(tr -d '\r\n' < VERSION)"
-          integration="$(tr -d '\r\n' < INTEGRATION_VERSION)"
           test "$version" = "$tag"
-          manifest="$(python -c "import json; print(json.load(open('custom_components/solar_ai_optimizer/manifest.json'))['version'])")"
-          test "$manifest" = "$integration"
-          echo "tag=$tag app=$version integration=$integration manifest=$manifest"
-
-      - name: Package HA integration zip
-        run: |
-          sudo apt-get update && sudo apt-get install -y zip unzip
-          bash scripts/package-ha-integration.sh
-          unzip -l dist/solar_ai_optimizer.zip | head -n 40
+          echo "tag=$tag version=$version"
 
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
@@ -71,11 +61,8 @@ jobs:
         run: |
           bash scripts/check-python.sh
           tag="${GITHUB_REF_NAME#v}"
-          if python scripts/changelog-excerpt.py --kind app --version "$tag" > release-notes.md; then
-            integration="$(tr -d '\r\n' < INTEGRATION_VERSION)"
-            echo "" >> release-notes.md
-            echo "Bundled HACS integration zip: **${integration}** (manifest inside zip)." >> release-notes.md
-            echo "Using CHANGELOG excerpt for app v$tag"
+          if python scripts/changelog-excerpt.py --version "$tag" > release-notes.md; then
+            echo "Using CHANGELOG excerpt for v$tag"
           else
             echo "No CHANGELOG section for v$tag — release will use auto-generated notes only"
             rm -f release-notes.md
@@ -86,6 +73,3 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
           body_path: release-notes.md
-          files: |
-            dist/solar_ai_optimizer.zip
-          fail_on_unmatched_files: true

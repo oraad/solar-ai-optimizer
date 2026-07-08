@@ -2,9 +2,11 @@
 
 Solar AI Optimizer is an **external application** that connects to Home Assistant over REST
 and WebSocket. For fail-safe and software updates from HA itself, install the
-**[HACS custom integration](home-assistant-integration.md)** (Home Assistant **2026.7+**).
+**[HACS custom integration](https://oraad.github.io/solar-ai-integration/home-assistant-integration/)** (Home Assistant **2026.7+**).
 
-A legacy [YAML fail-safe package](home-assistant-failsafe.md) still exists for older setups;
+Install from [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration) — **not** this repository (this repo is the Solar app / HA Apps add-on only).
+
+A legacy [YAML fail-safe package](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) still exists for older setups;
 prefer the integration and disable the package when both would run.
 
 Choose your deployment path:
@@ -14,10 +16,10 @@ Choose your deployment path:
 | [Supervisor app](#supervisor-add-on) | HAOS or Supervised — recommended for most HA users |
 | [Docker + hass_ingress](#docker-with-hass_ingress) | Standalone container on the same network as HA |
 | [Standalone Docker](#standalone-docker) | Direct `:8000` access; optional local admin login |
-| [HA custom integration](home-assistant-integration.md) | Fail-safe + Updates in HA (pairs with any of the above) |
+| [HA custom integration](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) | Fail-safe + Updates in HA (pairs with any of the above) |
 
 After connecting, complete [entity mapping](#inverter-entity-discovery). For fail-safe,
-use the [custom integration](home-assistant-integration.md) (or optionally the
+use the [custom integration](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) (or optionally the
 [legacy package](#home-assistant-packages)).
 
 ---
@@ -204,7 +206,7 @@ Before reloading, edit placeholders:
 - `input_number.solar_optimizer_max_grid_charge_a` **initial** — match Settings → Grid charge → Max grid charge current (A)
 
 Reload **helpers**, **templates**, and **automations**. Then configure the optimizer side:
-[Home Assistant fail-safe](home-assistant-failsafe.md).
+[Home Assistant fail-safe](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/).
 
 ---
 
@@ -287,6 +289,6 @@ Settings → Forecast → Temperature → **Outdoor sensor entity** — any `sen
 ## Related guides
 
 - [Installation](installation.md) — Docker, HA app, Proxmox
-- [Home Assistant fail-safe](home-assistant-failsafe.md) — heartbeat tuning
+- [Home Assistant fail-safe](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) — heartbeat tuning
 - [Roles and access](ingress-auth.md) — admin vs viewer
 - [Configuration](configuration.md) — env vars and persistence

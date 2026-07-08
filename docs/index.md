@@ -11,7 +11,7 @@ unpredictable grid outages.
 | **Install** | [Installation and quick start](installation.md) — Docker, Compose, add-on, Proxmox |
 | **Dashboard** | [Dashboard user guide](frontend-manual.md) — admin and viewer walkthrough |
 | **Mobile (HA app)** | [Mobile ingress QA](mobile-ingress-qa.md) — Companion app checklist |
-| **Home Assistant** | [HA setup](home-assistant-setup.md) · [Fail-safe package](home-assistant-failsafe.md) |
+| **Home Assistant** | [HA setup](home-assistant-setup.md) · [Integration (HACS)](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) · [Fail-safe package](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) |
 | **Access control** | [Roles and access](ingress-auth.md) — admin vs viewer |
 | **Config** | [Configuration](configuration.md) · [`.env.example`](https://github.com/oraad/solar-ai-optimizer/blob/main/.env.example) |
 | **Proxmox** | [Proxmox deployment](proxmox.md) |

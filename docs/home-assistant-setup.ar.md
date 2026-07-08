@@ -184,7 +184,7 @@ config/packages/solar-optimizer-failsafe.yaml
 - `input_number.solar_optimizer_max_grid_charge_a`**الأولي** — مطابقة الإعدادات ← شحن الشبكة ← الحد الأقصى لتيار شحن الشبكة (A)
 
 أعد تحميل **المساعدين**، و**النماذج**، و**الأتمتة**. ثم قم بتكوين الجانب المحسن:
-[مساعد المنزل آمن من الفشل](home-assistant-failsafe.md).
+[مساعد المنزل آمن من الفشل](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/).
 
 ---
 
@@ -267,6 +267,6 @@ config/packages/solar-optimizer-failsafe.yaml
 ## أدلة ذات صلة
 
 - [تثبيت](installation.md)— عامل الميناء، تطبيق HA، Proxmox
-- [مساعد المنزل آمن من الفشل](home-assistant-failsafe.md)- ضبط نبضات القلب
+- [مساعد المنزل آمن من الفشل](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) — ضبط نبضات القلب
 - [الأدوار والوصول](ingress-auth.md)- المشرف مقابل المشاهد
 - [إعدادات](configuration.md)- env ​​vars والمثابرة

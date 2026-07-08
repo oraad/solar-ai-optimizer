@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- HACS integration moved to [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration); this repo is app / HA Apps add-on only
+- App releases ship Docker image only (no bundled `solar_ai_optimizer.zip`)
+
 ## [integration 0.1.0] - 2026-07-08
 
 ### Integration

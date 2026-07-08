@@ -7,4 +7,3 @@ run.sh text eol=lf
 
 # Canonical version files — release workflows compare tags on Linux.
 VERSION text eol=lf
-INTEGRATION_VERSION text eol=lf

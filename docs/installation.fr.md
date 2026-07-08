@@ -203,7 +203,7 @@ Après tout chemin de déploiement :
 3. Définissez la **latitude/longitude du site** et les **tableaux photovoltaïques** (requis pour les prévisions solaires)
 4. Mappez les **entités de lecture/écriture de l'onduleur** dans Paramètres → Carte des entités de l'onduleur
 5. Laissez le **mode ombre** activé ; confirmer Les décisions générales semblent raisonnables
-6. Importez éventuellement le[package HA de sécurité](home-assistant-failsafe.md)et activez le rythme cardiaque dans Paramètres → Sécurité intégrée
+6. Importez éventuellement le[package HA de sécurité](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/)et activez le rythme cardiaque dans Paramètres → Sécurité intégrée
 7. Passez au contrôle **live** uniquement lorsque vous faites confiance à l'optimiseur
 
 Prochaines étapes :

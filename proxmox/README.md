@@ -21,7 +21,7 @@ The wizard provisions:
 
 Open the dashboard at `http://<lxc-ip>:8000`.
 
-**Home Assistant:** Install the [HACS integration](https://oraad.github.io/solar-ai-optimizer/home-assistant-integration/) for fail-safe and Update entities. Generate a pairing code in Solar Settings, then add the integration in HA (Core 2026.7.0+).
+**Home Assistant:** Install the [HACS integration](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) for fail-safe and Update entities. Generate a pairing code in Solar Settings, then add the integration in HA (Core 2026.7.0+).
 
 The install script writes `/opt/solar-ai-optimizer/solar.env` with `TRUST_INGRESS_HEADERS=true` (trusts HA ingress user headers and sets `X-Frame-Options: SAMEORIGIN` for the sidebar panel) and auto-generated local admin credentials. The username and password are printed once at the end of the install — save them.
 

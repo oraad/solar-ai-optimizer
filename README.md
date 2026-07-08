@@ -20,7 +20,14 @@ forecast load, and defend a conservative battery reserve so the home survives ev
 if the grid never returns. The grid is handled purely reactively - whenever it
 appears, the optimizer grabs it; it is never assumed or predicted.
 
-## Documentation
+## Migration from monorepo HACS
+
+HACS integration moved to **[`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration)**. Remove this repository from HACS custom repositories (if added as Integration) and add the integration repo instead. This repository is for the **Solar app** (Docker / HA Apps) only.
+
+## Migration
+
+HACS integration moved to **[oraad/solar-ai-integration](https://github.com/oraad/solar-ai-integration)**. Remove this repository from HACS custom repositories (if added as Integration) and add the integration repo instead. This repository is for the **Solar app** (Docker / HA Apps) only.
+
 
 Full documentation: **https://oraad.github.io/solar-ai-optimizer/**
 
@@ -28,7 +35,7 @@ Full documentation: **https://oraad.github.io/solar-ai-optimizer/**
 |-------|--------|
 | Install | [Installation](https://oraad.github.io/solar-ai-optimizer/installation/) — Docker, Compose, HA app, Proxmox |
 | Dashboard | [User guide](https://oraad.github.io/solar-ai-optimizer/frontend-manual/) — admin and viewer |
-| Home Assistant | [HA setup](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/) · [Integration (HACS)](https://oraad.github.io/solar-ai-optimizer/home-assistant-integration/) · [Fail-safe](https://oraad.github.io/solar-ai-optimizer/home-assistant-failsafe/) |
+| Home Assistant | [HA setup](https://oraad.github.io/solar-ai-optimizer/home-assistant-setup/) · [Integration (HACS)](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) · [Fail-safe](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) |
 | Access | [Roles and access](https://oraad.github.io/solar-ai-optimizer/ingress-auth/) |
 | Config | [Configuration](https://oraad.github.io/solar-ai-optimizer/configuration/) |
 | Proxmox | [Proxmox deployment](https://oraad.github.io/solar-ai-optimizer/proxmox/) |
@@ -129,7 +136,7 @@ Configuration details: [Configuration guide](https://oraad.github.io/solar-ai-op
 - Every write is screened: bounds → watchdog → rate limit → read-back verification.
 - **Kill switch** enables grid charge at max current, restores shed tiers, and pauses the engine. Use **Clear overrides** to resume.
 - **Grid charge ramp:** Settings → Grid charge configures a cap chain that ramps max grid charge current up/down each cycle (emergencies still force max).
-- **Fail-safe:** heartbeat to Home Assistant plus grid-charge-at-max on shutdown — see [Home Assistant fail-safe](https://oraad.github.io/solar-ai-optimizer/home-assistant-failsafe/).
+- **Fail-safe:** heartbeat to Home Assistant plus grid-charge-at-max on shutdown — see [Home Assistant fail-safe](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/).
 - **Watchdog:** if Home Assistant is unreachable, writes stop; the inverter keeps
   its last safe configuration.
 

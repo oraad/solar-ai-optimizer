@@ -66,6 +66,9 @@ class ShedSnapshotStore:
         was_on: bool,
         companions: dict[str, EntitySnapshot] | None = None,
     ) -> None:
+        # Episode capture-once: do not overwrite a pending snapshot.
+        if power_entity in self._snapshots:
+            return
         self._snapshots[power_entity] = PowerEntitySnapshot(
             was_on=was_on,
             companions=companions or {},

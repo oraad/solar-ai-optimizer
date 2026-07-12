@@ -112,6 +112,12 @@ are discovered automatically and snapshotted when shedding; they are restored wh
 the tier comes back. Devices that were **off before shedding** are never turned
 on by restore.
 
+Snapshots are captured **once per shed episode** (first time a power entity is
+shed) and held until restore, clear, or config prune. Later shed cycles while the
+switch stays off do not re-capture or overwrite that snapshot. A snapshot may be
+captured even when the HA write watchdog is stale; the OFF write still waits until
+HA is fresh.
+
 | Field | Purpose |
 |-------|---------|
 | `restore_enabled` | Restore on SOC when `soc >= restore_above_soc` |

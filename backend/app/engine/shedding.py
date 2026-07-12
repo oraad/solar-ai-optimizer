@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 
 from ..config import LoadSheddingConfig
 from ..i18n import msg
@@ -16,7 +17,11 @@ class LoadSheddingController:
         self._cfg = cfg
 
     def plan(
-        self, telemetry: Telemetry, telemetry_stale: bool = False
+        self,
+        telemetry: Telemetry,
+        telemetry_stale: bool = False,
+        *,
+        pending_restore: Collection[str] | None = None,
     ) -> list[ShedAction]:
         if not self._cfg.enabled or not self._cfg.tiers:
             return []
@@ -34,6 +39,8 @@ class LoadSheddingController:
                 if not tier.restore_on_grid:
                     continue
                 for entity in entities:
+                    if pending_restore is not None and entity not in pending_restore:
+                        continue
                     actions.append(
                         ShedAction(
                             tier=tier.name,
@@ -73,6 +80,8 @@ class LoadSheddingController:
                 if not tier.restore_enabled:
                     continue
                 for entity in entities:
+                    if pending_restore is not None and entity not in pending_restore:
+                        continue
                     actions.append(
                         ShedAction(
                             tier=tier.name,

@@ -81,6 +81,13 @@ class Executor:
         self._last_saved_execution[res.capability] = res
 
     async def _maybe_save_shed_execution(self, res: ShedResult) -> None:
+        # Steady-state skips — do not flood shed history.
+        if res.skipped_reason in (
+            SKIP_NO_SHED_SNAPSHOT,
+            SKIP_ALREADY_SET,
+            SKIP_HA_STALE,
+        ):
+            return
         key = (res.tier, res.entity)
         prev = self._last_saved_shed.get(key)
         if repo.shed_executions_audit_equal(prev, res):
@@ -205,11 +212,31 @@ class Executor:
         power_entity: str,
         tier: LoadTier | None,
     ) -> tuple[bool, list[str]]:
+        # Episode capture-once: preserve pending snapshot until restore/clear/prune.
+        if self._snapshots is not None:
+            existing = self._snapshots.get(power_entity)
+            if existing is not None:
+                log.info(
+                    "Preserving pending shed snapshot for %s (was_on=%s).",
+                    power_entity,
+                    existing.was_on,
+                )
+                return existing.was_on, list(existing.companions.keys())
+
         try:
             st = await self._ha.get_state(power_entity)
         except Exception as e:  # noqa: BLE001
             log.debug("shed snapshot read %s failed: %s", power_entity, e)
             st = None
+
+        # Do not invent was_on=False from a failed/missing HA read.
+        if st is None:
+            log.info(
+                "Skipping shed snapshot for %s: HA state unavailable.",
+                power_entity,
+            )
+            return False, []
+
         was_on = power_entity_was_on(st)
         companion_ids = await self._resolve_companion_ids(tier, power_entity)
         companions: dict[str, EntitySnapshot] = {}
@@ -288,17 +315,7 @@ class Executor:
                 skipped_reason=SKIP_SHADOW_MODE,
             )
 
-        if self._ha.is_stale(self._control.ha_stale_after_seconds):
-            return ShedResult(
-                tier=a.tier,
-                entity=a.entity,
-                desired_on=a.desired_on,
-                applied=False,
-                verified=False,
-                skipped_reason=SKIP_HA_STALE,
-            )
-
-        # Restore path: check snapshot before shed capture
+        # Restore path: check snapshot before write watchdog
         if a.desired_on:
             snap = self._snapshots.get(a.entity) if self._snapshots else None
             if snap is None:
@@ -322,9 +339,20 @@ class Executor:
                     skipped_reason=SKIP_WAS_OFF_BEFORE_SHED,
                 )
 
-        # Shed path: capture snapshot before idempotency
+        # Shed path: capture before write watchdog so pending_restore survives HA stale
         if not a.desired_on:
             _, companions_captured = await self._capture_shed_snapshot(a.entity, tier)
+
+        if self._ha.is_stale(self._control.ha_stale_after_seconds):
+            return ShedResult(
+                tier=a.tier,
+                entity=a.entity,
+                desired_on=a.desired_on,
+                applied=False,
+                verified=False,
+                skipped_reason=SKIP_HA_STALE,
+                companions_captured=companions_captured,
+            )
 
         try:
             st = await self._ha.get_state(a.entity)

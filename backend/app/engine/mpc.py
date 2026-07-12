@@ -13,6 +13,7 @@ engine. Each cycle we re-solve and apply only the first action.
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from datetime import timedelta, timezone
 
 # Hard dependency for this optional engine. ImportError -> fallback to rules.
@@ -89,6 +90,7 @@ class MPCEngine:
         plan_optimization: bool = True,
         plan_grid_charge: bool = True,
         plan_shedding: bool = True,
+        pending_restore: Collection[str] | None = None,
     ) -> Decision:
         # Build the action set with the rule engine, but pin the reserve target
         # to the MPC-optimised value (unless the operator pinned their own).
@@ -111,6 +113,7 @@ class MPCEngine:
             plan_optimization=plan_optimization,
             plan_grid_charge=plan_grid_charge,
             plan_shedding=plan_shedding,
+            pending_restore=pending_restore,
         )
 
         # Enrich risk + summary with MPC survivability result.

@@ -617,6 +617,7 @@ class Orchestrator:
             "plan_optimization": plan_opt,
             "plan_grid_charge": plan_gc,
             "plan_shedding": plan_shed,
+            "pending_restore": frozenset(self.snapshot_store.list_all().keys()),
         }
         if self._mpc is not None and plan_opt:
             try:

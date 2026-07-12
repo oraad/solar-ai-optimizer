@@ -229,6 +229,12 @@ Les **entités associées** (climatisation, sélection, ventilateur, etc.) sur l
 découvert automatiquement et instantané lors de la perte ; ils sont restaurés lorsque le niveau
 revient. Les appareils qui étaient **éteints avant la perte** ne sont jamais activés par la restauration.
 
+Les instantanés sont capturés **une fois par épisode de délestage** et conservés jusqu'à la
+restauration, l'effacement ou le prune de configuration — les cycles de délestage répétés pendant
+que l'interrupteur est déjà éteint n'écrasent pas l'état d'avant la coupure. La capture peut
+avoir lieu pendant que le watchdog d'écriture HA est périmé ; l'écriture OFF attend toujours
+que HA soit frais.
+
 Options par niveau :
 
 | Champ | Objectif |

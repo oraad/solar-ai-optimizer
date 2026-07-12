@@ -82,10 +82,8 @@ describe("temperature entity label", () => {
     await setLocale("en");
   });
 
-  it("includes degrees Celsius for outdoor sensor", () => {
-    expect(fieldLabel("temperature", "ha_entity")).toBe(
-      "Outdoor temperature sensor (normalized to °C)",
-    );
+  it("labels the site outdoor temperature entity", () => {
+    expect(fieldLabel("temperature", "ha_entity")).toBe("Site outdoor temperature");
   });
 });
 

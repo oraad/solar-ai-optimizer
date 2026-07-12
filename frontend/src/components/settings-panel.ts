@@ -3291,8 +3291,8 @@ export class SettingsPanel extends LitElement {
             <solar-entity-input
               .entityId=${(gc.max_grid_import_entity ?? "") as string}
               .entities=${this.entities}
-              .domains=${["sensor"]}
-              placeholder="sensor.…"
+              .domains=${["number"]}
+              placeholder="number.…"
               @entity-id-change=${(e: CustomEvent<string | null>) =>
                 this.setGridChargeField("max_grid_import_entity", e.detail)}
             />
@@ -3363,6 +3363,12 @@ export class SettingsPanel extends LitElement {
       t("ui.settings.nav.safety"),
       sectionHelp("fail_safe"),
       html`
+        <p class="label">
+          ${this.entitiesConnected
+            ? t("ui.settings.inverterConnectedHint")
+            : html`Home Assistant not connected —
+                <button class="link" @click=${() => this.requestEntityReload()}>${t("ui.settings.reloadEntities")}</button>`}
+        </p>
         <p class="label">${t("ui.settings.failSafeIntro")}</p>
         <div class="fields">
           ${typeof fs.heartbeat_enabled === "boolean"
@@ -3376,7 +3382,7 @@ export class SettingsPanel extends LitElement {
               .domains=${["input_datetime"]}
               placeholder="input_datetime.solar_optimizer_heartbeat"
               @entity-id-change=${(e: CustomEvent<string | null>) =>
-                this.setField("fail_safe", "heartbeat_entity", e.detail)}
+                this.setField("fail_safe", "heartbeat_entity", e.detail ?? "")}
             />
           </div>
           ${typeof fs.shutdown_failsafe_enabled === "boolean"

@@ -146,3 +146,57 @@ describe("SettingsPanel MCP section", () => {
     el.remove();
   });
 });
+
+describe("SettingsPanel Safety heartbeat entity", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    vi.restoreAllMocks();
+  });
+
+  it("uses solar-entity-input with input_datetime and shows friendly name", async () => {
+    const el = mountPanel({
+      entitiesConnected: true,
+      entities: [
+        {
+          entity_id: "input_datetime.solar_optimizer_heartbeat",
+          name: "Solar optimizer heartbeat",
+          domain: "input_datetime",
+        },
+      ],
+      config: {
+        site: { latitude: 0, longitude: 0 },
+        battery: {},
+        reserve: {},
+        forecast: {},
+        control: {},
+        engine: {},
+        inverter: { read: {}, write: {} },
+        ha: { base_url: "http://ha.local", has_token: false },
+        fail_safe: {
+          heartbeat_enabled: true,
+          heartbeat_entity: "input_datetime.solar_optimizer_heartbeat",
+        },
+        grid_charge: {},
+      } as SettingsPanel["config"],
+    });
+    (el as unknown as { layoutWide: boolean }).layoutWide = true;
+    (el as unknown as { activeNav: string }).activeNav = "safety";
+    el.requestUpdate();
+    await el.updateComplete;
+
+    const input = el.shadowRoot!.querySelector(
+      "#settings-section-safety solar-entity-input",
+    ) as HTMLElement & {
+      domains: string[];
+      entityId: string;
+      updateComplete: Promise<boolean>;
+      shadowRoot: ShadowRoot | null;
+    };
+    expect(input).not.toBeNull();
+    expect(input.domains).toEqual(["input_datetime"]);
+    expect(input.entityId).toBe("input_datetime.solar_optimizer_heartbeat");
+    await input.updateComplete;
+    expect(input.shadowRoot!.querySelector("input")!.value).toBe("Solar optimizer heartbeat");
+    el.remove();
+  });
+});

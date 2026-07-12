@@ -85,7 +85,7 @@ Définissez **Moteur → mode** dans Paramètres. MPC revient aux règles si PuL
 
 ### Fenêtre d'opportunité réseau
 
-Dans **Paramètres → Charge réseau**, configurez la durée typique de présence (`max_continuous_present_minutes`, défaut 120) et la décote (`grid_window_safety_factor`, 0,75). Les coupures ≤ `max_outage_ignore_minutes` (30) restent dans une même opportunité ; `grid_present=false` en direct arrête toujours la charge. `max_grid_import_w` / `max_grid_import_entity` plafonnent les ampères de planification si le site est plus serré que l'onduleur.
+Dans **Paramètres → Charge réseau**, configurez la durée typique de présence (`max_continuous_present_minutes`, défaut 120) et la décote (`grid_window_safety_factor`, 0,75). Les coupures ≤ `max_outage_ignore_minutes` (30) restent dans une même opportunité ; `grid_present=false` en direct arrête toujours la charge. `max_grid_import_w` / `max_grid_import_entity` (entité HA `number`, W ou kW) plafonnent les ampères de planification si le site est plus serré que l'onduleur.
 
 ### Ordre de priorité d'optimisation
 

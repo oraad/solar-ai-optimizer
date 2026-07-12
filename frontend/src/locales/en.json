@@ -98,7 +98,7 @@
         "max_outage_ignore_minutes": "Ignore short outages (min)",
         "min_opportunity_present_minutes": "Min opportunity length (min)",
         "max_grid_import_w": "Max grid import (W)",
-        "max_grid_import_entity": "Max grid import sensor"
+        "max_grid_import_entity": "Max grid import number entity"
       },
       "engine": {
         "enabled": "Reserve & forecast optimization",
@@ -112,7 +112,7 @@
       },
       "temperature": {
         "enabled": "Temperature load model enabled",
-        "ha_entity": "Outdoor temperature sensor (normalized to °C)",
+        "ha_entity": "Site outdoor temperature",
         "hdd_base_c": "Heating base temperature (°C)",
         "cdd_base_c": "Cooling base temperature (°C)",
         "use_month_fallback": "Use monthly fallback when sensor missing",
@@ -217,7 +217,7 @@
         "max_outage_ignore_minutes": "Brief dropouts ≤ this many minutes stay inside one opportunity window (flicker / 1–30 min outages).",
         "min_opportunity_present_minutes": "Tiny merged present islands below this length are ignored when averaging history (live segment kept).",
         "max_grid_import_w": "Optional site/utility import ceiling in watts. Caps planning amps below inverter max when set. Blank = no extra cap.",
-        "max_grid_import_entity": "Optional HA sensor for live import capacity. Uses unit_of_measurement (W or kW×1000). Overrides the manual watt field when readable."
+        "max_grid_import_entity": "Optional HA number entity for live import capacity. Uses unit_of_measurement (W or kW×1000). Overrides the manual watt field when readable."
       },
       "engine": {
         "enabled": "When off, reserve targets, MPC, and forecast refresh are skipped. Load shedding and grid charge can still run independently.",
@@ -231,7 +231,7 @@
       },
       "temperature": {
         "enabled": "Model heating/cooling load from outdoor temperature in the forecast.",
-        "ha_entity": "Optional HA temperature sensor to bias-correct outdoor forecast readings. Uses unit_of_measurement (°C or °F→°C).",
+        "ha_entity": "Optional outdoor temperature sensor from Home Assistant. Used for live outdoor actuals (charts/telemetry) and to bias-correct the Open-Meteo forecast in the heating/cooling load model. Accepts °C or °F via unit_of_measurement (stored as °C). Leave blank to use Open-Meteo only.",
         "hdd_base_c": "Heating degree-day base: outdoor temps below this add heating load.",
         "cdd_base_c": "Cooling degree-day base: outdoor temps above this add cooling load.",
         "use_month_fallback": "Use monthly average temperature when the outdoor sensor is unavailable.",
@@ -290,7 +290,7 @@
       "grid_charge": "Planned max grid charge current from the latest decision cycle.",
       "reserve": "Target SOC the optimizer is defending right now.",
       "risk": "Overall reserve risk level from the latest decision.",
-      "outdoor": "Outdoor temperature from forecast bias sensor or telemetry."
+      "outdoor": "Outdoor temperature from the site HA sensor when mapped, otherwise the forecast series."
     },
     "sections": {
       "battery": "Physical battery limits used by forecasting and the decision engine.",
@@ -849,7 +849,7 @@
       "mpcUnavailable": "MPC is selected but PuLP is not installed in this image. Rebuild with INSTALL_EXTRAS=1 (default) or install pulp locally. The app is running rules engine fallback.",
       "mlUnavailable": "ML load forecasting is enabled but scikit-learn is not available in this image.",
       "temperatureTitle": "Temperature (heating/cooling)",
-      "temperatureIntro": "Models heater/cooler load from outdoor temperature (Open-Meteo forecast + history). Optionally bias-corrected by a Home Assistant sensor.",
+      "temperatureIntro": "Models heater/cooler load from outdoor temperature (Open-Meteo forecast + history). Optionally corrected with a site outdoor temperature sensor from Home Assistant.",
       "gridChargeIntro": "All listed factors apply each cycle; the engine takes the lowest ceiling. Ramp step limits how fast amps change each cycle.",
       "gridChargeDisabled": "Grid charge control is disabled — ramp settings are not used.",
       "gridChargeAdvanced": "Advanced",

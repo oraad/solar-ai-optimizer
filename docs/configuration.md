@@ -83,7 +83,7 @@ Set **Engine → mode** in Settings. MPC falls back to rules if PuLP is unavaila
 
 ### Grid present opportunity window
 
-Under **Settings → Grid charge**, configure how long a present opportunity typically lasts (`max_continuous_present_minutes`, default 120) and a safety derating (`grid_window_safety_factor`, default 0.75). Short mid-window outages up to `max_outage_ignore_minutes` (default 30) are merged into one opportunity for averages and remaining-time charge urgency; live `grid_present=false` still stops charging. Optional `max_grid_import_w` / `max_grid_import_entity` (HA sensor, W or kW) caps planning amps below the inverter max when the site breaker is tighter.
+Under **Settings → Grid charge**, configure how long a present opportunity typically lasts (`max_continuous_present_minutes`, default 120) and a safety derating (`grid_window_safety_factor`, default 0.75). Short mid-window outages up to `max_outage_ignore_minutes` (default 30) are merged into one opportunity for averages and remaining-time charge urgency; live `grid_present=false` still stops charging. Optional `max_grid_import_w` / `max_grid_import_entity` (HA `number` entity, W or kW) caps planning amps below the inverter max when the site breaker is tighter.
 
 ### Reserve and adaptive load
 

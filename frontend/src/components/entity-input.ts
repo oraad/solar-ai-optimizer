@@ -121,7 +121,9 @@ export class EntityInput extends LitElement {
       />
       ${opts.length
         ? html`<datalist id=${this.datalistId}>
-            ${opts.map((e) => html`<option value=${e.entity_id}>${e.name}</option>`)}
+            ${opts.map(
+              (e) => html`<option value=${e.entity_id} label=${e.name}>${e.name}</option>`,
+            )}
           </datalist>`
         : null}
     `;

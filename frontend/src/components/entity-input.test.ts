@@ -7,6 +7,11 @@ const ENTITIES: EntityInfo[] = [
   { entity_id: "sensor.battery_soc", name: "Battery SOC", domain: "sensor" },
   { entity_id: "switch.pool", name: "Pool pump", domain: "switch" },
   { entity_id: "input_boolean.guest", name: "Guest mode", domain: "input_boolean" },
+  {
+    entity_id: "input_datetime.solar_optimizer_heartbeat",
+    name: "Solar optimizer heartbeat",
+    domain: "input_datetime",
+  },
 ];
 
 beforeAll(async () => {
@@ -49,6 +54,24 @@ describe("EntityInput datalist", () => {
     const input = root(el).querySelector("input")!;
     expect(input.hasAttribute("list")).toBe(false);
     expect(root(el).querySelector("datalist")).toBeNull();
+
+    el.remove();
+  });
+
+  it("filters input_datetime and sets option label to friendly name", async () => {
+    const el = mountInput(["input_datetime"]);
+    await el.updateComplete;
+
+    const opts = [...root(el).querySelectorAll("option")];
+    expect(opts).toHaveLength(1);
+    expect(opts[0]!.value).toBe("input_datetime.solar_optimizer_heartbeat");
+    expect(opts[0]!.getAttribute("label")).toBe("Solar optimizer heartbeat");
+    expect(opts[0]!.textContent).toBe("Solar optimizer heartbeat");
+
+    el.entityId = "input_datetime.solar_optimizer_heartbeat";
+    el.requestUpdate();
+    await el.updateComplete;
+    expect(root(el).querySelector("input")!.value).toBe("Solar optimizer heartbeat");
 
     el.remove();
   });

@@ -173,14 +173,18 @@ class Orchestrator:
         }
 
     async def retry_ha_connection(self) -> dict:
-        """Admin-triggered: close WS circuit and optionally rebuild client."""
-        self.ha.request_retry()
+        """Admin-triggered: reload credentials from disk/env and rebuild the HA client."""
+        await self.reload_ha_credentials()
         ok = await self.ha.ping()
         return {
             "ok": True,
             "rest_reachable": ok,
             **self.ha_connection_diagnostics(),
         }
+
+    async def reload_ha_credentials(self) -> None:
+        """Rebuild HA client from current resolve (oauth file / env / supervisor)."""
+        await self._reconnect_ha()
 
     async def refresh_ha_oauth_if_needed(self) -> None:
         """Refresh IndieAuth access token and reconnect when it changes."""

@@ -1820,6 +1820,7 @@ export class SettingsPanel extends LitElement {
       const started = await api.haOauthStart(publicBase, haUrl || undefined, verifySsl);
       window.open(started.authorize_url, "_blank", "noopener,noreferrer");
       showToast({ message: t("ui.settings.haOauthWindowOpened"), variant: "success" });
+      void this.pollHaOauthAfterAuthorize();
     } catch (e) {
       showToast({
         message: e instanceof Error ? e.message : t("ui.settings.haOauthFailed"),
@@ -1830,6 +1831,22 @@ export class SettingsPanel extends LitElement {
     }
   }
 
+  /** Poll status after authorize popup so WS health updates once callback reconnects. */
+  private async pollHaOauthAfterAuthorize(): Promise<void> {
+    for (let i = 0; i < 90; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      await this.refreshHaOauthStatus();
+      if (
+        this.haOauthConnected &&
+        this.haConnected &&
+        !this.haWsCircuitOpen &&
+        this.haWsErrorClass !== "auth_invalid"
+      ) {
+        return;
+      }
+    }
+  }
+
   private async disconnectHaOauth(): Promise<void> {
     this.haOauthBusy = true;
     try {
@@ -1837,6 +1854,7 @@ export class SettingsPanel extends LitElement {
       this.haOauthConnected = false;
       this.haOauthDegraded = false;
       showToast({ message: t("ui.settings.haOauthDisconnected"), variant: "success" });
+      await this.refreshHaConnectionHealth();
     } catch (e) {
       showToast({
         message: e instanceof Error ? e.message : t("ui.settings.haOauthFailed"),

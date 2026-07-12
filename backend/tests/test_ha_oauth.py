@@ -267,3 +267,162 @@ async def test_finish_authorize_uses_pending_verify_ssl(tmp_path: Path):
     # Pending verify_ssl=False must win over the True fallback argument.
     _, kwargs = client_cls.call_args
     assert kwargs.get("verify") is False
+
+
+@pytest.mark.asyncio
+async def test_retry_ha_connection_reloads_credentials(tmp_path: Path):
+    """Retry must rebuild HAClient from disk, not reuse a stale in-memory token."""
+    ha_oauth._atomic_write(
+        ha_oauth.oauth_path(tmp_path),
+        {
+            "access_token": "fresh-oauth-token",
+            "refresh_token": "refresh",
+            "expires_at": "2099-01-01T00:00:00Z",
+            "ha_base_url": "http://ha.local:8123",
+            "public_base_url": "http://solar.local:8000",
+            "degraded": False,
+        },
+    )
+    orch = object.__new__(Orchestrator)
+    orch.settings = Settings(
+        ha_token="stale-env",
+        ha_base_url="http://ha.local:8123",
+        database_url="sqlite+aiosqlite:///:memory:",
+        data_dir=str(tmp_path),
+    )
+    orch.cfg = MagicMock()
+    orch.cfg.ha.base_url = "http://ha.local:8123"
+    orch.cfg.ha.verify_ssl = True
+    orch._stream_task = None
+    orch._admin_resolver = None
+    orch.ha = MagicMock()
+    orch.ha.aclose = AsyncMock()
+    orch.ha.ping = AsyncMock(return_value=True)
+    orch.ha.ws_diagnostics = MagicMock(
+        return_value={
+            "ha_ws_error_class": "none",
+            "ha_ws_last_error": None,
+            "ha_ws_circuit_open": False,
+            "ha_ws_fail_count": 0,
+            "ha_ws_backoff_seconds": 0,
+        }
+    )
+    orch.heartbeat = MagicMock()
+    orch.adapter = MagicMock()
+    orch.collector = MagicMock()
+    orch.collector.prime = AsyncMock()
+    orch.collector.run_stream_safe = AsyncMock()
+    orch._build_engine_components = MagicMock()
+    orch.resolve_ha_auth_mode = MagicMock(return_value="oauth")
+
+    result = await orch.retry_ha_connection()
+
+    assert orch.ha._token == "fresh-oauth-token"  # type: ignore[attr-defined]
+    assert result["ok"] is True
+    assert result["ha_auth_mode"] == "oauth"
+
+
+@pytest.mark.asyncio
+async def test_oauth_callback_reloads_ha_credentials(tmp_path: Path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.ha_oauth_routes import router
+    from app.config import get_settings
+
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("HA_TOKEN", "")
+    get_settings.cache_clear()
+
+    started = ha_oauth.start_authorize(
+        tmp_path,
+        ha_base_url="http://ha.local:8123",
+        public_base_url="http://solar.local:8000",
+        verify_ssl=False,
+    )
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {
+                "access_token": "new-access",
+                "refresh_token": "new-refresh",
+                "expires_in": 1800,
+                "token_type": "Bearer",
+            }
+
+    orch = MagicMock()
+    orch.reload_ha_credentials = AsyncMock()
+
+    app = FastAPI()
+    app.state.orchestrator = orch
+    app.include_router(router)
+
+    with patch("app.ha.oauth.httpx.AsyncClient") as client_cls:
+        client = AsyncMock()
+        client.__aenter__.return_value = client
+        client.__aexit__.return_value = None
+        client.post = AsyncMock(return_value=FakeResponse())
+        client_cls.return_value = client
+
+        with TestClient(app) as client_http:
+            res = client_http.get(
+                f"/api/ha/oauth/callback?code=abc&state={started.state}"
+            )
+
+    assert res.status_code == 200
+    assert "Connected" in res.text
+    orch.reload_ha_credentials.assert_awaited_once()
+    stored = ha_oauth.load_oauth(tmp_path)
+    assert stored is not None
+    assert stored["access_token"] == "new-access"
+
+
+@pytest.mark.asyncio
+async def test_oauth_disconnect_reloads_ha_credentials(tmp_path: Path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.auth import AuthGateMiddleware, UserContextMiddleware
+    from app.api.ha_oauth_routes import router
+    from app.config import get_settings
+
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("HA_TOKEN", "")
+    monkeypatch.delenv("API_TOKEN", raising=False)
+    monkeypatch.delenv("LOCAL_ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("LOCAL_ADMIN_PASSWORD_HASH", raising=False)
+    get_settings.cache_clear()
+
+    ha_oauth._atomic_write(
+        ha_oauth.oauth_path(tmp_path),
+        {
+            "access_token": "access",
+            "refresh_token": "refresh",
+            "expires_at": "2099-01-01T00:00:00Z",
+            "ha_base_url": "http://ha.local:8123",
+            "public_base_url": "http://solar.local:8000",
+            "degraded": False,
+        },
+    )
+
+    orch = MagicMock()
+    orch.reload_ha_credentials = AsyncMock()
+
+    app = FastAPI()
+    app.state.orchestrator = orch
+    app.state.admin_resolver = AsyncMock()
+    app.add_middleware(AuthGateMiddleware)
+    app.add_middleware(UserContextMiddleware)
+    app.include_router(router)
+
+    with TestClient(app) as client_http:
+        res = client_http.delete("/api/ha/oauth/disconnect")
+
+    assert res.status_code == 200
+    assert res.json() == {"ok": True}
+    assert ha_oauth.load_oauth(tmp_path) is None
+    orch.reload_ha_credentials.assert_awaited_once()

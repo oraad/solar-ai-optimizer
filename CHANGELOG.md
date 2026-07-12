@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.7] - 2026-07-12
+
+### Fixed
+
+- IndieAuth callback and **Retry connection** rebuild the live HA client so a new token is used without restarting Solar
+
 ## [0.6.11-beta.6] - 2026-07-12
 
 ### Removed

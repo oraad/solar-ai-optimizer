@@ -44,7 +44,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer
 ## ما بعد التثبيت
 
 1. **احفظ كلمة مرور المسؤول المحلي** التي تظهر عند اكتمال التثبيت (اسم المستخدم الافتراضي هو`admin`). استخدامه لتسجيل الدخول في`http://<lxc-ip>:8000`عند عدم استخدام دخول HA.
-2. افتح **الإعدادات** وقم بتعيين[عنوان URL لمساعد المنزل والرمز المميز طويل الأمد](home-assistant-setup.md#long-lived-access-token).
+2. افتح **الإعدادات** واتصل عبر [IndieAuth أو env `HA_TOKEN`](home-assistant-setup.md#long-lived-access-token).
 3. خريطة الكيانات العاكس، والموقع، وإعدادات البطارية.
 4. اترك **SHADOW MODE** قيد التشغيل حتى تثق في القرارات (افتراضي).
 5. تعيين اختياريا`API_TOKEN`في`/opt/solar-ai-optimizer/solar.env`على LXC وبنفس القيمة في **الإعدادات → أمان واجهة برمجة التطبيقات**.

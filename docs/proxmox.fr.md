@@ -44,7 +44,7 @@ Utilisez le **script Alpine pour les mises à jour** sur les installations Alpin
 ## Post-installation
 
 1. **Enregistrez le mot de passe de l'administrateur local** affiché à la fin de l'installation (le nom d'utilisateur est par défaut`admin`). Utilisez-le pour vous connecter à`http://<lxc-ip>:8000`lorsque vous n'utilisez pas l'entrée HA.
-2. Ouvrez **Paramètres** et définissez votre[URL de Home Assistant et jeton de longue durée](home-assistant-setup.md#long-lived-access-token).
+2. Ouvrez **Paramètres** et connectez via [IndieAuth ou env `HA_TOKEN`](home-assistant-setup.md#long-lived-access-token).
 3. Cartographiez les entités, l'emplacement et les paramètres de la batterie de l'onduleur.
 4. Laissez **SHADOW MODE** activé jusqu'à ce que vous fassiez confiance aux décisions (par défaut).
 5. En option, définissez`API_TOKEN`dans`/opt/solar-ai-optimizer/solar.env`sur le LXC et la même valeur dans **Paramètres → Sécurité API**.

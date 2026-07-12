@@ -157,3 +157,22 @@ def test_migrate_v5_to_v6_removes_factor_order():
     assert version == CURRENT_SCHEMA_VERSION
     assert "factor_order" not in overrides["grid_charge"]
     assert overrides["grid_charge"]["max_grid_charge_a"] == 60.0
+
+
+def test_migrate_v6_to_v7_strips_ha_token():
+    overrides, version = migrate_overrides(
+        {
+            "schema_version": 6,
+            "overrides": {
+                "ha": {
+                    "base_url": "http://ha.local:8123",
+                    "token": "secret-llat",
+                    "verify_ssl": True,
+                },
+            },
+        }
+    )
+    assert version == CURRENT_SCHEMA_VERSION
+    assert overrides["ha"]["base_url"] == "http://ha.local:8123"
+    assert overrides["ha"]["verify_ssl"] is True
+    assert "token" not in overrides["ha"]

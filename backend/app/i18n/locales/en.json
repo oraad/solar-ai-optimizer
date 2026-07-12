@@ -20,12 +20,6 @@
       "addon_unsupported": "IndieAuth is not used when running as a Home Assistant add-on.",
       "invalid_url": "Invalid public or Home Assistant base URL."
     },
-    "ha_bootstrap": {
-      "addon_unsupported": "LLAT bootstrap is not used when running as a Home Assistant add-on.",
-      "oauth_connected": "Disconnect IndieAuth before bootstrapping with a long-lived token.",
-      "invalid_credentials": "Home Assistant rejected the URL or long-lived access token.",
-      "unreachable": "Could not reach Home Assistant at the given URL."
-    },
     "override": {
       "kill_switch_confirm": "kill_switch requires confirm=true",
       "no_fields": "No override fields provided",

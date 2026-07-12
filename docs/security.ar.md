@@ -22,7 +22,7 @@
 
 - عند تعريض واجهة برمجة التطبيقات (API) خارج مدخل Home Assistant، قم بالضبط`LOCAL_ADMIN_PASSWORD_HASH` + `SESSION_SECRET`أو`API_TOKEN`واستخدم HTTPS.
 - تعيين`TRUST_INGRESS_HEADERS=true`فقط عندما يكون التطبيق قابلاً للوصول **حصريًا** عبر دخول HA (وليس مباشرة على المنفذ 8000). وهذا أيضا يحدد`X-Frame-Options: SAMEORIGIN`للشريط الجانبي iframe.
-- احتفظ برموز Home Assistant طويلة الأمد ضمن نطاقها وتدويرها. يرى[إعداد مساعد المنزل → رمز الوصول طويل الأمد](home-assistant-setup.md#long-lived-access-token).
+- احتفظ برموز Home Assistant طويلة الأمد ضمن نطاقها وتدويرها. انظر [ربط Solar بـ Home Assistant](home-assistant-setup.md#long-lived-access-token).
 - قم بالتشغيل في **وضع الظل** حتى تثق في كتابة العاكس الآلي.
 - تتضمن صورة Docker الافتراضية إضافات ML/MPC اختيارية؛ يستخدم`INSTALL_EXTRAS=0`للحصول على سطح هجوم أصغر حجمًا إذا لم يتم استخدام هذه الميزات.
 - لا تقم بالتمكين أبدًا`DEMO_MODE`على نظام متصل بالعاكس الحقيقي.

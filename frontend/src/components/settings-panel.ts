@@ -1555,7 +1555,6 @@ export class SettingsPanel extends LitElement {
   private renderHaControlsCard(isAddon: boolean) {
     const d = this.draft as unknown as Record<string, any>;
     const ha = (d.ha ?? {}) as Record<string, unknown>;
-    const hasToken = Boolean(ha.has_token);
     if (isAddon) {
       return this.renderSectionPanel(
         t("ui.settings.haControlsTitle"),
@@ -1609,27 +1608,13 @@ export class SettingsPanel extends LitElement {
           `,
           "immediate",
         )}
-        <details style="margin-top:1rem">
-          <summary>${t("ui.settings.haManualTokenAdvanced")}</summary>
-          <div class="fields" style="margin-top:0.75rem">
-            ${this.renderField("ha", "base_url", String(ha.base_url ?? ""))}
-            <div class="field">
-              <label>${this.lbl("ha", "token")}</label>
-              <input
-                type="password"
-                placeholder=${hasToken
-                  ? t("ui.settings.tokenStoredPlaceholder")
-                  : t("ui.settings.tokenNewPlaceholder")}
-                .value=${String(ha.token ?? "")}
-                @input=${(e: Event) =>
-                  this.setField("ha", "token", (e.target as HTMLInputElement).value)}
-              />
-            </div>
-            ${typeof ha.verify_ssl === "boolean"
-              ? this.renderField("ha", "verify_ssl", ha.verify_ssl)
-              : null}
-          </div>
-        </details>
+        <div class="fields" style="margin-top:1rem">
+          ${this.renderField("ha", "base_url", String(ha.base_url ?? ""))}
+          ${typeof ha.verify_ssl === "boolean"
+            ? this.renderField("ha", "verify_ssl", ha.verify_ssl)
+            : null}
+        </div>
+        <p class="label">${t("ui.settings.haEnvTokenHint")}</p>
       `,
     );
   }
@@ -1828,9 +1813,11 @@ export class SettingsPanel extends LitElement {
     this.haOauthBusy = true;
     try {
       const d = this.draft as unknown as Record<string, any> | null;
-      const haUrl = String((d?.ha as Record<string, unknown> | undefined)?.base_url ?? "").trim();
+      const ha = (d?.ha as Record<string, unknown> | undefined) ?? {};
+      const haUrl = String(ha.base_url ?? "").trim();
+      const verifySsl = typeof ha.verify_ssl === "boolean" ? ha.verify_ssl : undefined;
       const publicBase = `${window.location.origin}${getBase()}`;
-      const started = await api.haOauthStart(publicBase, haUrl || undefined);
+      const started = await api.haOauthStart(publicBase, haUrl || undefined, verifySsl);
       window.open(started.authorize_url, "_blank", "noopener,noreferrer");
       showToast({ message: t("ui.settings.haOauthWindowOpened"), variant: "success" });
     } catch (e) {

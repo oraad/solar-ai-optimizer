@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.6] - 2026-07-12
+
+### Removed
+
+- `POST /api/ha/bootstrap` and Settings Advanced LLAT paste (use IndieAuth or env `HA_TOKEN`)
+- YAML `ha.token` persistence and resolve path (cleared by config schema v7 migration)
+- Add-on `run.sh` mapping for legacy `ha_token` / `ha_base_url` options (`api_token` mapping kept)
+
+### Changed
+
+- Solar→HA auth: Supervisor → IndieAuth → env `HA_TOKEN` only
+- Settings keeps HA URL + verify SSL next to IndieAuth; no token field
+
+### Fixed
+
+- IndieAuth callback surfaces HA IP-ban (403), unreachable, and SSL errors instead of a generic `token_exchange_failed`
+- IndieAuth token exchange honors the Settings **Verify SSL** flag for the Solar→HA token request
+
 ## [0.6.11-beta.5] - 2026-07-12
 
 ### Added

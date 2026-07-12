@@ -204,7 +204,7 @@ Updates, backups, fork/branch overrides, and future OCI notes:
 After any deployment path:
 
 1. Open the dashboard → **Settings**
-2. **Connect Home Assistant** (URL + long-lived token) — skip if using the HA app with default Supervisor wiring
+2. **Connect Home Assistant** via IndieAuth (or `HA_TOKEN` env for headless) — skip if using the HA app
 3. Set **site latitude / longitude** and **PV arrays** (required for solar forecast)
 4. Map **inverter read/write entities** in Settings → Inverter entity map
 5. Leave **shadow mode** on; confirm Overview decisions look reasonable

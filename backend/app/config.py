@@ -186,6 +186,11 @@ class ReserveConfig(BaseModel):
     min_autonomy_hours: float = 12.0
     solar_bridge_buffer_pct: float = 15.0
     cloudy_extra_buffer_pct: float = 15.0
+    # When True, raise autonomy floor + solar-bridge loads using smoothed recent load.
+    adaptive_load_enabled: bool = True
+    adaptive_load_window_minutes: int = 30
+    # Cap effective critical load (None → 3 × critical_load_w).
+    adaptive_load_cap_w: float | None = None
 
 
 class PvArray(BaseModel):
@@ -361,6 +366,14 @@ class GridChargeConfig(BaseModel):
     ramp_step_a: float = 10.0
     off_threshold_a: float = 1.0
     next_solar_horizon_hours: int = 6
+    # Present opportunity window (unreliable-grid planning).
+    max_continuous_present_minutes: float = 120.0
+    grid_window_safety_factor: float = 0.75
+    max_outage_ignore_minutes: float = 30.0
+    min_opportunity_present_minutes: float = 10.0
+    # Optional site import ceiling (W); entity overrides when readable.
+    max_grid_import_w: float | None = None
+    max_grid_import_entity: str | None = None
 
 
 class OptimizationPriority(str, Enum):

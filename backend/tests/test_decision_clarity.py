@@ -76,18 +76,22 @@ def test_operator_pin_source_not_confused_with_mpc():
 def test_mpc_reserve_pin_source():
     eng = _engine()
     t = Telemetry(battery_soc=70.0, grid_present=False)
+    forecast = _flat_forecast(400, 0)
+    rules = eng.compute_reserve(t, forecast, update_hysteresis=False)
     d = eng.decide(
         t,
-        _flat_forecast(400, 0),
+        forecast,
         None,
         None,
         shadow_mode=True,
         mpc_reserve=66.0,
+        update_hysteresis=False,
     )
     assert d.reserve.source == ReserveSource.MPC
-    assert d.reserve.target_soc == 66.0
+    # MPC pin cannot undercut rules reserve.
+    assert d.reserve.target_soc == max(66.0, rules.target_soc)
     assert d.explanation is not None
-    assert d.explanation.reserve.mpc_soc == 66.0
+    assert d.explanation.reserve.mpc_soc == d.reserve.target_soc
 
 
 def test_forensics_sections_include_causality_and_reasoning_alias():

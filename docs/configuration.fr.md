@@ -79,6 +79,14 @@ Ensemble`LOG_FORMAT=json`pour les agrégateurs de journaux de production (un obj
 
 Définissez **Moteur → mode** dans Paramètres. MPC revient aux règles si PuLP n'est pas disponible.
 
+### Réserve et charge adaptative
+
+`reserve.critical_load_w` et `min_autonomy_hours` forment la base de survie configurée. Avec `adaptive_load_enabled` (activé par défaut), le plancher d'autonomie et le pont solaire utilisent aussi une moyenne récente de charge maison (`load_power` sur `adaptive_load_window_minutes`) et, en décharge, `max(0, -battery_power)` — le signal adaptatif est **max(moyenne charge, moyenne décharge)**. L'ordre des priorités module la part de cette moyenne au-dessus du critique. `adaptive_load_cap_w` plafonne les watts effectifs (défaut : 3× critique). Voir [decision-cycle.md](decision-cycle.md).
+
+### Fenêtre d'opportunité réseau
+
+Dans **Paramètres → Charge réseau**, configurez la durée typique de présence (`max_continuous_present_minutes`, défaut 120) et la décote (`grid_window_safety_factor`, 0,75). Les coupures ≤ `max_outage_ignore_minutes` (30) restent dans une même opportunité ; `grid_present=false` en direct arrête toujours la charge. `max_grid_import_w` / `max_grid_import_entity` plafonnent les ampères de planification si le site est plus serré que l'onduleur.
+
 ### Ordre de priorité d'optimisation
 
 Dans **Paramètres → Moteur**, réorganisez`priority_order`(par défaut : résilience, économies,

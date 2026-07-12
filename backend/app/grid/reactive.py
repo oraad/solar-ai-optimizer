@@ -9,6 +9,12 @@ from datetime import datetime, timedelta
 from ..config import BatteryConfig, GridChargeConfig, OptimizationPriority, ReserveConfig
 from ..engine.priorities import resolve_weights
 from ..grid.ramp import RampContext, compute_ramp_plan, legacy_plan
+from ..grid.opportunity import (
+    avg_opportunity_minutes,
+    merge_opportunity_windows,
+    present_elapsed_minutes,
+    trusted_window_minutes,
+)
 from ..i18n import msg
 from ..models import (
     BlackoutRisk,
@@ -51,6 +57,20 @@ class ReactiveGrid:
         self._priority_weights = {
             k.value: v for k, v in resolve_weights().items()
         }
+        self._site_import_w: float | None = None
+
+    def set_site_import_w(self, watts: float | None) -> None:
+        """Optional site import ceiling in watts (from config or HA entity)."""
+        self._site_import_w = watts
+
+    def effective_max_charge_a(self) -> float:
+        from ..ha.units import effective_max_grid_charge_a
+
+        return effective_max_grid_charge_a(
+            max_grid_charge_a=self._grid_charge.max_grid_charge_a,
+            nominal_voltage=self._battery.nominal_voltage,
+            site_import_w=self._site_import_w,
+        )
 
     def update_config(
         self,
@@ -88,7 +108,7 @@ class ReactiveGrid:
         last_amps: float | None = None,
     ) -> GridChargeResult:
         """Grid charge on/off + target amps (ramp or legacy max-or-off)."""
-        max_a = self._grid_charge.max_grid_charge_a
+        max_a = self.effective_max_charge_a()
 
         if not self._grid_charge.ramp_enabled:
             return self._legacy_actions(telemetry, target_soc, max_a)
@@ -113,6 +133,7 @@ class ReactiveGrid:
             site_timezone=self._site_timezone,
             site_timezone_resolved=self._site_timezone_resolved,
             priority_weights=self._priority_weights,
+            effective_max_charge_a=max_a,
         )
         plan = compute_ramp_plan(ctx)
         return self._plan_to_result(plan, telemetry, target_soc)
@@ -242,6 +263,7 @@ class ReactiveGrid:
         now = now or utcnow()
         window_7d = now - timedelta(days=7)
         window_24h = now - timedelta(hours=24)
+        gc = self._grid_charge
 
         events = await repo.get_grid_events_since(window_7d)
         # Determine the state at the start of the 7d window.
@@ -249,7 +271,10 @@ class ReactiveGrid:
 
         uptime_24h = self._uptime_pct(events, window_24h, now, await self._state_at(window_24h))
         uptime_7d = self._uptime_pct(events, window_7d, now, initial_present)
-        avg_window = self._avg_present_window_minutes(events, window_7d, now, initial_present)
+        intervals = self._intervals(events, window_7d, now, initial_present)
+        opportunities = merge_opportunity_windows(
+            intervals, gc.max_outage_ignore_minutes
+        )
         transitions_24h = sum(1 for e in events if e.ts >= window_24h)
 
         last = await repo.get_last_grid_event()
@@ -258,9 +283,26 @@ class ReactiveGrid:
             if live_present is not None
             else (last.grid_present if last else initial_present)
         )
+        avg_window = avg_opportunity_minutes(
+            opportunities,
+            min_minutes=gc.min_opportunity_present_minutes,
+            now=now,
+            currently_present=currently,
+        )
         last_seen = await self._last_present_time(
             events, initial_present, window_7d, currently_present=currently, now=now
         )
+
+        elapsed: float | None = None
+        remaining: float | None = None
+        if currently:
+            elapsed = present_elapsed_minutes(opportunities, now)
+            trusted = trusted_window_minutes(
+                avg_window_minutes=avg_window,
+                max_continuous_minutes=gc.max_continuous_present_minutes,
+                safety_factor=gc.grid_window_safety_factor,
+            )
+            remaining = max(0.0, trusted - (elapsed or 0.0))
 
         return GridStats(
             uptime_pct_24h=round(uptime_24h, 1),
@@ -269,6 +311,12 @@ class ReactiveGrid:
             last_seen=last_seen,
             currently_present=currently,
             transitions_24h=transitions_24h,
+            present_elapsed_minutes=(
+                round(elapsed, 1) if elapsed is not None else None
+            ),
+            remaining_window_minutes=(
+                round(remaining, 1) if remaining is not None else None
+            ),
         )
 
     async def _state_at(self, when: datetime) -> bool:
@@ -325,6 +373,7 @@ class ReactiveGrid:
         end: datetime,
         initial_present: bool,
     ) -> float:
+        """Legacy raw average; tests may still call this — prefer merge helpers."""
         present_intervals = [
             (b - a).total_seconds() / 60.0
             for a, b, present in self._intervals(events, start, end, initial_present)
@@ -351,3 +400,6 @@ class ReactiveGrid:
         if initial_present:
             return start
         return None
+
+
+# Opportunity helpers live in grid.opportunity; re-exported names removed from this module.

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.11] - 2026-07-12
+
+### Added
+
+- Adaptive reserve: raise autonomy floor and solar-bridge using smoothed house load and discharge proxy (`max(load mean, discharge mean)`), with priority blend, hysteresis, and optional `adaptive_load_cap_w`
+- Grid present opportunity windows: merge short absent gaps, track elapsed/remaining trusted window, and fade present-risk discount near window end
+- Site import ceiling via `max_grid_import_w` and optional `max_grid_import_entity` (caps planning amps below inverter max)
+- HA `unit_of_measurement` normalization for telemetry power (W/kW), temperature (°C/°F), SOC (%), and charge-current readback (A/mA)
+
+### Changed
+
+- Grid charge ramp uses **remaining** trusted present window; live `grid_present=false` still stops charge
+- Settings entity help documents UoM-normalized canonical units
+- GitHub release picker sorts by semver so `beta.10` ranks above `beta.9`
+
+### Fixed
+
+- MPC reserve pin uses `max(mpc, rules)`; no CRITICAL when MPC has no forecast; timestamp-aligned MPC load
+
 ## [0.6.11-beta.10] - 2026-07-12
 
 ### Added

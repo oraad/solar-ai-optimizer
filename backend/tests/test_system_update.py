@@ -23,6 +23,7 @@ from app.api.system_update import (
     _clear_stale_lock,
     _clear_update_progress,
     _compare_versions,
+    _filter_github_releases,
     _is_newer,
     _is_proxmox_deployment,
     _load_update_progress,
@@ -504,6 +505,26 @@ def test_version_relation(version, current, expected):
 )
 def test_compare_versions(left, right, expected):
     assert _compare_versions(left, right) == expected
+
+
+def test_filter_github_releases_sorts_by_semver_not_github_order():
+    """GitHub may return beta.10 after beta.4; list must be newest-semver first."""
+    unordered = [
+        {"tag_name": f"v0.6.11-beta.{n}", "prerelease": True, "draft": False}
+        for n in (9, 8, 7, 6, 5, 4, 10, 3)
+    ]
+    filtered = _filter_github_releases(unordered, include_prereleases=True)
+    versions = [_normalize_version(str(r["tag_name"])) for r in filtered]
+    assert versions == [
+        "0.6.11-beta.10",
+        "0.6.11-beta.9",
+        "0.6.11-beta.8",
+        "0.6.11-beta.7",
+        "0.6.11-beta.6",
+        "0.6.11-beta.5",
+        "0.6.11-beta.4",
+        "0.6.11-beta.3",
+    ]
 
 
 @pytest.mark.parametrize(

@@ -38,6 +38,7 @@ class RampContext:
     site_timezone: str = "auto"
     site_timezone_resolved: str | None = None
     priority_weights: dict[str, float] | None = None
+    effective_max_charge_a: float | None = None
 
 
 @dataclass(frozen=True)
@@ -51,7 +52,10 @@ def _clamp(value: float, lo: float, hi: float) -> float:
 
 
 def _max_amps(ctx: RampContext) -> float:
-    return ctx.grid_charge.max_grid_charge_a
+    base = ctx.grid_charge.max_grid_charge_a
+    if ctx.effective_max_charge_a is not None:
+        return min(base, max(0.0, ctx.effective_max_charge_a))
+    return base
 
 
 def _remaining_solar_wh(ctx: RampContext, now: datetime) -> float:
@@ -197,22 +201,59 @@ def _eval_grid_window(ctx: RampContext) -> FactorResult:
     if ctx.grid_stats is None:
         return FactorResult(max_a, msg("engine.ramp.grid_window.unknown"))
 
-    window = ctx.grid_stats.avg_window_minutes
+    # Prefer remaining trusted opportunity; fall back to avg when absent/unknown.
+    remain = ctx.grid_stats.remaining_window_minutes
+    if remain is None:
+        # Cold / absent: use trusted prior from avg for curve when stats exist.
+        from .opportunity import trusted_window_minutes
+
+        remain = trusted_window_minutes(
+            avg_window_minutes=ctx.grid_stats.avg_window_minutes,
+            max_continuous_minutes=ctx.grid_charge.max_continuous_present_minutes,
+            safety_factor=ctx.grid_charge.grid_window_safety_factor,
+        )
+
+    window = max(0.0, float(remain))
+    ignore = int(round(ctx.grid_charge.max_outage_ignore_minutes))
+
     if window <= 0:
-        return FactorResult(max_a, msg("engine.ramp.grid_window.none"))
+        return FactorResult(
+            max_a,
+            msg("engine.ramp.grid_window.none", ignore=ignore),
+        )
 
     if window <= 20:
-        return FactorResult(max_a, msg("engine.ramp.grid_window.short", minutes=int(window)))
+        return FactorResult(
+            max_a,
+            msg(
+                "engine.ramp.grid_window.short",
+                minutes=int(round(window)),
+                ignore=ignore,
+            ),
+        )
 
     if window >= 180:
         ceiling = max_a * 0.4
-        return FactorResult(ceiling, msg("engine.ramp.grid_window.long", minutes=int(window)))
+        return FactorResult(
+            ceiling,
+            msg(
+                "engine.ramp.grid_window.long",
+                minutes=int(round(window)),
+                ignore=ignore,
+            ),
+        )
 
-    # 20–180 min: linear scale from max to 40% of max
     t = (window - 20) / 160.0
     scale = 1.0 - t * 0.6
     ceiling = max_a * scale
-    return FactorResult(ceiling, msg("engine.ramp.grid_window.mid", minutes=int(window)))
+    return FactorResult(
+        ceiling,
+        msg(
+            "engine.ramp.grid_window.mid",
+            minutes=int(round(window)),
+            ignore=ignore,
+        ),
+    )
 
 
 def _eval_blackout_risk(ctx: RampContext) -> FactorResult:

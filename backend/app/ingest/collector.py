@@ -72,9 +72,9 @@ class Collector:
             try:
                 st = await self._ha.get_state(self._temp_entity)
                 if st:
-                    from ..adapters.ha_entity import _to_float  # local import
+                    from ..ha.units import ha_numeric_from_any
 
-                    self._latest_temp = _to_float(st.get("state"))
+                    self._latest_temp = ha_numeric_from_any(st, kind="temperature")
             except Exception as e:  # noqa: BLE001
                 log.debug("Initial outdoor temp read failed: %s", e)
 
@@ -92,9 +92,9 @@ class Collector:
                 try:
                     st = await self._ha.get_state(self._temp_entity)
                     if st:
-                        from ..adapters.ha_entity import _to_float  # local import
+                        from ..ha.units import ha_numeric_from_any
 
-                        self._latest_temp = _to_float(st.get("state"))
+                        self._latest_temp = ha_numeric_from_any(st, kind="temperature")
                 except Exception as e:  # noqa: BLE001
                     log.debug("Outdoor temp REST read failed: %s", e)
             if self._latest_temp is not None:
@@ -139,9 +139,9 @@ class Collector:
                 if present is not None:
                     await self._handle_grid_state(present)
             if self._temp_entity and entity_id == self._temp_entity:
-                from ..adapters.ha_entity import _to_float  # local import
+                from ..ha.units import ha_numeric_from_any
 
-                temp = _to_float(new_state.get("state"))
+                temp = ha_numeric_from_any(new_state, kind="temperature")
                 if temp is not None:
                     self._latest_temp = temp
 

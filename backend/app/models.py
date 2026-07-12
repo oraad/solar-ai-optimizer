@@ -108,7 +108,7 @@ class GridEvent(BaseModel):
 
 
 class GridStats(BaseModel):
-    """Display-only grid statistics."""
+    """Grid statistics for display and charge-window planning."""
 
     uptime_pct_24h: float = 0.0
     uptime_pct_7d: float = 0.0
@@ -116,6 +116,8 @@ class GridStats(BaseModel):
     last_seen: datetime | None = None
     currently_present: bool | None = None
     transitions_24h: int = 0
+    present_elapsed_minutes: float | None = None
+    remaining_window_minutes: float | None = None
 
 
 class SolarForecastPoint(BaseModel):
@@ -163,6 +165,10 @@ class ReserveTarget(BaseModel):
     rationale: Msg
     source: ReserveSource = ReserveSource.RULES
     rules_soc: float | None = None   # pre-pin rules target when source != rules
+    effective_critical_w: float | None = None
+    smoothed_load_w: float | None = None
+    smoothed_discharge_w: float | None = None
+    adaptive_blend_a: float | None = None
 
 
 class CapChainFactor(BaseModel):
@@ -221,7 +227,10 @@ class ReserveExplanation(BaseModel):
     solar_bridge_soc: float | None = None
     autonomy_floor_soc: float | None = None
     driver: str = ""
-
+    effective_critical_w: float | None = None
+    smoothed_load_w: float | None = None
+    smoothed_discharge_w: float | None = None
+    adaptive_blend_a: float | None = None
 
 class GridChargeExplanation(BaseModel):
     enabled: bool = False

@@ -132,7 +132,9 @@ describe("LoadSheddingPanel entity autocomplete", () => {
     expect(input.getAttribute("list")).toBe(datalist.id);
 
     const values = [...datalist.querySelectorAll("option")].map((o) => o.value);
-    expect(values).toEqual(["switch.pool", "input_boolean.guest"]);
+    expect(values).toEqual(["Pool pump", "Guest mode"]);
+    const labels = [...datalist.querySelectorAll("option")].map((o) => o.textContent?.trim());
+    expect(labels).toEqual(["switch.pool", "input_boolean.guest"]);
 
     host.remove();
   });

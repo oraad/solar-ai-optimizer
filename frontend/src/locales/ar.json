@@ -834,6 +834,7 @@
       "backupsIntro": "Automatic backups created before each install.",
       "updateAvailableBadge": "v{version} available",
       "failSafeIntro": "Import the HA fail-safe package to create input_datetime.solar_optimizer_heartbeat, or pick an existing helper.",
+      "failSafeNoDatetimeHelpers": "لم يتم العثور على مساعدات input_datetime. استورد حزمة fail-safe، أو أعد تحميل الكيانات، أو تأكد أن رمز HA يرى المساعدات.",
       "pvArraysTitle": "PV arrays",
       "pvArraysIntro": "Each array is forecast separately (tilt/azimuth/kWp). Set site latitude/longitude in Site & PV.",
       "addArray": "Add array",

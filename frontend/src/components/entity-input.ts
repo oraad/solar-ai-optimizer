@@ -8,6 +8,18 @@ import type { EntityInfo } from "../types.js";
 
 let datalistSeq = 0;
 
+/** Prefer friendly name as datalist value; use entity_id when the name is ambiguous. */
+export function datalistOptionValue(
+  entity: EntityInfo,
+  peers: readonly EntityInfo[],
+): string {
+  const name = (entity.name || "").trim();
+  if (!name) return entity.entity_id;
+  const lower = name.toLowerCase();
+  const dupes = peers.filter((p) => (p.name || "").trim().toLowerCase() === lower);
+  return dupes.length > 1 ? entity.entity_id : name;
+}
+
 /** Entity picker: stores entity_id, displays HA friendly name; datalist lives in shadow root. */
 @customElement("solar-entity-input")
 export class EntityInput extends LitElement {
@@ -39,7 +51,7 @@ export class EntityInput extends LitElement {
 
   @property({ attribute: false }) entities: EntityInfo[] = [];
 
-  @property({ attribute: false, type: Array }) domains: string[] = ["sensor"];
+  @property({ attribute: false }) domains: string[] = ["sensor"];
 
   @property() placeholder = "";
 
@@ -61,8 +73,9 @@ export class EntityInput extends LitElement {
   private onFocus(e: FocusEvent): void {
     const input = e.target as HTMLInputElement;
     this.editing = true;
-    this.editText = this.entityId;
-    // After Lit applies entity_id for editing, select so typing replaces the value.
+    // Prefer friendly name while editing so datalist value matching works in Chrome.
+    this.editText =
+      entityDisplayName(this.entityId, this.entities) || this.entityId;
     void this.updateComplete.then(() => input.select());
   }
 
@@ -121,9 +134,10 @@ export class EntityInput extends LitElement {
       />
       ${opts.length
         ? html`<datalist id=${this.datalistId}>
-            ${opts.map(
-              (e) => html`<option value=${e.entity_id} label=${e.name}>${e.name}</option>`,
-            )}
+            ${opts.map((e) => {
+              const value = datalistOptionValue(e, opts);
+              return html`<option value=${value}>${e.entity_id}</option>`;
+            })}
           </datalist>`
         : null}
     `;

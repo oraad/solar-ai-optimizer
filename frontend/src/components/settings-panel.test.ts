@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { INPUT_DATETIME_DOMAINS } from "../entity-datalists.js";
 import type { SettingsPanel } from "./settings-panel.js";
 
 beforeAll(async () => {
@@ -193,10 +194,12 @@ describe("SettingsPanel Safety heartbeat entity", () => {
       shadowRoot: ShadowRoot | null;
     };
     expect(input).not.toBeNull();
-    expect(input.domains).toEqual(["input_datetime"]);
+    expect(input.domains).toBe(INPUT_DATETIME_DOMAINS);
     expect(input.entityId).toBe("input_datetime.solar_optimizer_heartbeat");
     await input.updateComplete;
     expect(input.shadowRoot!.querySelector("input")!.value).toBe("Solar optimizer heartbeat");
+    const opt = input.shadowRoot!.querySelector("option");
+    expect(opt?.value).toBe("Solar optimizer heartbeat");
     el.remove();
   });
 });

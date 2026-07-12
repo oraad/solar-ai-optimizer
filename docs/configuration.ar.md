@@ -85,7 +85,7 @@
 
 ### نافذة فرصة الشبكة
 
-في **الإعدادات → شحن الشبكة**، اضبط مدة الحضور النموذجية (`max_continuous_present_minutes`، الافتراضي 120) وعامل الأمان (`grid_window_safety_factor`، 0.75). الانقطاعات ≤ `max_outage_ignore_minutes` (30) تبقى ضمن فرصة واحدة؛ و`grid_present=false` الحي يوقف الشحن دائماً. `max_grid_import_w` / `max_grid_import_entity` يسقفان أمبير التخطيط إن كان حد الموقع أضيق من العاكس.
+في **الإعدادات → شحن الشبكة**، اضبط مدة الحضور النموذجية (`max_continuous_present_minutes`، الافتراضي 120) وعامل الأمان (`grid_window_safety_factor`، 0.75). الانقطاعات ≤ `max_outage_ignore_minutes` (30) تبقى ضمن فرصة واحدة؛ و`grid_present=false` الحي يوقف الشحن دائماً. `max_grid_import_w` / `max_grid_import_entity` (كيان HA من نوع `number`، W أو kW) يسقفان أمبير التخطيط إن كان حد الموقع أضيق من العاكس.
 
 ### ترتيب أولويات التحسين
 

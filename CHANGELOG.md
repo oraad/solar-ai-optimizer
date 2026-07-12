@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.12] - 2026-07-12
+
+### Changed
+
+- Max grid import entity picker uses HA `number` domain (not `sensor`); docs/locales updated
+- Settings → Temperature: clearer **Site outdoor temperature** label and help (live actuals + Open-Meteo bias correction)
+- Settings → Safety: HA connected/reload hint for heartbeat entity; clear stores empty string; entity datalist options expose friendly-name `label`
+
 ## [0.6.11-beta.11] - 2026-07-12
 
 ### Added

@@ -98,7 +98,7 @@
         "max_outage_ignore_minutes": "Ignorer coupures courtes (min)",
         "min_opportunity_present_minutes": "Durée min d'opportunité (min)",
         "max_grid_import_w": "Import réseau max (W)",
-        "max_grid_import_entity": "Capteur import réseau max"
+        "max_grid_import_entity": "Entité number import réseau max"
       },
       "engine": {
         "enabled": "Reserve & forecast optimization",
@@ -112,7 +112,7 @@
       },
       "temperature": {
         "enabled": "Temperature load model enabled",
-        "ha_entity": "Outdoor temperature sensor (normalized to °C)",
+        "ha_entity": "Température extérieure du site",
         "hdd_base_c": "Heating base temperature (°C)",
         "cdd_base_c": "Cooling base temperature (°C)",
         "use_month_fallback": "Use monthly fallback when sensor missing",
@@ -217,7 +217,7 @@
         "max_outage_ignore_minutes": "Les coupures ≤ cette durée restent dans une même opportunité (scintillement).",
         "min_opportunity_present_minutes": "Les îlots fusionnés trop courts sont ignorés dans la moyenne historique.",
         "max_grid_import_w": "Plafond d'import site/utilité en watts (optionnel). Vide = pas de plafond extra.",
-        "max_grid_import_entity": "Capteur HA de capacité d'import. UoM W ou kW×1000. Remplace le champ manuel si lisible."
+        "max_grid_import_entity": "Entité HA number de capacité d'import. UoM W ou kW×1000. Remplace le champ manuel si lisible."
       },
       "engine": {
         "enabled": "When off, reserve targets, MPC, and forecast refresh are skipped. Load shedding and grid charge can still run independently.",
@@ -231,7 +231,7 @@
       },
       "temperature": {
         "enabled": "Model heating/cooling load from outdoor temperature in the forecast.",
-        "ha_entity": "Optional HA temperature sensor to bias-correct outdoor forecast readings. Uses unit_of_measurement (°C or °F→°C).",
+        "ha_entity": "Capteur de température extérieure Home Assistant (optionnel). Fournit les mesures réelles pour les graphiques/télémétrie et corrige le biais de la prévision Open-Meteo du modèle chauffage/climatisation. Accepte °C ou °F via unit_of_measurement (stocké en °C). Laisser vide pour Open-Meteo seul.",
         "hdd_base_c": "Heating degree-day base: outdoor temps below this add heating load.",
         "cdd_base_c": "Cooling degree-day base: outdoor temps above this add cooling load.",
         "use_month_fallback": "Use monthly average temperature when the outdoor sensor is unavailable.",
@@ -290,7 +290,7 @@
       "grid_charge": "Planned max grid charge current from the latest decision cycle.",
       "reserve": "Target SOC the optimizer is defending right now.",
       "risk": "Overall reserve risk level from the latest decision.",
-      "outdoor": "Outdoor temperature from forecast bias sensor or telemetry."
+      "outdoor": "Température extérieure du capteur HA du site s'il est associé, sinon la série de prévision."
     },
     "sections": {
       "battery": "Physical battery limits used by forecasting and the decision engine.",
@@ -849,7 +849,7 @@
       "mpcUnavailable": "MPC is selected but PuLP is not installed in this image. Rebuild with INSTALL_EXTRAS=1 (default) or install pulp locally. The app is running rules engine fallback.",
       "mlUnavailable": "ML load forecasting is enabled but scikit-learn is not available in this image.",
       "temperatureTitle": "Temperature (heating/cooling)",
-      "temperatureIntro": "Models heater/cooler load from outdoor temperature (Open-Meteo forecast + history). Optionally bias-corrected by a Home Assistant sensor.",
+      "temperatureIntro": "Modélise la charge chauffage/climatisation à partir de la température extérieure (prévision Open-Meteo + historique). Correction optionnelle avec un capteur de température extérieure du site dans Home Assistant.",
       "gridChargeIntro": "All listed factors apply each cycle; the engine takes the lowest ceiling. Ramp step limits how fast amps change each cycle.",
       "gridChargeDisabled": "Grid charge control is disabled — ramp settings are not used.",
       "gridChargeAdvanced": "Advanced",

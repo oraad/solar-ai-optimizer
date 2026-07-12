@@ -98,7 +98,7 @@
         "max_outage_ignore_minutes": "تجاهل الانقطاعات القصيرة (دقيقة)",
         "min_opportunity_present_minutes": "الحد الأدنى لطول الفرصة (دقيقة)",
         "max_grid_import_w": "أقصى استيراد شبكة (واط)",
-        "max_grid_import_entity": "مستشعر أقصى استيراد شبكة"
+        "max_grid_import_entity": "كيان number لأقصى استيراد شبكة"
       },
       "engine": {
         "enabled": "Reserve & forecast optimization",
@@ -112,7 +112,7 @@
       },
       "temperature": {
         "enabled": "Temperature load model enabled",
-        "ha_entity": "Outdoor temperature sensor (normalized to °C)",
+        "ha_entity": "درجة حرارة خارجية للموقع",
         "hdd_base_c": "Heating base temperature (°C)",
         "cdd_base_c": "Cooling base temperature (°C)",
         "use_month_fallback": "Use monthly fallback when sensor missing",
@@ -217,7 +217,7 @@
         "max_outage_ignore_minutes": "الانقطاعات ≤ هذه المدة تبقى ضمن فرصة واحدة (وميض).",
         "min_opportunity_present_minutes": "الجزر المدمجة القصيرة جداً تُتجاهل في متوسط التاريخ.",
         "max_grid_import_w": "سقف استيراد الموقع/المرفق بالواط (اختياري). فارغ = بلا سقف إضافي.",
-        "max_grid_import_entity": "مستشعر HA لقدرة الاستيراد. W أو kW×1000. يتجاوز الحقل اليدوي عند القراءة."
+        "max_grid_import_entity": "كيان HA من نوع number لقدرة الاستيراد. W أو kW×1000. يتجاوز الحقل اليدوي عند القراءة."
       },
       "engine": {
         "enabled": "When off, reserve targets, MPC, and forecast refresh are skipped. Load shedding and grid charge can still run independently.",
@@ -231,7 +231,7 @@
       },
       "temperature": {
         "enabled": "Model heating/cooling load from outdoor temperature in the forecast.",
-        "ha_entity": "Optional HA temperature sensor to bias-correct outdoor forecast readings. Uses unit_of_measurement (°C or °F→°C).",
+        "ha_entity": "مستشعر درجة حرارة خارجية اختياري من Home Assistant. يُستخدم للقراءات الفعلية (الرسوم/البيانات) ولتصحيح انحياز توقعات Open-Meteo في نموذج حمل التدفئة/التبريد. يقبل °C أو °F عبر unit_of_measurement (يُخزَّن كـ °C). اتركه فارغًا لاستخدام Open-Meteo فقط.",
         "hdd_base_c": "Heating degree-day base: outdoor temps below this add heating load.",
         "cdd_base_c": "Cooling degree-day base: outdoor temps above this add cooling load.",
         "use_month_fallback": "Use monthly average temperature when the outdoor sensor is unavailable.",
@@ -290,7 +290,7 @@
       "grid_charge": "Planned max grid charge current from the latest decision cycle.",
       "reserve": "Target SOC the optimizer is defending right now.",
       "risk": "Overall reserve risk level from the latest decision.",
-      "outdoor": "Outdoor temperature from forecast bias sensor or telemetry."
+      "outdoor": "درجة الحرارة الخارجية من مستشعر HA في الموقع عند الربط، وإلا من سلسلة التوقعات."
     },
     "sections": {
       "battery": "Physical battery limits used by forecasting and the decision engine.",
@@ -849,7 +849,7 @@
       "mpcUnavailable": "MPC is selected but PuLP is not installed in this image. Rebuild with INSTALL_EXTRAS=1 (default) or install pulp locally. The app is running rules engine fallback.",
       "mlUnavailable": "ML load forecasting is enabled but scikit-learn is not available in this image.",
       "temperatureTitle": "Temperature (heating/cooling)",
-      "temperatureIntro": "Models heater/cooler load from outdoor temperature (Open-Meteo forecast + history). Optionally bias-corrected by a Home Assistant sensor.",
+      "temperatureIntro": "ينمذج حمل المدفأة/المكيّف من درجة الحرارة الخارجية (توقعات Open-Meteo + التاريخ). تصحيح اختياري بمستشعر درجة حرارة خارجية للموقع من Home Assistant.",
       "gridChargeIntro": "All listed factors apply each cycle; the engine takes the lowest ceiling. Ramp step limits how fast amps change each cycle.",
       "gridChargeDisabled": "Grid charge control is disabled — ramp settings are not used.",
       "gridChargeAdvanced": "Advanced",

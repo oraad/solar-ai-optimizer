@@ -354,7 +354,7 @@
     "mpcUnavailable": "MPC is selected but PuLP is not installed in this image. Rebuild with INSTALL_EXTRAS=1 (default) or install pulp locally. The app is running rules engine fallback.",
     "mlUnavailable": "ML load forecasting is enabled but scikit-learn is not available in this image.",
     "temperatureTitle": "Temperature (heating/cooling)",
-    "temperatureIntro": "Models heater/cooler load from outdoor temperature (Open-Meteo forecast + history). Optionally bias-corrected by a Home Assistant sensor.",
+    "temperatureIntro": "Models heater/cooler load from outdoor temperature (Open-Meteo forecast + history). Optionally corrected with a site outdoor temperature sensor from Home Assistant.",
     "gridChargeIntro": "All listed factors apply each cycle; the engine takes the lowest ceiling. Ramp step limits how fast amps change each cycle.",
     "gridChargeAdvanced": "Advanced",
     "advancedRawTitle": "Advanced: raw config (JSON)",

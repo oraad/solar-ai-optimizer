@@ -26,12 +26,17 @@ source <(curl -fsSL "${_SOLAR_REPO_RAW}/proxmox/lib/solar-common.sh")
 
 solar_install_docker
 
-msg_info "Pulling ${APP:-Solar AI Optimizer} image"
+if ! solar_resolve_image_tag; then
+  exit 1
+fi
+
+msg_info "Pulling ${APP:-Solar AI Optimizer} image ($(solar_image_ref))"
 $STD docker pull "$(solar_image_ref)"
 msg_ok "Pulled image $(solar_image_ref)"
 
 msg_info "Configuring ${APP:-Solar AI Optimizer}"
 solar_write_env_file
+solar_persist_include_prereleases_if_set
 msg_info "Starting ${APP:-Solar AI Optimizer}"
 solar_ensure_data_volume
 $STD solar_run_container

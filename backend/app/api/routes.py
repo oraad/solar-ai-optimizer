@@ -85,6 +85,7 @@ async def health(request: Request) -> dict:
             "mcp_auth_failures_total": metrics.mcp_auth_failures_total,
             "is_addon": settings.is_addon,
             "ha_connected": status.ha_connected,
+            **orch.ha_connection_diagnostics(),
             "shadow_mode": status.shadow_mode,
             "paused": status.paused,
             "telemetry_stale": status.telemetry_stale,
@@ -107,6 +108,72 @@ async def health(request: Request) -> dict:
         },
         site_tz_for(orch),
     )
+
+
+@router.post("/ha/retry-connection")
+async def ha_retry_connection(
+    request: Request,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
+    """Close the HA WebSocket circuit breaker and retry connectivity."""
+    orch = _orch(request)
+    return await orch.retry_ha_connection()
+
+
+class HaBootstrapBody(BaseModel):
+    ha_base_url: str
+    ha_token: str
+
+
+@router.post("/ha/bootstrap")
+async def ha_bootstrap(
+    request: Request,
+    body: HaBootstrapBody,
+    _admin: SessionUser = Depends(require_admin),
+) -> dict:
+    """Validate an HA LLAT, persist it for Solar→HA, and return it for the integration."""
+    import httpx
+
+    from ..config import get_settings
+    from ..ha import oauth as ha_oauth
+
+    settings = get_settings()
+    if settings.is_addon:
+        raise api_error("api.ha_bootstrap.addon_unsupported", 400)
+
+    stored = ha_oauth.load_oauth(settings.data_dir)
+    if stored and stored.get("access_token") and not stored.get("degraded"):
+        raise api_error("api.ha_bootstrap.oauth_connected", 400)
+
+    base = body.ha_base_url.strip().rstrip("/")
+    token = body.ha_token.strip()
+    if not base or not token:
+        raise api_error("api.ha_bootstrap.invalid_credentials", 400)
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=15.0,
+            verify=settings.ha_verify_ssl,
+        ) as client:
+            resp = await client.get(
+                f"{base}/api/",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("HA bootstrap probe failed: %s", exc)
+        raise api_error("api.ha_bootstrap.unreachable", 400) from exc
+
+    if resp.status_code != 200:
+        raise api_error("api.ha_bootstrap.invalid_credentials", 400)
+
+    orch = _orch(request)
+    await orch.apply_ha_llat(base_url=base, token=token)
+    return {
+        "ok": True,
+        "access_token": token,
+        "install_id": get_or_create_install_id(settings.data_dir),
+        "ha_auth_mode": "llat",
+    }
 
 
 @router.get("/status")
@@ -399,15 +466,6 @@ async def put_config(
 ) -> dict:
     """Apply a partial config update from the UI (deep-merged + persisted)."""
     orch = _orch(request)
-    # Don't overwrite a stored HA token with the masked/blank value from the UI,
-    # and ignore the read-only helper flag.
-    ha_patch = patch.get("ha")
-    if isinstance(ha_patch, dict):
-        ha_patch.pop("has_token", None)
-        if not ha_patch.get("token"):
-            ha_patch.pop("token", None)
-        if not ha_patch:
-            patch.pop("ha", None)
     try:
         cfg = await orch.reload_config(patch)
     except ValidationError as e:

@@ -21,6 +21,8 @@ try:
 except Exception:
     opts = {}
 # Map add-on option keys -> app env vars.
+# Legacy keys api_token / ha_base_url / ha_token are no longer in the options
+# schema but remain mapped for one release so upgrades keep working.
 mapping = {
     'prerelease_updates': 'ADDON_PRERELEASE_UPDATES',
     'shadow_mode': 'SHADOW_MODE',

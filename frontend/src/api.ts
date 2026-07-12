@@ -266,6 +266,28 @@ export const api = {
       throw new Error(await parseError(res, "/api/ha/oauth/disconnect"));
     }
   },
+  haRetryConnection: () =>
+    postJSON<{
+      ok: boolean;
+      rest_reachable: boolean;
+      ha_auth_mode: string;
+      ha_ws_error_class: string | null;
+      ha_ws_last_error: string | null;
+      ha_ws_circuit_open: boolean;
+      ha_ws_backoff_seconds: number;
+      ha_ws_next_retry_at: string | null;
+    }>("/api/ha/retry-connection", {}),
+  haConnectionHealth: () =>
+    getJSON<{
+      ha_connected: boolean;
+      ha_auth_mode?: string;
+      ha_ws_error_class?: string | null;
+      ha_ws_last_error?: string | null;
+      ha_ws_circuit_open?: boolean;
+      ha_ws_backoff_seconds?: number;
+      ha_ws_next_retry_at?: string | null;
+      is_addon?: boolean;
+    }>("/api/health"),
   applyUpdate: async (version?: string): Promise<{ target_version: string; is_downgrade: boolean }> => {
     const body = version ? JSON.stringify({ version }) : "{}";
     const res = await fetch(

@@ -80,9 +80,12 @@ function update_script() {
     fi
   fi
 
+  local beta_label
+  beta_label="$(solar_include_prereleases_label)"
   UPD=$(msg_menu "Solar AI Optimizer Update Options" \
     "1" "Update Solar AI Optimizer" \
-    "2" "Remove Unused Images")
+    "2" "Remove Unused Images" \
+    "3" "Include beta releases: ${beta_label}")
 
   if [[ "$UPD" == "1" ]]; then
     solar_write_update_command
@@ -103,11 +106,20 @@ function update_script() {
     solar_ensure_env_auth
     env_patched="${SOLAR_ENV_PATCHED:-0}"
 
+    if ! solar_resolve_image_tag; then
+      exit 1
+    fi
+    if solar_include_prereleases; then
+      msg_info "Update channel: beta (include prereleases)"
+    else
+      msg_info "Update channel: stable"
+    fi
+
     if docker inspect "$SOLAR_CONTAINER" >/dev/null 2>&1; then
       previous_image_id="$(docker inspect -f '{{.Image}}' "$SOLAR_CONTAINER" 2>/dev/null || echo "")"
     fi
 
-    msg_info "Pulling latest image"
+    msg_info "Pulling $(solar_image_ref)"
     $STD docker pull "$(solar_image_ref)"
     msg_ok "Pulled $(solar_image_ref)"
 
@@ -151,6 +163,18 @@ function update_script() {
     msg_info "Removing unused images"
     $STD docker image prune -af
     msg_ok "Removed unused images"
+    exit
+  fi
+
+  if [[ "$UPD" == "3" ]]; then
+    if solar_include_prereleases; then
+      solar_set_include_prereleases false
+      msg_ok "Include beta releases: Off (stable channel)"
+    else
+      solar_set_include_prereleases true
+      msg_ok "Include beta releases: On"
+      msg_info "Run Update to pull the newest release including betas."
+    fi
     exit
   fi
 }

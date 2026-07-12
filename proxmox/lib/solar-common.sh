@@ -13,9 +13,166 @@ SOLAR_VERSION_FILE="${SOLAR_VERSION_FILE:-/opt/solar-ai-optimizer_version.txt}"
 SOLAR_ENV_FILE="${SOLAR_INSTALL_DIR}/solar.env"
 SOLAR_ADMIN_CREDS_FILE="${SOLAR_INSTALL_DIR}/.install-admin-credentials"
 SOLAR_REPO_RAW="${SOLAR_REPO_RAW:-https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main}"
+SOLAR_GITHUB_REPO="${SOLAR_GITHUB_REPO:-oraad/solar-ai-optimizer}"
+SOLAR_GITHUB_RELEASES_LATEST="https://api.github.com/repos/${SOLAR_GITHUB_REPO}/releases/latest"
+SOLAR_GITHUB_RELEASES_LIST="https://api.github.com/repos/${SOLAR_GITHUB_REPO}/releases?per_page=20"
 
 solar_image_ref() {
   echo "${SOLAR_IMAGE}:${SOLAR_IMAGE_TAG}"
+}
+
+solar_truthy() {
+  case "${1:-}" in
+    1 | true | TRUE | yes | YES | on | ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+solar_include_prereleases() {
+  local val="${SOLAR_INCLUDE_PRERELEASES:-}"
+  if [[ -z "$val" ]]; then
+    val="$(solar_env_get SOLAR_INCLUDE_PRERELEASES 2>/dev/null || true)"
+  fi
+  solar_truthy "$val"
+}
+
+solar_include_prereleases_label() {
+  if solar_include_prereleases; then
+    echo "On"
+  else
+    echo "Off"
+  fi
+}
+
+solar_set_include_prereleases() {
+  local enabled="${1:-false}"
+  if solar_truthy "$enabled"; then
+    enabled="true"
+  else
+    enabled="false"
+  fi
+  SOLAR_INCLUDE_PRERELEASES="$enabled"
+  solar_env_set SOLAR_INCLUDE_PRERELEASES "$enabled"
+}
+
+solar_strip_v_prefix() {
+  local tag="${1:-}"
+  tag="${tag#v}"
+  tag="${tag#V}"
+  echo "$tag"
+}
+
+solar_parse_github_tag_python() {
+  local include_prereleases="${1:-0}"
+  local json
+  json="$(cat)"
+  INCLUDE_PRERELEASES="$include_prereleases" python3 -c '
+import json, os, sys
+include = os.environ.get("INCLUDE_PRERELEASES", "0") in ("1", "true", "True")
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
+if isinstance(data, dict):
+    tag = data.get("tag_name") or ""
+    if tag and not data.get("draft"):
+        print(tag)
+        sys.exit(0)
+    sys.exit(1)
+if not isinstance(data, list):
+    sys.exit(1)
+for rel in data:
+    if not isinstance(rel, dict) or rel.get("draft"):
+        continue
+    if include or not rel.get("prerelease"):
+        tag = rel.get("tag_name") or ""
+        if tag:
+            print(tag)
+            sys.exit(0)
+sys.exit(1)
+' <<<"$json"
+}
+
+solar_latest_github_tag() {
+  local include_prereleases="${1:-}"
+  local tag=""
+  local tmp
+
+  if [[ -z "$include_prereleases" ]]; then
+    if solar_include_prereleases; then
+      include_prereleases=1
+    else
+      include_prereleases=0
+    fi
+  elif solar_truthy "$include_prereleases"; then
+    include_prereleases=1
+  else
+    include_prereleases=0
+  fi
+
+  tmp="$(mktemp)"
+  if [[ "$include_prereleases" == "1" ]]; then
+    if ! command -v python3 >/dev/null 2>&1; then
+      rm -f "$tmp"
+      echo ""
+      return 1
+    fi
+    if curl -fsSL "$SOLAR_GITHUB_RELEASES_LIST" -o "$tmp" 2>/dev/null; then
+      tag="$(solar_parse_github_tag_python 1 <"$tmp" 2>/dev/null || true)"
+    fi
+  else
+    if curl -fsSL "$SOLAR_GITHUB_RELEASES_LATEST" -o "$tmp" 2>/dev/null; then
+      if command -v python3 >/dev/null 2>&1; then
+        tag="$(solar_parse_github_tag_python 0 <"$tmp" 2>/dev/null || true)"
+      fi
+      if [[ -z "$tag" ]]; then
+        tag="$(grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' "$tmp" 2>/dev/null \
+          | head -1 \
+          | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)"
+      fi
+    fi
+  fi
+  rm -f "$tmp"
+
+  if [[ -z "$tag" ]]; then
+    echo "latest"
+    return 1
+  fi
+  solar_strip_v_prefix "$tag"
+  return 0
+}
+
+solar_resolve_image_tag() {
+  local resolved=""
+  local pinned="${SOLAR_IMAGE_TAG:-}"
+
+  # Manual pin wins (anything other than empty / latest).
+  if [[ -n "$pinned" && "$pinned" != "latest" ]]; then
+    return 0
+  fi
+
+  if solar_include_prereleases && ! command -v python3 >/dev/null 2>&1; then
+    msg_error "Including beta releases requires python3 (or set SOLAR_IMAGE_TAG explicitly)"
+    return 1
+  fi
+
+  if resolved="$(solar_latest_github_tag)"; then
+    SOLAR_IMAGE_TAG="$resolved"
+  else
+    SOLAR_IMAGE_TAG="latest"
+  fi
+  return 0
+}
+
+solar_persist_include_prereleases_if_set() {
+  local val="${SOLAR_INCLUDE_PRERELEASES:-}"
+  [[ -n "$val" ]] || return 0
+  if solar_truthy "$val"; then
+    solar_env_set SOLAR_INCLUDE_PRERELEASES true
+  else
+    solar_env_set SOLAR_INCLUDE_PRERELEASES false
+  fi
 }
 
 solar_default_env() {
@@ -216,11 +373,6 @@ solar_source_common() {
   source <(curl -fsSL "${SOLAR_REPO_RAW}/proxmox/lib/solar-common.sh")
 }
 
-solar_latest_github_tag() {
-  curl -fsSL "https://api.github.com/repos/oraad/solar-ai-optimizer/releases/latest" 2>/dev/null \
-    | grep -Po '"tag_name":\s*"\K[^"]+' || echo "latest"
-}
-
 solar_installed_ref() {
   if [[ -f "$SOLAR_VERSION_FILE" ]]; then
     cat "$SOLAR_VERSION_FILE"
@@ -256,6 +408,7 @@ solar_ensure_data_volume() {
 }
 
 solar_run_container() {
+  solar_resolve_image_tag || return 1
   solar_ensure_data_volume
   local -a run_args=(
     -d
@@ -340,6 +493,7 @@ solar_recover_missing_container() {
   fi
   msg_warn "Container missing but install dir found — recreating from ${SOLAR_ENV_FILE}"
   solar_ensure_env_auth
+  solar_resolve_image_tag || return 1
   $STD docker pull "$(solar_image_ref)"
   solar_recreate_container
   solar_save_version

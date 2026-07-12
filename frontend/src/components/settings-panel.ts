@@ -680,6 +680,12 @@ export class SettingsPanel extends LitElement {
   @state() private haOauthConnected = false;
   @state() private haOauthDegraded = false;
   @state() private haOauthBusy = false;
+  @state() private haAuthMode: string | null = null;
+  @state() private haWsErrorClass: string | null = null;
+  @state() private haWsLastError: string | null = null;
+  @state() private haWsCircuitOpen = false;
+  @state() private haConnected = false;
+  @state() private haRetryBusy = false;
   @state() private mpcAvailable = false;
   @state() private mlAvailable = false;
   @state() private mlLoadEnabled = false;
@@ -1497,21 +1503,123 @@ export class SettingsPanel extends LitElement {
   }
 
   private renderHaSection() {
+    const isAddon = Boolean(this.session?.is_addon);
+    return html`
+      ${this.renderHaControlsCard(isAddon)}
+      ${this.renderHaIntegrationCard(isAddon)}
+    `;
+  }
+
+  private haWsStatusMessage(): string {
+    if (this.haConnected && !this.haWsCircuitOpen && !this.haWsErrorClass) {
+      return t("ui.settings.haWsStatusOk");
+    }
+    if (this.haWsErrorClass === "banned_or_forbidden") {
+      return t("ui.settings.haWsStatusBanned");
+    }
+    if (this.haWsErrorClass === "auth_invalid") {
+      return t("ui.settings.haWsStatusAuth");
+    }
+    if (this.haWsCircuitOpen) {
+      return t("ui.settings.haWsStatusCircuit");
+    }
+    if (this.haWsErrorClass === "transient") {
+      return t("ui.settings.haWsStatusTransient");
+    }
+    return t("ui.settings.haWsStatusTransient");
+  }
+
+  private renderHaWsDiagnostics() {
+    return html`
+      <p class="label">
+        ${this.haAuthMode
+          ? t("ui.settings.haAuthMode", { mode: this.haAuthMode })
+          : nothing}
+      </p>
+      <p class="label">${this.haWsStatusMessage()}</p>
+      ${this.haWsLastError
+        ? html`<p class="label" style="font-family:monospace;font-size:0.85em">${this.haWsLastError}</p>`
+        : nothing}
+      <div class="buttons">
+        <button
+          type="button"
+          ?disabled=${this.haRetryBusy}
+          @click=${() => void this.retryHaConnection()}
+        >
+          ${t("ui.settings.haWsRetry")}
+        </button>
+      </div>
+    `;
+  }
+
+  private renderHaControlsCard(isAddon: boolean) {
     const d = this.draft as unknown as Record<string, any>;
     const ha = (d.ha ?? {}) as Record<string, unknown>;
     const hasToken = Boolean(ha.has_token);
-    return html`
-      ${this.renderSectionPanel(
-        t("ui.settings.haConnection"),
-        sectionHelp("ha"),
+    if (isAddon) {
+      return this.renderSectionPanel(
+        t("ui.settings.haControlsTitle"),
+        t("ui.settings.haControlsIntro"),
         html`
-          <div class="fields">
+          <p class="label">${t("ui.settings.haControlsAddonStatus")}</p>
+          ${this.renderHaWsDiagnostics()}
+        `,
+        "immediate",
+      );
+    }
+    return this.renderSectionPanel(
+      t("ui.settings.haControlsTitle"),
+      t("ui.settings.haControlsIntro"),
+      html`
+        ${this.renderHaWsDiagnostics()}
+        ${this.renderSectionPanel(
+          t("ui.settings.haOauthTitle"),
+          t("ui.settings.haOauthIntro"),
+          html`
+            <p class="label">
+              ${this.haOauthConnected
+                ? this.haOauthDegraded
+                  ? t("ui.settings.haOauthDegraded")
+                  : t("ui.settings.haOauthConnected")
+                : t("ui.settings.haOauthDisconnectedStatus")}
+            </p>
+            <div class="buttons">
+              <button
+                type="button"
+                ?disabled=${this.haOauthBusy}
+                @click=${() => void this.startHaOauth()}
+              >
+                ${t("ui.settings.haOauthConnect")}
+              </button>
+              <button
+                type="button"
+                ?disabled=${this.haOauthBusy || !this.haOauthConnected}
+                @click=${() => void this.refreshHaOauthStatus()}
+              >
+                ${t("ui.settings.pairRefresh")}
+              </button>
+              <button
+                type="button"
+                ?disabled=${this.haOauthBusy || !this.haOauthConnected}
+                @click=${() => void this.disconnectHaOauth()}
+              >
+                ${t("ui.settings.haOauthDisconnect")}
+              </button>
+            </div>
+          `,
+          "immediate",
+        )}
+        <details style="margin-top:1rem">
+          <summary>${t("ui.settings.haManualTokenAdvanced")}</summary>
+          <div class="fields" style="margin-top:0.75rem">
             ${this.renderField("ha", "base_url", String(ha.base_url ?? ""))}
             <div class="field">
               <label>${this.lbl("ha", "token")}</label>
               <input
                 type="password"
-                placeholder=${hasToken ? t("ui.settings.tokenStoredPlaceholder") : t("ui.settings.tokenNewPlaceholder")}
+                placeholder=${hasToken
+                  ? t("ui.settings.tokenStoredPlaceholder")
+                  : t("ui.settings.tokenNewPlaceholder")}
                 .value=${String(ha.token ?? "")}
                 @input=${(e: Event) =>
                   this.setField("ha", "token", (e.target as HTMLInputElement).value)}
@@ -1521,9 +1629,87 @@ export class SettingsPanel extends LitElement {
               ? this.renderField("ha", "verify_ssl", ha.verify_ssl)
               : null}
           </div>
+        </details>
+      `,
+    );
+  }
+
+  private renderHaIntegrationCard(isAddon: boolean) {
+    // Phase 5: on add-on, pairing is fallback-only (collapsed note + optional details).
+    if (isAddon) {
+      return this.renderSectionPanel(
+        t("ui.settings.haIntegrationTitle"),
+        t("ui.settings.haIntegrationIntro"),
+        html`
+          <p class="label">${t("ui.settings.haIntegrationAddonNote")}</p>
+          <details style="margin-top:0.75rem">
+            <summary>${t("ui.settings.pairTitle")}</summary>
+            ${this.renderPairingBody()}
+          </details>
         `,
-      )}
-      ${this.renderPairingSection()}
+        "immediate",
+      );
+    }
+    return this.renderSectionPanel(
+      t("ui.settings.haIntegrationTitle"),
+      t("ui.settings.haIntegrationIntro"),
+      this.renderPairingBody(),
+      "immediate",
+    );
+  }
+
+  private renderPairingBody() {
+    return html`
+      <p class="label">${t("ui.settings.pairHint")}</p>
+      ${this.pairCode
+        ? html`
+            <p style="font-size:1.75rem;letter-spacing:0.12em;font-weight:700">
+              ${this.pairCode}
+            </p>
+            <p class="label">
+              ${t("ui.settings.pairExpires", { seconds: String(this.pairExpiresIn) })}
+            </p>
+            <div class="buttons">
+              <button type="button" ?disabled=${this.pairBusy} @click=${() => void this.cancelPairing()}>
+                ${t("ui.settings.pairCancel")}
+              </button>
+            </div>
+          `
+        : html`
+            <div class="buttons">
+              <button type="button" ?disabled=${this.pairBusy} @click=${() => void this.startPairing()}>
+                ${t("ui.settings.pairGenerate")}
+              </button>
+              <button type="button" ?disabled=${this.pairBusy} @click=${() => void this.refreshPairStatus()}>
+                ${t("ui.settings.pairRefresh")}
+              </button>
+            </div>
+          `}
+      ${this.pairClients.length
+        ? html`
+            <ul style="list-style:none;padding:0;margin:1rem 0 0">
+              ${this.pairClients.map(
+                (c) => html`
+                  <li
+                    style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)"
+                  >
+                    <span>
+                      <strong>${c.name}</strong>
+                      <span class="label"> ${c.id}</span>
+                    </span>
+                    <button
+                      type="button"
+                      ?disabled=${this.pairBusy}
+                      @click=${() => void this.revokePairClient(c.id)}
+                    >
+                      ${t("ui.settings.pairRevoke")}
+                    </button>
+                  </li>
+                `,
+              )}
+            </ul>
+          `
+        : html`<p class="label">${t("ui.settings.pairNoClients")}</p>`}
     `;
   }
 
@@ -1541,10 +1727,45 @@ export class SettingsPanel extends LitElement {
     }
   }
 
+  private async refreshHaConnectionHealth(): Promise<void> {
+    try {
+      const h = await api.haConnectionHealth();
+      this.haConnected = Boolean(h.ha_connected);
+      this.haAuthMode = h.ha_auth_mode ?? null;
+      this.haWsErrorClass = h.ha_ws_error_class ?? null;
+      this.haWsLastError = h.ha_ws_last_error ?? null;
+      this.haWsCircuitOpen = Boolean(h.ha_ws_circuit_open);
+    } catch {
+      /* optional */
+    }
+  }
+
+  private async retryHaConnection(): Promise<void> {
+    this.haRetryBusy = true;
+    try {
+      const res = await api.haRetryConnection();
+      this.haAuthMode = res.ha_auth_mode;
+      this.haWsErrorClass = res.ha_ws_error_class;
+      this.haWsLastError = res.ha_ws_last_error;
+      this.haWsCircuitOpen = res.ha_ws_circuit_open;
+      this.haConnected = res.rest_reachable;
+      showToast({ message: t("ui.settings.haWsRetryOk"), variant: "success" });
+      await this.refreshHaConnectionHealth();
+    } catch (e) {
+      showToast({
+        message: e instanceof Error ? e.message : t("ui.settings.haWsRetryFailed"),
+        variant: "error",
+      });
+    } finally {
+      this.haRetryBusy = false;
+    }
+  }
+
   private async refreshHaOauthStatus(): Promise<void> {
     if (this.session?.is_addon) {
       this.haOauthConnected = false;
       this.haOauthDegraded = false;
+      await this.refreshHaConnectionHealth();
       return;
     }
     try {
@@ -1554,6 +1775,7 @@ export class SettingsPanel extends LitElement {
     } catch {
       /* optional until backend deployed */
     }
+    await this.refreshHaConnectionHealth();
   }
 
   private async startPairing(): Promise<void> {
@@ -1636,108 +1858,6 @@ export class SettingsPanel extends LitElement {
     } finally {
       this.haOauthBusy = false;
     }
-  }
-
-  private renderPairingSection() {
-    const isAddon = Boolean(this.session?.is_addon);
-    return html`
-      ${this.renderSectionPanel(
-        t("ui.settings.pairTitle"),
-        t("ui.settings.pairIntro"),
-        html`
-          <p class="label">${t("ui.settings.pairHint")}</p>
-          ${this.pairCode
-            ? html`
-                <p style="font-size:1.75rem;letter-spacing:0.12em;font-weight:700">
-                  ${this.pairCode}
-                </p>
-                <p class="label">
-                  ${t("ui.settings.pairExpires", { seconds: String(this.pairExpiresIn) })}
-                </p>
-                <div class="buttons">
-                  <button type="button" ?disabled=${this.pairBusy} @click=${() => void this.cancelPairing()}>
-                    ${t("ui.settings.pairCancel")}
-                  </button>
-                </div>
-              `
-            : html`
-                <div class="buttons">
-                  <button type="button" ?disabled=${this.pairBusy} @click=${() => void this.startPairing()}>
-                    ${t("ui.settings.pairGenerate")}
-                  </button>
-                  <button type="button" ?disabled=${this.pairBusy} @click=${() => void this.refreshPairStatus()}>
-                    ${t("ui.settings.pairRefresh")}
-                  </button>
-                </div>
-              `}
-          ${this.pairClients.length
-            ? html`
-                <ul style="list-style:none;padding:0;margin:1rem 0 0">
-                  ${this.pairClients.map(
-                    (c) => html`
-                      <li
-                        style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)"
-                      >
-                        <span>
-                          <strong>${c.name}</strong>
-                          <span class="label"> ${c.id}</span>
-                        </span>
-                        <button
-                          type="button"
-                          ?disabled=${this.pairBusy}
-                          @click=${() => void this.revokePairClient(c.id)}
-                        >
-                          ${t("ui.settings.pairRevoke")}
-                        </button>
-                      </li>
-                    `,
-                  )}
-                </ul>
-              `
-            : html`<p class="label">${t("ui.settings.pairNoClients")}</p>`}
-        `,
-        "immediate",
-      )}
-      ${isAddon
-        ? nothing
-        : this.renderSectionPanel(
-            t("ui.settings.haOauthTitle"),
-            t("ui.settings.haOauthIntro"),
-            html`
-              <p class="label">
-                ${this.haOauthConnected
-                  ? this.haOauthDegraded
-                    ? t("ui.settings.haOauthDegraded")
-                    : t("ui.settings.haOauthConnected")
-                  : t("ui.settings.haOauthDisconnectedStatus")}
-              </p>
-              <div class="buttons">
-                <button
-                  type="button"
-                  ?disabled=${this.haOauthBusy}
-                  @click=${() => void this.startHaOauth()}
-                >
-                  ${t("ui.settings.haOauthConnect")}
-                </button>
-                <button
-                  type="button"
-                  ?disabled=${this.haOauthBusy || !this.haOauthConnected}
-                  @click=${() => void this.refreshHaOauthStatus()}
-                >
-                  ${t("ui.settings.pairRefresh")}
-                </button>
-                <button
-                  type="button"
-                  ?disabled=${this.haOauthBusy || !this.haOauthConnected}
-                  @click=${() => void this.disconnectHaOauth()}
-                >
-                  ${t("ui.settings.haOauthDisconnect")}
-                </button>
-              </div>
-            `,
-            "immediate",
-          )}
-    `;
   }
 
   private renderDisplayPreferencesSection() {

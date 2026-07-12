@@ -1,5 +1,11 @@
 """Home Assistant clients (REST service calls + WebSocket state stream)."""
 
-from .client import HAClient
+from .client import HAAuthInvalid, HAClient, HAError, WsErrorClass, classify_ws_error
 
-__all__ = ["HAClient"]
+__all__ = [
+    "HAAuthInvalid",
+    "HAClient",
+    "HAError",
+    "WsErrorClass",
+    "classify_ws_error",
+]

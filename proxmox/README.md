@@ -73,7 +73,36 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main/proxmox/ct/solar-ai-optimizer-alpine.sh)"
 ```
 
-This pulls the latest image, recreates the `solar-optimizer` container, and preserves the `solar-data` volume. It also migrates older installs: if `TRUST_INGRESS_HEADERS` or local admin credentials are missing from `solar.env`, they are added automatically and any new password is shown once. Each update run also rewrites `/usr/bin/update` to point at this repository (fixes older installs that pointed at community-scripts).
+This resolves the image tag from GitHub Releases (stable by default), pulls that
+image, recreates the `solar-optimizer` container, and preserves the `solar-data`
+volume. It also migrates older installs: if `TRUST_INGRESS_HEADERS` or local admin
+credentials are missing from `solar.env`, they are added automatically and any new
+password is shown once. Each update run also rewrites `/usr/bin/update` to point at
+this repository (fixes older installs that pointed at community-scripts).
+
+### Beta / prerelease channel
+
+By default the helper stays on the **stable** channel (latest non-prerelease release,
+or `:latest` if the GitHub API is unreachable). Prerelease Docker tags are never
+published as `:latest`, so betas require an opt-in:
+
+1. From the `update` menu, choose **Include beta releases** to toggle the channel
+   (persisted as `SOLAR_INCLUDE_PRERELEASES` in `/opt/solar-ai-optimizer/solar.env`),
+   then run **Update** again.
+2. Or set the flag before install/update:
+
+```bash
+export SOLAR_INCLUDE_PRERELEASES=true
+```
+
+3. Or pin an exact tag (overrides channel resolution):
+
+```bash
+export SOLAR_IMAGE_TAG=0.6.11-beta.4
+```
+
+Leave the beta channel enabled if you want subsequent `update` runs to keep receiving
+newer prereleases; turning it off returns to stable.
 
 From **inside the LXC**, you can also run:
 
@@ -100,7 +129,7 @@ docker run -d --name solar-optimizer --restart unless-stopped \
   ghcr.io/oraad/solar-ai-optimizer:latest
 ```
 
-Prefer the `update` command or host-side helper script — same pull-and-recreate flow, less error-prone.
+Prefer the `update` command or host-side helper script — same pull-and-recreate flow, less error-prone. For betas, prefer the helper or an explicit version tag — do not use `:latest`.
 
 ### Dashboard one-click update
 

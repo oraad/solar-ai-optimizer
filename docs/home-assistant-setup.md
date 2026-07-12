@@ -284,7 +284,32 @@ Settings → Forecast → Temperature → **Outdoor sensor entity** — any `sen
 | **Empty status cards** | Read entities mapped correctly; entities not `unavailable` in HA |
 | **No forecast** | Latitude/longitude set; not `0,0` |
 | **Writes fail** | Write entities mapped; shadow mode off; HA reachable |
-| **Ingress 401/403** | `TRUST_INGRESS_HEADERS=true`; ingress URL matches container hostname |
+| **Ingress 401/403** | `TRUST_INGRESS_HEADERS=true`; ingress URL matches container hostname (this is **Solar UI** auth, not HA Core) |
+| **HA WebSocket 403** | See [IP ban recovery](#ip-ban-recovery) below |
+
+### IP ban recovery
+
+Home Assistant can ban Solar’s source IP after failed WebSocket/token attempts (`config/ip_bans.yaml`, `http.login_attempts_threshold`). Solar reconnects with backoff and pauses on repeated auth/ban failures, but a bad token can still re-ban the host if you clear the ban while Solar keeps retrying.
+
+**Recovery sequence:**
+
+1. **Stop Solar** so it cannot re-create the ban.
+2. Remove Solar’s IP(s) from HA `config/ip_bans.yaml` (or delete the file). Docker bridge / gateway addresses may differ from the LAN IP you expect — clear all matching entries.
+3. **Restart Home Assistant Core** so the ban list reloads; confirm the file stays empty for about a minute.
+4. Mint a **new** long-lived access token (or re-run IndieAuth in Solar Settings). Revoke the old token.
+5. Start Solar. In Settings → Solar controls Home Assistant, use **Retry connection** if the circuit is open.
+6. In Solar logs, distinguish `auth_invalid` / `WebSocket auth failed` (bad token) from HTTP `403` (ban or proxy).
+
+Optional test-only: set `http.ip_ban_enabled: false`, restart HA, confirm Solar connects, then re-enable bans.
+
+## Who needs which URL / token
+
+| Consumer | What to configure |
+|----------|-------------------|
+| **Human (ingress UI)** | Nothing — HA sidebar ingress |
+| **HACS integration → Solar** | Supervisor discovery on HAOS, or LAN URL + pairing code (standalone) |
+| **Solar engine → HA (add-on)** | Nothing — Supervisor token |
+| **Solar engine → HA (standalone)** | IndieAuth in Settings (preferred) or manual LLAT under Advanced |
 
 ## Related guides
 

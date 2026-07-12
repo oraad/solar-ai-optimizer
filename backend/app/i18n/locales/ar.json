@@ -20,6 +20,12 @@
       "addon_unsupported": "IndieAuth غير مستخدم عند التشغيل كإضافة Home Assistant.",
       "invalid_url": "عنوان عام أو Home Assistant غير صالح."
     },
+    "ha_bootstrap": {
+      "addon_unsupported": "تهيئة LLAT غير مستخدمة عند التشغيل كإضافة Home Assistant.",
+      "oauth_connected": "افصل IndieAuth قبل التهيئة برمز وصول طويل الأمد.",
+      "invalid_credentials": "رفض Home Assistant العنوان أو رمز الوصول طويل الأمد.",
+      "unreachable": "تعذّر الوصول إلى Home Assistant على العنوان المحدد."
+    },
     "override": {
       "kill_switch_confirm": "يتطلب kill_switch تأكيد confirm=true",
       "no_fields": "لم يتم تقديم حقول تجاوز",

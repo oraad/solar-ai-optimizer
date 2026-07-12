@@ -98,6 +98,29 @@ class Orchestrator:
     def set_admin_resolver(self, resolver: HAAdminResolver | None) -> None:
         self._admin_resolver = resolver
 
+    def resolve_ha_auth_mode(self) -> str:
+        """Return which credential path `_resolve_ha` would use.
+
+        Values: ``supervisor`` | ``oauth`` | ``llat`` | ``env`` | ``none``.
+        """
+        if self.settings.is_addon and self.settings.supervisor_token:
+            return "supervisor"
+        if self.settings.is_addon:
+            return "none"
+
+        from .ha import oauth as ha_oauth
+
+        stored = ha_oauth.load_oauth(self.settings.data_dir)
+        if stored and stored.get("access_token") and not stored.get("degraded"):
+            return "oauth"
+
+        ha = self.cfg.ha
+        if ha.base_url and ha.token:
+            return "llat"
+        if self.settings.ha_base_url and self.settings.ha_token:
+            return "env"
+        return "none"
+
     def _resolve_ha(self) -> tuple[str, str, bool]:
         """Resolve HA URL/token.
 
@@ -129,6 +152,35 @@ class Orchestrator:
             self.settings.ha_token,
             self.settings.ha_verify_ssl,
         )
+
+    def ha_connection_diagnostics(self) -> dict:
+        """Auth mode + WebSocket circuit/backoff fields for health/status."""
+        from .auth import api_clients as clients
+
+        diag = self.ha.ws_diagnostics()
+        paired = clients.list_clients(self.settings.data_dir)
+        if self.settings.is_addon and self.settings.supervisor_token:
+            # Preferred HA→Solar path on HAOS; pairing may still exist as fallback.
+            integration_mode = "supervisor"
+        elif paired:
+            integration_mode = "pairing"
+        else:
+            integration_mode = "none"
+        return {
+            "ha_auth_mode": self.resolve_ha_auth_mode(),
+            "integration_auth_mode": integration_mode,
+            **diag,
+        }
+
+    async def retry_ha_connection(self) -> dict:
+        """Admin-triggered: close WS circuit and optionally rebuild client."""
+        self.ha.request_retry()
+        ok = await self.ha.ping()
+        return {
+            "ok": True,
+            "rest_reachable": ok,
+            **self.ha_connection_diagnostics(),
+        }
 
     async def refresh_ha_oauth_if_needed(self) -> None:
         """Refresh IndieAuth access token and reconnect when it changes."""
@@ -377,6 +429,7 @@ class Orchestrator:
 
     async def reload_config(self, patch: dict) -> AppConfig:
         """Apply a UI config patch, persist it, and hot-reload components."""
+        patch = self._sanitize_config_patch(patch)
         old_ha = self._resolve_ha()
         async with self._cycle_lock:
             self.cfg = self.store.update(patch)
@@ -391,6 +444,55 @@ class Orchestrator:
             if self._resolve_ha() != old_ha:
                 await self._reconnect_ha()
             await self._control_cycle_body()
+        return self.cfg
+
+    def _sanitize_config_patch(self, patch: dict) -> dict:
+        """Strip secrets that must not be persisted for the current deploy mode.
+
+        - Add-on: never persist ha.base_url / ha.token (Supervisor owns HA auth).
+        - Standalone with live OAuth: ignore ha.token so UI/YAML cannot overwrite OAuth.
+        - Empty token from the UI: keep the previously stored token.
+        """
+        if not isinstance(patch, dict):
+            return patch
+        ha_patch = patch.get("ha")
+        if not isinstance(ha_patch, dict):
+            return patch
+
+        ha_patch = dict(ha_patch)
+        ha_patch.pop("has_token", None)
+
+        if self.settings.is_addon:
+            ha_patch.pop("token", None)
+            ha_patch.pop("base_url", None)
+        else:
+            from .ha import oauth as ha_oauth
+
+            stored = ha_oauth.load_oauth(self.settings.data_dir)
+            oauth_live = bool(
+                stored and stored.get("access_token") and not stored.get("degraded")
+            )
+            if oauth_live:
+                ha_patch.pop("token", None)
+            elif not ha_patch.get("token"):
+                ha_patch.pop("token", None)
+
+        out = dict(patch)
+        if not ha_patch:
+            out.pop("ha", None)
+        else:
+            out["ha"] = ha_patch
+        return out
+
+    async def apply_ha_llat(self, *, base_url: str, token: str) -> AppConfig:
+        """Validate-path helper: persist LLAT for Solar→HA and reconnect."""
+        old_ha = self._resolve_ha()
+        async with self._cycle_lock:
+            self.cfg = self.store.update(
+                {"ha": {"base_url": base_url, "token": token}}
+            )
+            if self._resolve_ha() != old_ha:
+                await self._reconnect_ha()
         return self.cfg
 
     async def reset_config(self) -> AppConfig:

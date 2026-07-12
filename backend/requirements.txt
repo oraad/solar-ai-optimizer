@@ -27,6 +27,9 @@ python-dateutil>=2.9.0.post0
 # Local admin login (bcrypt password verification)
 bcrypt>=5.0.0
 
+# Standalone LAN discovery (Home Assistant zeroconf config flow)
+zeroconf>=0.146.0
+
 # --- Optional extras (Phase 3/4). Uncomment to enable. ---
 # numpy>=2.5.0            # required by ML load forecasting
 # pandas>=2.2.0

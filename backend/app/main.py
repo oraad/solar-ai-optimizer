@@ -127,6 +127,16 @@ async def lifespan(app: FastAPI):
 
     register_ha_addon_update_job(scheduler, settings)
 
+    from .services.hassio_discovery import publish_hassio_discovery
+    from .services.zeroconf_advertise import ZeroconfAdvertiser
+
+    if settings.is_addon:
+        await publish_hassio_discovery(settings)
+
+    zeroconf_adv = ZeroconfAdvertiser()
+    if not settings.is_addon:
+        zeroconf_adv.start(settings)
+
     from .mcp.mount import mount_mcp_http
 
     # Mount MCP before the static "/" catch-all so /mcp is not swallowed by the UI.
@@ -146,6 +156,7 @@ async def lifespan(app: FastAPI):
             yield
         finally:
             log.info("Shutting down...")
+            zeroconf_adv.stop()
             scheduler.shutdown(wait=False)
             await orchestrator.shutdown()
 

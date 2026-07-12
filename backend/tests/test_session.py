@@ -140,3 +140,33 @@ async def test_mcp_token_bearer_admin():
     session = await resolve_session(req, settings, None)
     assert session.auth_mode == "token"
     assert session.is_admin is True
+
+
+@pytest.mark.asyncio
+async def test_supervisor_token_bearer_admin_when_addon():
+    settings = _settings(**{"SUPERVISOR_TOKEN": "supervisor-secret"})
+    assert settings.is_addon is True
+    req = _request({"Authorization": "Bearer supervisor-secret"})
+    session = await resolve_session(req, settings, None)
+    assert session.auth_mode == "supervisor"
+    assert session.is_admin is True
+    assert session.user_id == "supervisor"
+
+
+@pytest.mark.asyncio
+async def test_supervisor_token_ignored_when_not_addon():
+    settings = _settings(api_token="")
+    # No SUPERVISOR_TOKEN → is_addon false; matching a random bearer fails.
+    req = _request({"Authorization": "Bearer supervisor-secret"})
+    session = await resolve_session(req, settings, None)
+    assert session.auth_mode == "open"
+
+
+@pytest.mark.asyncio
+async def test_supervisor_token_preferred_over_api_token_when_same():
+    """When both match the same secret, addon path reports supervisor mode."""
+    secret = "shared-secret"
+    settings = _settings(api_token=secret, **{"SUPERVISOR_TOKEN": secret})
+    req = _request({"Authorization": f"Bearer {secret}"})
+    session = await resolve_session(req, settings, None)
+    assert session.auth_mode == "supervisor"

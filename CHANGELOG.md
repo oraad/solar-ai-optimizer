@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.5] - 2026-07-12
+
+### Added
+
+- Supervisor discovery publish for the HA Apps add-on so Home Assistant can auto-setup the integration
+- Zeroconf / mDNS advertisement (`_solar-ai._tcp.local.`) for standalone LAN installs
+- HA connection diagnostics (`ha_auth_mode`, WebSocket circuit/backoff) on health/status and admin retry
+- Settings UI: auth-mode status, WebSocket error clarity, and **Retry HA connection**
+
+### Changed
+
+- Prefer Supervisor token (add-on) and IndieAuth / bootstrap (standalone) over pasting `HA_TOKEN`
+- Add-on options schema drops `api_token`, `ha_base_url`, and `ha_token` (legacy env mapping kept one release)
+- Config patches sanitize HA secrets by deploy mode (add-on never persists URL/token; live OAuth ignores token overwrite)
+- Proxmox helper scripts resolve latest image tags from GitHub Releases (optional prereleases)
+
+### Fixed
+
+- HA WebSocket client resilience and reconnect/retry paths under auth and circuit failures
+
 ## [0.6.11-beta.4] - 2026-07-12
 
 ### Added

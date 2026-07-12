@@ -71,13 +71,6 @@ class SolarOps:
         return config_view(self._orch.cfg)
 
     async def update_config(self, patch: dict):
-        ha_patch = patch.get("ha")
-        if isinstance(ha_patch, dict):
-            ha_patch.pop("has_token", None)
-            if not ha_patch.get("token"):
-                ha_patch.pop("token", None)
-            if not ha_patch:
-                patch.pop("ha", None)
         try:
             cfg = await self._orch.reload_config(patch)
         except ValidationError:

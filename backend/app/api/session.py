@@ -24,7 +24,7 @@ from ..models import Override
 
 log = logging.getLogger("api.session")
 
-AuthMode = Literal["ingress", "local", "token", "client", "open", "none"]
+AuthMode = Literal["ingress", "local", "token", "client", "supervisor", "open", "none"]
 
 SESSION_COOKIE = "solar_session"
 
@@ -186,6 +186,16 @@ def _token_session() -> SessionUser:
     )
 
 
+def _supervisor_session() -> SessionUser:
+    return SessionUser(
+        user_id="supervisor",
+        username="supervisor",
+        display_name="Supervisor",
+        is_admin=True,
+        auth_mode="supervisor",
+    )
+
+
 def _client_session(client_id: str, name: str) -> SessionUser:
     return SessionUser(
         user_id=f"client:{client_id}",
@@ -203,6 +213,12 @@ def _secret_matches(provided: str, secret: str) -> bool:
 
 
 def _match_provided_token(provided: str, settings: Settings) -> SessionUser | None:
+    if (
+        settings.is_addon
+        and settings.supervisor_token
+        and _secret_matches(provided, settings.supervisor_token)
+    ):
+        return _supervisor_session()
     for secret in (settings.api_token, settings.mcp_token):
         if _secret_matches(provided, secret):
             return _token_session()

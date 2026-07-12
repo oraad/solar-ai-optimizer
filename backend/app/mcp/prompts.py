@@ -10,10 +10,13 @@ def register_prompts(mcp: FastMCP) -> None:
     def solar_explain_last_decision() -> str:
         return (
             "Troubleshoot the latest optimizer decision:\n"
-            "1. Call solar_explain_decision for the full trace.\n"
-            "2. Call solar_get_engine_config if reserve or priorities look wrong.\n"
-            "3. Call solar_get_decision_history to see if behavior is consistent.\n"
-            "Do not apply overrides without explicit user confirmation."
+            "1. Call solar_explain_decision (include causality + execution).\n"
+            "2. Compare intended vs applied for reserve % and grid-charge amps.\n"
+            "3. Check causality.explanation.reserve.source (rules|mpc|operator).\n"
+            "4. Call solar_get_engine_config if reserve or priorities look wrong.\n"
+            "5. Call solar_get_decision_history / executions with cycle_id if needed.\n"
+            "Do not apply overrides without explicit user confirmation.\n"
+            "Note: paused_optimization does not stop planning; only write pauses block actuators."
         )
 
     @mcp.prompt(name="solar_grid_outage_triage")

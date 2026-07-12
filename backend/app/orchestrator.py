@@ -30,7 +30,9 @@ from .models import (
     BatterySummary,
     Capability,
     Decision,
+    DecisionModifiers,
     ExecutionResult,
+    ExecutionSummary,
     GridStats,
     Override,
     ShedResult,
@@ -86,6 +88,7 @@ class Orchestrator:
         self.latest_decision: Decision | None = None
         self.latest_results: list[ExecutionResult] = []
         self.latest_shed_results: list[ShedResult] = []
+        self.latest_execution_summary: ExecutionSummary | None = None
         self.latest_grid_stats: GridStats | None = None
         self._last_grid_charge_amps: float | None = None
 
@@ -556,18 +559,17 @@ class Orchestrator:
         forecast = self.forecast.current
 
         decision = self._decide(telemetry, forecast, self._telemetry_stale(telemetry))
-        if not repo.decisions_audit_equal(self.latest_decision, decision):
-            await repo.save_decision(decision)
-        self.latest_decision = decision
+        content_changed = not repo.decisions_audit_equal(self.latest_decision, decision)
 
         if self.grid_charge_writes_allowed() and decision.actions:
             try:
                 self.latest_results = await self.executor.apply_decision(
-                    decision, self.shadow_mode
+                    decision, self.shadow_mode, cycle_id=decision.cycle_id
                 )
                 self._update_last_grid_charge_amps(self.latest_results)
             except Exception as e:  # noqa: BLE001
                 log.error("Executor failed: %s", e)
+                self.latest_results = []
         else:
             self.latest_results = []
         if self.shedding_writes_allowed() and decision.shed_actions:
@@ -576,15 +578,100 @@ class Orchestrator:
                     decision.shed_actions,
                     self.shadow_mode,
                     tiers=self.cfg.load_shedding.tiers,
+                    cycle_id=decision.cycle_id,
                 )
             except Exception as e:  # noqa: BLE001
                 log.error("Shedding executor failed: %s", e)
+                self.latest_shed_results = []
         else:
             self.latest_shed_results = []
+
+        # Full body on content change; slim header when a write actually applied/errored.
+        wrote_meaningful = any(
+            r.applied or r.error for r in self.latest_results
+        ) or any(r.applied or r.error for r in self.latest_shed_results)
+        if content_changed:
+            await repo.save_decision(decision, slim=False)
+        elif wrote_meaningful:
+            await repo.save_decision(decision, slim=True)
+
+        self.latest_decision = decision
+        self.latest_execution_summary = self._build_execution_summary(decision)
 
         await self._broadcast()
         await self._pulse_heartbeat()
         return decision
+
+    def _build_execution_summary(self, decision: Decision) -> ExecutionSummary:
+        results = self.latest_results
+        shed = self.latest_shed_results
+        skip_counts: dict[str, int] = {}
+        for r in results:
+            if r.skipped_reason:
+                skip_counts[r.skipped_reason] = skip_counts.get(r.skipped_reason, 0) + 1
+        for r in shed:
+            if r.skipped_reason:
+                skip_counts[r.skipped_reason] = skip_counts.get(r.skipped_reason, 0) + 1
+        top_skips = sorted(skip_counts, key=lambda k: -skip_counts[k])[:5]
+
+        intended_amps = None
+        if decision.grid_charge is not None:
+            intended_amps = (
+                float(decision.grid_charge.target_amps)
+                if decision.grid_charge.enabled
+                else 0.0
+            )
+
+        applied_amps = None
+        gc_status = "none"
+        if not self.grid_charge_writes_allowed():
+            gc_status = "paused"
+        elif self.shadow_mode:
+            gc_status = "shadow"
+        elif not decision.actions:
+            gc_status = "none"
+        else:
+            amp_res = next(
+                (
+                    r
+                    for r in results
+                    if r.capability is Capability.MAX_GRID_CHARGE_CURRENT
+                ),
+                None,
+            )
+            if amp_res is None:
+                gc_status = "none"
+            elif amp_res.error:
+                gc_status = "error"
+            elif amp_res.skipped_reason:
+                gc_status = "skipped"
+            elif amp_res.verified:
+                gc_status = "verified"
+                if isinstance(amp_res.requested, (int, float)):
+                    applied_amps = float(amp_res.requested)
+            elif amp_res.applied:
+                gc_status = "applied"
+                if isinstance(amp_res.requested, (int, float)):
+                    applied_amps = float(amp_res.requested)
+            else:
+                gc_status = "skipped"
+
+        return ExecutionSummary(
+            cycle_id=decision.cycle_id,
+            grid_charge_writes_allowed=self.grid_charge_writes_allowed(),
+            shedding_writes_allowed=self.shedding_writes_allowed(),
+            applied=sum(1 for r in results if r.applied),
+            verified=sum(1 for r in results if r.verified),
+            skipped=sum(1 for r in results if r.skipped_reason),
+            errors=sum(1 for r in results if r.error),
+            top_skip_keys=top_skips,
+            shed_applied=sum(1 for r in shed if r.applied),
+            shed_skipped=sum(1 for r in shed if r.skipped_reason),
+            intended_reserve_soc=decision.reserve.target_soc,
+            intended_grid_charge_amps=intended_amps,
+            applied_grid_charge_amps=applied_amps,
+            grid_charge_status=gc_status,
+        )
 
     def _decide(self, telemetry, forecast, telemetry_stale: bool = False) -> Decision:
         return self._compute_decision(
@@ -611,6 +698,16 @@ class Orchestrator:
         count_mpc_fallback: bool,
     ) -> Decision:
         plan_opt, plan_gc, plan_shed = self._plan_flags()
+        modifiers = DecisionModifiers(
+            shadow=self.shadow_mode,
+            paused_writes_grid=self.paused_grid_charge,
+            paused_writes_shed=self.paused_shedding,
+            paused_optimization=self.paused_optimization,
+            force_grid_charge=self.override.force_grid_charge,
+            force_shed_off=self.override.force_shed_off,
+            reserve_pin=self.override.reserve_soc,
+            engine_active="mpc" if self._mpc is not None else "rules",
+        )
         kwargs = {
             "telemetry_stale": telemetry_stale,
             "last_grid_charge_amps": self._last_grid_charge_amps,
@@ -618,6 +715,7 @@ class Orchestrator:
             "plan_grid_charge": plan_gc,
             "plan_shedding": plan_shed,
             "pending_restore": frozenset(self.snapshot_store.list_all().keys()),
+            "modifiers": modifiers,
         }
         if self._mpc is not None and plan_opt:
             try:
@@ -864,6 +962,11 @@ class Orchestrator:
         return SystemStatus(
             telemetry=telemetry,
             decision=self.latest_decision,
+            execution_summary=(
+                self.latest_execution_summary
+                if isinstance(self.latest_execution_summary, ExecutionSummary)
+                else None
+            ),
             grid_stats=self.latest_grid_stats,
             battery_summary=BatterySummary(
                 capacity_kwh=bat.capacity_kwh,
@@ -918,11 +1021,18 @@ class Orchestrator:
         self._subscribers.discard(q)
 
     async def _broadcast(self) -> None:
-        status = self.build_status().model_dump(mode="json")
+        status = self.build_status()
+        payload = status.model_dump(mode="json")
+        # Optional lean WS: strip fat explanation while keeping summary fields.
+        if (
+            not self.cfg.control.decision_explanation_on_ws
+            and isinstance(payload.get("decision"), dict)
+        ):
+            payload["decision"] = {**payload["decision"], "explanation": None}
         for q in list(self._subscribers):
             try:
                 if q.full():
                     _ = q.get_nowait()
-                q.put_nowait(status)
+                q.put_nowait(payload)
             except Exception:  # noqa: BLE001
                 self._subscribers.discard(q)

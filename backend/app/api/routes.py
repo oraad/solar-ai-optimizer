@@ -161,11 +161,17 @@ async def plan(
     decision = orch.latest_decision
     return _loc_data(
         {
+            "cycle_id": decision.cycle_id if decision else None,
             "decision": decision.model_dump(mode="json") if decision else None,
             "results": [r.model_dump(mode="json") for r in orch.latest_results],
             "shed_results": [
                 r.model_dump(mode="json") for r in orch.latest_shed_results
             ],
+            "execution_summary": (
+                orch.latest_execution_summary.model_dump(mode="json")
+                if orch.latest_execution_summary
+                else None
+            ),
             "shadow_mode": orch.shadow_mode,
             "paused": orch.paused,
         },
@@ -219,10 +225,14 @@ async def history_telemetry(
 async def history_decisions(
     request: Request,
     limit: int = Query(default=100, ge=1, le=1000),
+    cycle_id: str | None = Query(default=None),
     _session: SessionUser = RequireSession,
 ) -> list[dict]:
     orch = _orch(request)
-    rows = await repo.get_recent_decisions(limit=limit)
+    if cycle_id:
+        rows = await repo.get_decisions_by_cycle_id(cycle_id, limit=limit)
+    else:
+        rows = await repo.get_recent_decisions(limit=limit)
     return localize_payload(rows, site_tz=site_tz_for(orch))  # type: ignore[return-value]
 
 
@@ -520,9 +530,10 @@ async def clear_override(
 async def history_executions(
     request: Request,
     limit: int = Query(default=100, ge=1, le=1000),
+    cycle_id: str | None = Query(default=None),
     _session: SessionUser = RequireSession,
 ) -> list[dict]:
-    rows = await repo.get_recent_executions(limit=limit)
+    rows = await repo.get_recent_executions(limit=limit, cycle_id=cycle_id)
     return localize_payload(rows, site_tz=site_tz_for(_orch(request)))  # type: ignore[return-value]
 
 
@@ -530,7 +541,8 @@ async def history_executions(
 async def history_shed_executions(
     request: Request,
     limit: int = Query(default=100, ge=1, le=1000),
+    cycle_id: str | None = Query(default=None),
     _session: SessionUser = RequireSession,
 ) -> list[dict]:
-    rows = await repo.get_recent_shed_executions(limit=limit)
+    rows = await repo.get_recent_shed_executions(limit=limit, cycle_id=cycle_id)
     return localize_payload(rows, site_tz=site_tz_for(_orch(request)))  # type: ignore[return-value]

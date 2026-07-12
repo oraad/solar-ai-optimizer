@@ -66,7 +66,7 @@ Or use Settings → Agent access (standalone). Mount is refused if no token is c
 | Tool | Purpose |
 |------|---------|
 | `solar_get_status` | Live telemetry, decision, shadow mode |
-| `solar_explain_decision` | Full forensics trace (inputs → reasoning → execution) |
+| `solar_explain_decision` | Full forensics trace (inputs → decision/causality → execution) |
 | `solar_simulate_decision` | Dry-run decision without writes |
 | `solar_get_engine_config` | Redacted effective config |
 | `solar_apply_override` | Apply `Override` fields |
@@ -82,19 +82,29 @@ Or use Settings → Agent access (standalone). Mount is refused if no token is c
 
 ## Troubleshooting playbook
 
-1. **`solar_explain_decision`** — find the layer: forecast degraded? override active? MPC fallback? skipped write?
+### Expected vs actual (reserve % / grid-charge amps)
+
+1. On the dashboard Overview, compare **Intended vs Applied** for reserve and grid charge.
+2. If that disagrees with expected behavior, call **`solar_explain_decision`** with sections including **`causality`** and **`execution`** (legacy alias `reasoning` maps to decision+causality).
+3. Check `causality.explanation.reserve.source` (`rules` | `mpc` | `operator`) and `grid_charge.binding_factor`.
+4. Join history by `cycle_id` on decision / execution / shed history tools when correlating writes.
+
+### General
+
+1. **`solar_explain_decision`** — find the layer: forecast degraded? override active? MPC fallback? skipped write? writes paused?
 2. **`solar_get_engine_config`** — check reserve buffers, `priority_order`, subsystem enables.
 3. **`solar_get_decision_history`** + **`solar_get_telemetry_window`** — input-driven vs logic bug.
 4. **`solar_simulate_decision`** — test a config hypothesis without live writes.
-5. If rationale keys point to a rule bug, fix code in `backend/app/engine/`.
+5. Note: **`paused_optimization` does not stop planning**; only `paused_grid_charge` / `paused_shedding` block actuator writes.
+6. If rationale keys point to a rule bug, fix code in `backend/app/engine/`.
 
 Unauthenticated `POST /mcp` should return **401** Bearer required (not 405). If you see 405, the static UI may be swallowing `/mcp` — upgrade to a build that mounts MCP before the static catch-all.
 
 ## REST debug endpoints
 
-Admin-only (same data as MCP forensics tools):
+Admin-only (same data as MCP forensics tools). Trace is **live latest cycle** (not historical time-travel):
 
-- `GET /api/debug/trace?sections=decision,execution,engine`
+- `GET /api/debug/trace?sections=causality,decision,execution,engine`
 - `POST /api/debug/simulate` (rate-limited)
 
 ## Environment variables

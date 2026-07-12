@@ -13,7 +13,9 @@ from .config_view import config_view
 if TYPE_CHECKING:
     from ..orchestrator import Orchestrator
 
-DEFAULT_SECTIONS = frozenset({"inputs", "engine", "overrides", "decision", "execution", "ops"})
+DEFAULT_SECTIONS = frozenset(
+    {"inputs", "engine", "overrides", "decision", "causality", "execution", "ops"}
+)
 ALL_SECTIONS = DEFAULT_SECTIONS | frozenset({"config"})
 
 
@@ -21,6 +23,11 @@ def _parse_sections(sections: str | None) -> frozenset[str]:
     if not sections or sections.strip().lower() == "all":
         return ALL_SECTIONS
     parts = {p.strip().lower() for p in sections.split(",") if p.strip()}
+    # Back-compat: docs historically said "reasoning" for the decision section.
+    if "reasoning" in parts:
+        parts.discard("reasoning")
+        parts.add("decision")
+        parts.add("causality")
     return parts & ALL_SECTIONS if parts else DEFAULT_SECTIONS
 
 
@@ -65,6 +72,12 @@ def build_decision_trace(orch: Orchestrator, *, sections: str | None = None) -> 
             "engine_enabled": orch.cfg.engine.enabled,
             "grid_charge_enabled": orch.cfg.grid_charge.enabled,
             "shedding_enabled": orch.cfg.load_shedding.enabled,
+            "writes_paused_grid": orch.paused_grid_charge,
+            "writes_paused_shed": orch.paused_shedding,
+            "note_pause": (
+                "paused_optimization labels intent only; planning continues. "
+                "Actuator pauses are paused_grid_charge / paused_shedding."
+            ),
         }
 
     if "overrides" in wanted:
@@ -81,7 +94,36 @@ def build_decision_trace(orch: Orchestrator, *, sections: str | None = None) -> 
         decision = orch.latest_decision
         trace["decision"] = localize_model(decision) if decision else None
 
+    if "causality" in wanted:
+        decision = orch.latest_decision
+        explanation = decision.explanation if decision else None
+        trace["causality"] = {
+            "cycle_id": decision.cycle_id if decision else None,
+            "explanation": (
+                explanation.model_dump(mode="json") if explanation else None
+            ),
+            "execution_summary": (
+                orch.latest_execution_summary.model_dump(mode="json")
+                if orch.latest_execution_summary
+                else None
+            ),
+            "gap_check": (
+                "Compare Overview intended vs applied for reserve % and grid-charge "
+                "amps. If they disagree with expected behavior, inspect this "
+                "causality block then execution."
+            ),
+        }
+
     if "execution" in wanted:
+        pending = [
+            {
+                "entity": entity,
+                "was_on": snap.was_on,
+                "companion_count": len(snap.companions),
+                "captured_at": snap.captured_at.isoformat(),
+            }
+            for entity, snap in orch.snapshot_store.list_all().items()
+        ]
         trace["execution"] = {
             "results": localize_payload(
                 [r.model_dump(mode="json") for r in orch.latest_results]
@@ -89,6 +131,12 @@ def build_decision_trace(orch: Orchestrator, *, sections: str | None = None) -> 
             "shed_results": localize_payload(
                 [r.model_dump(mode="json") for r in orch.latest_shed_results]
             ),
+            "execution_summary": (
+                orch.latest_execution_summary.model_dump(mode="json")
+                if orch.latest_execution_summary
+                else None
+            ),
+            "pending_shed_snapshots": pending,
             "shadow_mode": orch.shadow_mode,
         }
 

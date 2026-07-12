@@ -24,12 +24,22 @@ _TELEMETRY_MIGRATIONS: dict[str, str] = {
 _DECISION_MIGRATIONS: dict[str, str] = {
     "reserve_rationale": "ALTER TABLE decisions ADD COLUMN reserve_rationale TEXT DEFAULT ''",
     "shed_actions_json": "ALTER TABLE decisions ADD COLUMN shed_actions_json TEXT DEFAULT '[]'",
+    "cycle_id": "ALTER TABLE decisions ADD COLUMN cycle_id VARCHAR(36)",
+    "grid_charge_json": "ALTER TABLE decisions ADD COLUMN grid_charge_json TEXT DEFAULT ''",
+    "explanation_json": "ALTER TABLE decisions ADD COLUMN explanation_json TEXT DEFAULT ''",
+    "engine_active": "ALTER TABLE decisions ADD COLUMN engine_active VARCHAR(16) DEFAULT 'rules'",
+    "slim": "ALTER TABLE decisions ADD COLUMN slim BOOLEAN DEFAULT 0",
+}
+
+_EXECUTION_MIGRATIONS: dict[str, str] = {
+    "cycle_id": "ALTER TABLE executions ADD COLUMN cycle_id VARCHAR(36)",
 }
 
 _SHED_MIGRATIONS: dict[str, str] = {
     "companion_audit_json": (
         "ALTER TABLE shed_executions ADD COLUMN companion_audit_json TEXT DEFAULT '{}'"
     ),
+    "cycle_id": "ALTER TABLE shed_executions ADD COLUMN cycle_id VARCHAR(36)",
 }
 
 log = logging.getLogger("storage.db")
@@ -59,6 +69,7 @@ async def init_db(database_url: str) -> None:
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_table(conn, "telemetry", _TELEMETRY_MIGRATIONS)
         await _migrate_table(conn, "decisions", _DECISION_MIGRATIONS)
+        await _migrate_table(conn, "executions", _EXECUTION_MIGRATIONS)
         await _migrate_table(conn, "shed_executions", _SHED_MIGRATIONS)
     log.info("Database initialised at %s", database_url)
 

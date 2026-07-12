@@ -247,6 +247,22 @@ def localize_payload(
     """Walk JSON-like structures and resolve Msg dicts / add skip labels."""
     loc = locale or get_locale()
     if isinstance(obj, dict):
+        # Explanation step objects (DecisionExplanation.steps entries).
+        if "id" in obj and ("title_key" in obj or "detail_key" in obj):
+            step = {
+                k: localize_payload(v, locale=loc, site_tz=site_tz)
+                for k, v in obj.items()
+            }
+            params = dict(step.get("params") or {})
+            title_key = str(step.get("title_key") or "")
+            detail_key = str(step.get("detail_key") or "")
+            if title_key:
+                step["title"] = t(title_key, params, locale=loc)  # type: ignore[arg-type]
+            if detail_key:
+                step["detail"] = t(detail_key, params, locale=loc)  # type: ignore[arg-type]
+            if site_tz is not None:
+                return apply_site_timezone(step, site_tz)
+            return step
         out: dict[str, Any] = {}
         for k, v in obj.items():
             if k in _SKIP_FIELDS and isinstance(v, str):

@@ -24,6 +24,8 @@ export interface ReserveTarget {
   solar_bridge_soc: number;
   autonomy_floor_soc: number;
   rationale: string;
+  source?: "rules" | "mpc" | "operator";
+  rules_soc?: number | null;
 }
 
 export type BlackoutRisk = "low" | "moderate" | "high" | "critical";
@@ -35,15 +37,90 @@ export interface ShedAction {
   reason: string;
 }
 
+export interface CapChainFactor {
+  factor: string;
+  ceiling_a: number;
+  note_key?: string;
+  note_params?: Record<string, string | number>;
+  binding?: boolean;
+}
+
 export interface GridChargePlan {
   enabled: boolean;
   target_amps: number;
   max_amps: number;
   rationale: string;
+  cap_chain?: CapChainFactor[];
+}
+
+export interface ExplanationStep {
+  id: string;
+  title_key: string;
+  detail_key?: string;
+  title?: string;
+  detail?: string;
+  params?: Record<string, string | number>;
+  outcome?: string;
+}
+
+export interface DecisionExplanation {
+  schema_version: number;
+  steps: ExplanationStep[];
+  reserve?: {
+    source?: string;
+    rules_soc?: number | null;
+    mpc_soc?: number | null;
+    applied_soc?: number | null;
+    solar_bridge_soc?: number | null;
+    autonomy_floor_soc?: number | null;
+    driver?: string;
+  };
+  risk?: {
+    score?: number;
+    label?: BlackoutRisk;
+    deficit_ratio?: number | null;
+    solar_factor?: number | null;
+  };
+  grid_charge?: {
+    enabled?: boolean;
+    target_amps?: number;
+    binding_factor?: string | null;
+    binding_ceiling_a?: number | null;
+    mode?: string;
+  };
+  shed_count?: number;
+  modifiers?: {
+    shadow?: boolean;
+    paused_writes_grid?: boolean;
+    paused_writes_shed?: boolean;
+    paused_optimization?: boolean;
+    force_grid_charge?: boolean | null;
+    force_shed_off?: boolean | null;
+    reserve_pin?: number | null;
+    engine_active?: string;
+  };
+}
+
+export interface ExecutionSummary {
+  cycle_id?: string | null;
+  grid_charge_writes_allowed?: boolean;
+  shedding_writes_allowed?: boolean;
+  applied?: number;
+  verified?: number;
+  skipped?: number;
+  errors?: number;
+  top_skip_keys?: string[];
+  shed_applied?: number;
+  shed_skipped?: number;
+  intended_reserve_soc?: number | null;
+  intended_grid_charge_amps?: number | null;
+  applied_grid_charge_amps?: number | null;
+  grid_charge_status?: string;
 }
 
 export interface Decision {
   ts: string;
+  cycle_id?: string;
   reserve: ReserveTarget;
   actions: ControlAction[];
   shed_actions: ShedAction[];
@@ -52,6 +129,8 @@ export interface Decision {
   summary: string;
   shadow_mode: boolean;
   grid_charge?: GridChargePlan | null;
+  explanation?: DecisionExplanation | null;
+  slim?: boolean;
 }
 
 export interface GridStats {
@@ -72,6 +151,7 @@ export interface ExecutionResult {
   skipped_reason_text?: string | null;
   error: string | null;
   ts: string;
+  cycle_id?: string | null;
 }
 
 export interface ShedResult {
@@ -87,6 +167,7 @@ export interface ShedResult {
   companions_restored?: string[];
   companion_errors?: Record<string, string>;
   ts: string;
+  cycle_id?: string | null;
 }
 
 export interface CompanionEntity {
@@ -112,6 +193,7 @@ export interface BatterySummary {
 export interface SystemStatus {
   telemetry: Telemetry | null;
   decision: Decision | null;
+  execution_summary?: ExecutionSummary | null;
   grid_stats: GridStats | null;
   battery_summary?: BatterySummary | null;
   ha_connected: boolean;
@@ -236,6 +318,7 @@ export interface UpdateInfo {
 
 export interface DecisionHistoryRow {
   ts: string;
+  cycle_id?: string | null;
   target_soc: number;
   blackout_risk: BlackoutRisk;
   blackout_risk_score: number;
@@ -244,6 +327,10 @@ export interface DecisionHistoryRow {
   reserve_rationale?: string;
   actions: ControlAction[];
   shed_actions: ShedAction[];
+  grid_charge?: GridChargePlan | null;
+  explanation?: DecisionExplanation | null;
+  engine_active?: string;
+  slim?: boolean;
 }
 
 export interface GridEventRow {
@@ -253,6 +340,7 @@ export interface GridEventRow {
 
 export interface ExecutionHistoryRow {
   ts: string;
+  cycle_id?: string | null;
   capability: string;
   requested: string;
   applied: boolean;
@@ -264,6 +352,7 @@ export interface ExecutionHistoryRow {
 
 export interface ShedExecutionRow {
   ts: string;
+  cycle_id?: string | null;
   tier: string;
   entity: string;
   desired_on: boolean;

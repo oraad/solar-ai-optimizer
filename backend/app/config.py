@@ -263,6 +263,8 @@ class ControlConfig(BaseModel):
     min_write_interval_seconds: int = 60
     enforce_hard_bounds: bool = True
     ha_stale_after_seconds: int = 120
+    # When False, WS/status omits Decision.explanation (lean payload rollout).
+    decision_explanation_on_ws: bool = True
 
 
 class FailSafeConfig(BaseModel):

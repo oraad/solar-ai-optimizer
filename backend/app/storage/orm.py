@@ -40,6 +40,7 @@ class DecisionRow(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    cycle_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     target_soc: Mapped[float] = mapped_column(Float)
     blackout_risk: Mapped[str] = mapped_column(String(16))
     blackout_risk_score: Mapped[float] = mapped_column(Float, default=0.0)
@@ -49,6 +50,10 @@ class DecisionRow(Base):
     # JSON-encoded lists for audit.
     actions_json: Mapped[str] = mapped_column(Text, default="[]")
     shed_actions_json: Mapped[str] = mapped_column(Text, default="[]")
+    grid_charge_json: Mapped[str] = mapped_column(Text, default="")
+    explanation_json: Mapped[str] = mapped_column(Text, default="")
+    engine_active: Mapped[str] = mapped_column(String(16), default="rules")
+    slim: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class ExecutionRow(Base):
@@ -56,6 +61,7 @@ class ExecutionRow(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    cycle_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     capability: Mapped[str] = mapped_column(String(48))
     requested: Mapped[str] = mapped_column(String(64))
     applied: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -69,6 +75,7 @@ class ShedExecutionRow(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    cycle_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     tier: Mapped[str] = mapped_column(String(64))
     entity: Mapped[str] = mapped_column(String(128))
     desired_on: Mapped[bool] = mapped_column(Boolean)

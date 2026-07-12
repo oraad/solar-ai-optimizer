@@ -139,11 +139,17 @@ async def get_last_grid_event() -> GridEvent | None:
 
 
 def _decision_row_fields(d: Decision) -> dict[str, str | float | bool]:
-    """Audit payload persisted to decisions (excludes ts)."""
+    """Audit payload persisted to decisions (excludes ts and cycle_id)."""
+    grid_charge_json = ""
+    if d.grid_charge is not None:
+        grid_charge_json = json.dumps(d.grid_charge.model_dump(mode="json"))
+    explanation_json = ""
+    if d.explanation is not None:
+        explanation_json = json.dumps(d.explanation.model_dump(mode="json"))
     return {
-        "target_soc": d.reserve.target_soc,
+        "target_soc": round(d.reserve.target_soc, 1),
         "blackout_risk": d.blackout_risk.value,
-        "blackout_risk_score": d.blackout_risk_score,
+        "blackout_risk_score": round(d.blackout_risk_score, 3),
         "shadow_mode": d.shadow_mode,
         "summary": (
             encode_msg(d.summary) if isinstance(d.summary, Msg) else str(d.summary)
@@ -152,6 +158,13 @@ def _decision_row_fields(d: Decision) -> dict[str, str | float | bool]:
         "actions_json": json.dumps([a.model_dump(mode="json") for a in d.actions]),
         "shed_actions_json": json.dumps(
             [a.model_dump(mode="json") for a in d.shed_actions]
+        ),
+        "grid_charge_json": grid_charge_json,
+        "explanation_json": explanation_json,
+        "engine_active": (
+            d.explanation.modifiers.engine_active
+            if d.explanation is not None
+            else "rules"
         ),
     }
 
@@ -162,24 +175,49 @@ def decisions_audit_equal(prev: Decision | None, cur: Decision) -> bool:
     return _decision_row_fields(prev) == _decision_row_fields(cur)
 
 
-async def save_decision(d: Decision) -> None:
+async def save_decision(d: Decision, *, slim: bool = False) -> None:
+    """Persist a decision row. slim=True stores header fields only (no body JSON)."""
     sm = get_sessionmaker()
     fields = _decision_row_fields(d)
+    if slim:
+        actions_json = "[]"
+        shed_actions_json = "[]"
+        grid_charge_json = ""
+        explanation_json = ""
+    else:
+        actions_json = fields["actions_json"]  # type: ignore[assignment]
+        shed_actions_json = fields["shed_actions_json"]  # type: ignore[assignment]
+        grid_charge_json = fields["grid_charge_json"]  # type: ignore[assignment]
+        explanation_json = fields["explanation_json"]  # type: ignore[assignment]
     async with sm() as s:
         s.add(
             DecisionRow(
                 ts=d.ts,
+                cycle_id=d.cycle_id,
                 target_soc=fields["target_soc"],  # type: ignore[arg-type]
                 blackout_risk=fields["blackout_risk"],  # type: ignore[arg-type]
                 blackout_risk_score=fields["blackout_risk_score"],  # type: ignore[arg-type]
                 shadow_mode=fields["shadow_mode"],  # type: ignore[arg-type]
                 summary=fields["summary"],  # type: ignore[arg-type]
                 reserve_rationale=fields["reserve_rationale"],  # type: ignore[arg-type]
-                actions_json=fields["actions_json"],  # type: ignore[arg-type]
-                shed_actions_json=fields["shed_actions_json"],  # type: ignore[arg-type]
+                actions_json=actions_json,
+                shed_actions_json=shed_actions_json,
+                grid_charge_json=grid_charge_json,
+                explanation_json=explanation_json,
+                engine_active=fields["engine_active"],  # type: ignore[arg-type]
+                slim=slim,
             )
         )
         await s.commit()
+
+
+def _parse_json_obj(raw: str | None, default: object) -> object:
+    if not raw:
+        return default
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return default
 
 
 async def get_recent_decisions(limit: int = 100) -> list[dict]:
@@ -190,24 +228,50 @@ async def get_recent_decisions(limit: int = 100) -> list[dict]:
                 select(DecisionRow).order_by(DecisionRow.ts.desc()).limit(limit)
             )
         ).scalars().all()
-    return [
-        {
-            "ts": r.ts.isoformat(),
-            "target_soc": r.target_soc,
-            "blackout_risk": r.blackout_risk,
-            "blackout_risk_score": r.blackout_risk_score,
-            "shadow_mode": r.shadow_mode,
-            "summary": r.summary,
-            "reserve_rationale": getattr(r, "reserve_rationale", "") or "",
-            "actions": json.loads(r.actions_json or "[]"),
-            "shed_actions": json.loads(getattr(r, "shed_actions_json", None) or "[]"),
-        }
-        for r in rows
-    ]
+    return [_decision_row_to_dict(r) for r in rows]
+
+
+async def get_decisions_by_cycle_id(cycle_id: str, limit: int = 20) -> list[dict]:
+    sm = get_sessionmaker()
+    async with sm() as s:
+        rows = (
+            await s.execute(
+                select(DecisionRow)
+                .where(DecisionRow.cycle_id == cycle_id)
+                .order_by(DecisionRow.ts.desc())
+                .limit(limit)
+            )
+        ).scalars().all()
+    return [_decision_row_to_dict(r) for r in rows]
+
+
+def _decision_row_to_dict(r: DecisionRow) -> dict:
+    return {
+        "ts": r.ts.isoformat(),
+        "cycle_id": getattr(r, "cycle_id", None),
+        "target_soc": r.target_soc,
+        "blackout_risk": r.blackout_risk,
+        "blackout_risk_score": r.blackout_risk_score,
+        "shadow_mode": r.shadow_mode,
+        "summary": r.summary,
+        "reserve_rationale": getattr(r, "reserve_rationale", "") or "",
+        "actions": _parse_json_obj(r.actions_json, []),
+        "shed_actions": _parse_json_obj(
+            getattr(r, "shed_actions_json", None) or "[]", []
+        ),
+        "grid_charge": _parse_json_obj(
+            getattr(r, "grid_charge_json", None) or "", None
+        ),
+        "explanation": _parse_json_obj(
+            getattr(r, "explanation_json", None) or "", None
+        ),
+        "engine_active": getattr(r, "engine_active", None) or "rules",
+        "slim": bool(getattr(r, "slim", False)),
+    }
 
 
 def _execution_audit_fields(e: ExecutionResult) -> dict:
-    """Audit payload persisted to executions (excludes ts)."""
+    """Audit payload persisted to executions (excludes ts and cycle_id)."""
     return {
         "capability": e.capability.value,
         "requested": str(e.requested),
@@ -225,7 +289,7 @@ def executions_audit_equal(prev: ExecutionResult | None, cur: ExecutionResult) -
 
 
 def _shed_execution_audit_fields(r: ShedResult) -> dict:
-    """Audit payload persisted to shed_executions (excludes ts)."""
+    """Audit payload persisted to shed_executions (excludes ts and cycle_id)."""
     return {
         "tier": r.tier,
         "entity": r.entity,
@@ -252,6 +316,7 @@ async def save_execution(e: ExecutionResult) -> None:
         s.add(
             ExecutionRow(
                 ts=e.ts,
+                cycle_id=e.cycle_id,
                 capability=e.capability.value,
                 requested=str(e.requested),
                 applied=e.applied,
@@ -263,17 +328,24 @@ async def save_execution(e: ExecutionResult) -> None:
         await s.commit()
 
 
-async def get_recent_executions(limit: int = 100) -> list[dict]:
+async def get_recent_executions(
+    limit: int = 100, *, cycle_id: str | None = None
+) -> list[dict]:
     sm = get_sessionmaker()
     async with sm() as s:
-        rows = (
-            await s.execute(
-                select(ExecutionRow).order_by(ExecutionRow.ts.desc()).limit(limit)
+        stmt = select(ExecutionRow).order_by(ExecutionRow.ts.desc()).limit(limit)
+        if cycle_id:
+            stmt = (
+                select(ExecutionRow)
+                .where(ExecutionRow.cycle_id == cycle_id)
+                .order_by(ExecutionRow.ts.desc())
+                .limit(limit)
             )
-        ).scalars().all()
+        rows = (await s.execute(stmt)).scalars().all()
     return [
         {
             "ts": r.ts.isoformat(),
+            "cycle_id": getattr(r, "cycle_id", None),
             "capability": r.capability,
             "requested": r.requested,
             "applied": r.applied,
@@ -286,8 +358,6 @@ async def get_recent_executions(limit: int = 100) -> list[dict]:
 
 
 async def save_shed_execution(r: ShedResult) -> None:
-    import json
-
     audit = {
         "companions_captured": r.companions_captured,
         "companions_restored": r.companions_restored,
@@ -298,6 +368,7 @@ async def save_shed_execution(r: ShedResult) -> None:
         s.add(
             ShedExecutionRow(
                 ts=r.ts,
+                cycle_id=r.cycle_id,
                 tier=r.tier,
                 entity=r.entity,
                 desired_on=r.desired_on,
@@ -311,18 +382,24 @@ async def save_shed_execution(r: ShedResult) -> None:
         await s.commit()
 
 
-async def get_recent_shed_executions(limit: int = 100) -> list[dict]:
-    import json
-
+async def get_recent_shed_executions(
+    limit: int = 100, *, cycle_id: str | None = None
+) -> list[dict]:
     sm = get_sessionmaker()
     async with sm() as s:
-        rows = (
-            await s.execute(
+        stmt = (
+            select(ShedExecutionRow)
+            .order_by(ShedExecutionRow.ts.desc())
+            .limit(limit)
+        )
+        if cycle_id:
+            stmt = (
                 select(ShedExecutionRow)
+                .where(ShedExecutionRow.cycle_id == cycle_id)
                 .order_by(ShedExecutionRow.ts.desc())
                 .limit(limit)
             )
-        ).scalars().all()
+        rows = (await s.execute(stmt)).scalars().all()
     out: list[dict] = []
     for r in rows:
         audit_raw = getattr(r, "companion_audit_json", None) or "{}"
@@ -333,6 +410,7 @@ async def get_recent_shed_executions(limit: int = 100) -> list[dict]:
         out.append(
             {
                 "ts": r.ts.isoformat(),
+                "cycle_id": getattr(r, "cycle_id", None),
                 "tier": r.tier,
                 "entity": r.entity,
                 "desired_on": r.desired_on,

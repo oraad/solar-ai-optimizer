@@ -26,6 +26,10 @@ export interface ReserveTarget {
   rationale: string;
   source?: "rules" | "mpc" | "operator";
   rules_soc?: number | null;
+  effective_critical_w?: number | null;
+  smoothed_load_w?: number | null;
+  smoothed_discharge_w?: number | null;
+  adaptive_blend_a?: number | null;
 }
 
 export type BlackoutRisk = "low" | "moderate" | "high" | "critical";
@@ -140,6 +144,8 @@ export interface GridStats {
   last_seen: string | null;
   currently_present: boolean | null;
   transitions_24h: number;
+  present_elapsed_minutes?: number | null;
+  remaining_window_minutes?: number | null;
 }
 
 export interface ExecutionResult {

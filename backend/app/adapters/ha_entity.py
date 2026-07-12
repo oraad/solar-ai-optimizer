@@ -11,6 +11,7 @@ from typing import Any
 
 from ..config import InverterConfig
 from ..ha.client import HAClient
+from ..ha.units import ha_numeric_from_any
 from datetime import datetime
 
 from ..models import Capability, Telemetry, utcnow
@@ -116,42 +117,58 @@ class HAEntityAdapter(InverterAdapter):
         for eid, st in states.items():
             self._cache[eid] = st
 
-        def val(entity_id: str | None) -> Any:
+        def state_dict(entity_id: str | None) -> Any:
             if not entity_id:
                 return None
-            st = states.get(entity_id)
-            return st.get("state") if st else None
+            return states.get(entity_id)
+
+        def bool_val(entity_id: str | None) -> bool | None:
+            st = state_dict(entity_id)
+            if not st:
+                return None
+            return _to_bool(st.get("state"))
 
         self._last_successful_read_at = utcnow()
         return Telemetry(
             ts=self._last_successful_read_at,
-            pv_power=_to_float(val(self._read.pv_power)),
-            load_power=_to_float(val(self._read.load_power)),
-            battery_soc=_to_float(val(self._read.battery_soc)),
-            battery_power=self._normalize_power(_to_float(val(self._read.battery_power))),
-            grid_power=_to_float(val(self._read.grid_power)),
-            grid_present=_to_bool(val(self._read.grid_present)),
-            battery_temp=_to_float(val(self._read.battery_temp)),
+            pv_power=ha_numeric_from_any(state_dict(self._read.pv_power), kind="power"),
+            load_power=ha_numeric_from_any(state_dict(self._read.load_power), kind="power"),
+            battery_soc=ha_numeric_from_any(state_dict(self._read.battery_soc), kind="soc"),
+            battery_power=self._normalize_power(
+                ha_numeric_from_any(state_dict(self._read.battery_power), kind="power")
+            ),
+            grid_power=ha_numeric_from_any(state_dict(self._read.grid_power), kind="power"),
+            grid_present=bool_val(self._read.grid_present),
+            battery_temp=ha_numeric_from_any(
+                state_dict(self._read.battery_temp), kind="temperature"
+            ),
         )
 
     def telemetry_from_cache(self) -> Telemetry:
         """Build telemetry from the live-stream cache (no network call)."""
 
-        def state(entity_id: str | None) -> Any:
-            st = self._cached_or_none(entity_id)
+        def state_dict(entity_id: str | None) -> Any:
+            return self._cached_or_none(entity_id)
+
+        def bool_val(entity_id: str | None) -> bool | None:
+            st = state_dict(entity_id)
             if isinstance(st, dict):
-                return st.get("state")
-            return st
+                return _to_bool(st.get("state"))
+            return _to_bool(st)
 
         return Telemetry(
             ts=self._last_successful_read_at or utcnow(),
-            pv_power=_to_float(state(self._read.pv_power)),
-            load_power=_to_float(state(self._read.load_power)),
-            battery_soc=_to_float(state(self._read.battery_soc)),
-            battery_power=self._normalize_power(_to_float(state(self._read.battery_power))),
-            grid_power=_to_float(state(self._read.grid_power)),
-            grid_present=_to_bool(state(self._read.grid_present)),
-            battery_temp=_to_float(state(self._read.battery_temp)),
+            pv_power=ha_numeric_from_any(state_dict(self._read.pv_power), kind="power"),
+            load_power=ha_numeric_from_any(state_dict(self._read.load_power), kind="power"),
+            battery_soc=ha_numeric_from_any(state_dict(self._read.battery_soc), kind="soc"),
+            battery_power=self._normalize_power(
+                ha_numeric_from_any(state_dict(self._read.battery_power), kind="power")
+            ),
+            grid_power=ha_numeric_from_any(state_dict(self._read.grid_power), kind="power"),
+            grid_present=bool_val(self._read.grid_present),
+            battery_temp=ha_numeric_from_any(
+                state_dict(self._read.battery_temp), kind="temperature"
+            ),
         )
 
     def _write_entity(self, capability: Capability) -> str | None:
@@ -172,6 +189,8 @@ class HAEntityAdapter(InverterAdapter):
         raw = st.get("state")
         if capability is Capability.GRID_CHARGE_ENABLE:
             return _to_bool(raw)
+        if capability is Capability.MAX_GRID_CHARGE_CURRENT:
+            return ha_numeric_from_any(st, kind="current")
         return _to_float(raw)
 
     # ---------------------------------------------------------------- write --

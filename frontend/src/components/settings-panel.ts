@@ -3217,6 +3217,86 @@ export class SettingsPanel extends LitElement {
                 )}
             />
           </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "max_continuous_present_minutes")}</label>
+            <input
+              type="number"
+              step="1"
+              .value=${String(gc.max_continuous_present_minutes ?? 120)}
+              @input=${(e: Event) =>
+                this.setGridChargeField(
+                  "max_continuous_present_minutes",
+                  Number((e.target as HTMLInputElement).value),
+                )}
+            />
+          </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "grid_window_safety_factor")}</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="1"
+              .value=${String(gc.grid_window_safety_factor ?? 0.75)}
+              @input=${(e: Event) =>
+                this.setGridChargeField(
+                  "grid_window_safety_factor",
+                  Number((e.target as HTMLInputElement).value),
+                )}
+            />
+          </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "max_outage_ignore_minutes")}</label>
+            <input
+              type="number"
+              step="1"
+              .value=${String(gc.max_outage_ignore_minutes ?? 30)}
+              @input=${(e: Event) =>
+                this.setGridChargeField(
+                  "max_outage_ignore_minutes",
+                  Number((e.target as HTMLInputElement).value),
+                )}
+            />
+          </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "min_opportunity_present_minutes")}</label>
+            <input
+              type="number"
+              step="1"
+              .value=${String(gc.min_opportunity_present_minutes ?? 10)}
+              @input=${(e: Event) =>
+                this.setGridChargeField(
+                  "min_opportunity_present_minutes",
+                  Number((e.target as HTMLInputElement).value),
+                )}
+            />
+          </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "max_grid_import_w")}</label>
+            <input
+              type="number"
+              step="any"
+              .value=${gc.max_grid_import_w == null ? "" : String(gc.max_grid_import_w)}
+              @input=${(e: Event) => {
+                const raw = (e.target as HTMLInputElement).value.trim();
+                this.setGridChargeField(
+                  "max_grid_import_w",
+                  raw === "" ? null : Number(raw),
+                );
+              }}
+            />
+          </div>
+          <div class="field">
+            <label>${this.lbl("grid_charge", "max_grid_import_entity")}</label>
+            <solar-entity-input
+              .entityId=${(gc.max_grid_import_entity ?? "") as string}
+              .entities=${this.entities}
+              .domains=${["sensor"]}
+              placeholder="sensor.…"
+              @entity-id-change=${(e: CustomEvent<string | null>) =>
+                this.setGridChargeField("max_grid_import_entity", e.detail)}
+            />
+          </div>
         </div>
         </details>
       `,

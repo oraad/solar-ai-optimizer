@@ -49,10 +49,13 @@
         "round_trip_efficiency": "Round-trip efficiency"
       },
       "reserve": {
-        "critical_load_w": "Critical load (W)",
-        "min_autonomy_hours": "Min autonomy (hours)",
-        "solar_bridge_buffer_pct": "Solar bridge buffer (%)",
-        "cloudy_extra_buffer_pct": "Cloudy extra buffer (%)"
+        "critical_load_w": "Charge critique (W)",
+        "min_autonomy_hours": "Autonomie min. (heures)",
+        "solar_bridge_buffer_pct": "Marge pont solaire (%)",
+        "cloudy_extra_buffer_pct": "Marge nuageux (%)",
+        "adaptive_load_enabled": "Plancher de charge adaptatif",
+        "adaptive_load_window_minutes": "Fenêtre de charge adaptative (min)",
+        "adaptive_load_cap_w": "Plafond de charge adaptative (W)"
       },
       "forecast": {
         "provider": "Solar forecast provider",
@@ -83,13 +86,19 @@
         "restore_on_grid": "Restore when grid present"
       },
       "grid_charge": {
-        "enabled": "Grid charge control",
-        "ramp_enabled": "Ramp grid charge current",
-        "max_grid_charge_a": "Max grid charge current (A)",
-        "min_grid_charge_a": "Min grid charge current (A)",
-        "ramp_step_a": "Ramp step (A per cycle)",
-        "off_threshold_a": "Off threshold (A)",
-        "next_solar_horizon_hours": "Next solar horizon (hours)"
+        "enabled": "Contrôle de charge réseau",
+        "ramp_enabled": "Rampe du courant de charge réseau",
+        "max_grid_charge_a": "Courant de charge max (A)",
+        "min_grid_charge_a": "Courant de charge min (A)",
+        "ramp_step_a": "Pas de rampe (A / cycle)",
+        "off_threshold_a": "Seuil d'arrêt (A)",
+        "next_solar_horizon_hours": "Horizon solaire suivant (h)",
+        "max_continuous_present_minutes": "Présence continue max (min)",
+        "grid_window_safety_factor": "Facteur de sécurité fenêtre",
+        "max_outage_ignore_minutes": "Ignorer coupures courtes (min)",
+        "min_opportunity_present_minutes": "Durée min d'opportunité (min)",
+        "max_grid_import_w": "Import réseau max (W)",
+        "max_grid_import_entity": "Capteur import réseau max"
       },
       "engine": {
         "enabled": "Reserve & forecast optimization",
@@ -103,7 +112,7 @@
       },
       "temperature": {
         "enabled": "Temperature load model enabled",
-        "ha_entity": "Outdoor temperature sensor (°C)",
+        "ha_entity": "Outdoor temperature sensor (normalized to °C)",
         "hdd_base_c": "Heating base temperature (°C)",
         "cdd_base_c": "Cooling base temperature (°C)",
         "use_month_fallback": "Use monthly fallback when sensor missing",
@@ -119,20 +128,20 @@
     },
     "entities": {
       "grid_present": "Grid present sensor",
-      "battery_soc": "Battery state of charge (%)",
+      "battery_soc": "Battery state of charge (normalized to %)",
       "battery_voltage": "Battery voltage (V)",
       "battery_current": "Battery current (A)",
-      "battery_power": "Battery power (W)",
-      "battery_temp": "Battery temperature (°C)",
-      "pv_power": "PV power (W)",
-      "load_power": "Load power (W)",
-      "grid_power": "Grid power (W)",
+      "battery_power": "Battery power (normalized to W)",
+      "battery_temp": "Battery temperature (normalized to °C)",
+      "pv_power": "PV power (normalized to W)",
+      "load_power": "Load power (normalized to W)",
+      "grid_power": "Grid power (normalized to W)",
       "grid_charge_enable": "Grid charge enable",
-      "max_grid_charge_current": "Max grid charge current (A)"
+      "max_grid_charge_current": "Max grid charge current (normalized to A)"
     },
     "capabilities": {
       "grid_charge_enable": "Grid charge enable",
-      "max_grid_charge_current": "Max grid charge current (A)"
+      "max_grid_charge_current": "Max grid charge current (normalized to A)"
     },
     "priorities": {
       "resilience": "Resilience",
@@ -154,10 +163,13 @@
         "round_trip_efficiency": "Round-trip efficiency (0–1). Accounts for losses when charging and discharging."
       },
       "reserve": {
-        "critical_load_w": "Minimum load that must stay powered (fridge, lights, comms). Drives reserve sizing.",
-        "min_autonomy_hours": "Hours of critical load the battery should cover without sun or grid.",
-        "solar_bridge_buffer_pct": "Extra SOC buffer while solar is expected soon, before dipping into the deep reserve.",
-        "cloudy_extra_buffer_pct": "Additional reserve buffer on overcast days when solar production is uncertain."
+        "critical_load_w": "Charge de base des circuits critiques (frigo, éclairage, comms). Le plancher adaptatif peut monter au-dessus via la moyenne récente de charge, selon les priorités.",
+        "min_autonomy_hours": "Heures de charge critique effective que la batterie doit couvrir sans soleil ni réseau.",
+        "solar_bridge_buffer_pct": "Marge SOC supplémentaire tant que le solaire est attendu bientôt, avant d'entamer la réserve profonde.",
+        "cloudy_extra_buffer_pct": "Marge de réserve additionnelle les jours couverts quand la production est incertaine.",
+        "adaptive_load_enabled": "Active : le plancher d'autonomie et le pont solaire utilisent une moyenne lissée (jamais un seul échantillon brut), modulée par l'ordre des priorités. Signal = max(moyenne charge maison, moyenne décharge batterie) pour inclure les pertes de conversion sans double comptage.",
+        "adaptive_load_window_minutes": "Minutes de télémétrie pour la moyenne de charge / décharge du plancher adaptatif.",
+        "adaptive_load_cap_w": "Plafond optionnel en watts critiques effectifs (défaut : 3× la charge critique) pour qu'une charge coincée n'impose pas 100 % SOC."
       },
       "site": {
         "timezone": "IANA timezone for site-local day boundaries (forecasts, grid ramp, load profiles, and dashboard display). Choose Auto to detect from site coordinates.",
@@ -199,7 +211,13 @@
         "min_grid_charge_a": "Minimum amps when grid charge is enabled. If the cap chain yields a value below this (but above off threshold), it is bumped up to avoid flickering at very low currents.",
         "ramp_step_a": "Maximum change in grid charge amps per control cycle.",
         "off_threshold_a": "If the cap chain result is below this value, grid charge is disabled.",
-        "next_solar_horizon_hours": "Hours ahead to look for imminent solar when evaluating the next solar window factor."
+        "next_solar_horizon_hours": "Hours ahead to look for imminent solar when evaluating the next solar window factor.",
+        "max_continuous_present_minutes": "Fenêtre d'opportunité typique/max quand le réseau apparaît (~2h).",
+        "grid_window_safety_factor": "Décote de la fenêtre de confiance (0,75 → partir avant la fin estimée).",
+        "max_outage_ignore_minutes": "Les coupures ≤ cette durée restent dans une même opportunité (scintillement).",
+        "min_opportunity_present_minutes": "Les îlots fusionnés trop courts sont ignorés dans la moyenne historique.",
+        "max_grid_import_w": "Plafond d'import site/utilité en watts (optionnel). Vide = pas de plafond extra.",
+        "max_grid_import_entity": "Capteur HA de capacité d'import. UoM W ou kW×1000. Remplace le champ manuel si lisible."
       },
       "engine": {
         "enabled": "When off, reserve targets, MPC, and forecast refresh are skipped. Load shedding and grid charge can still run independently.",
@@ -213,7 +231,7 @@
       },
       "temperature": {
         "enabled": "Model heating/cooling load from outdoor temperature in the forecast.",
-        "ha_entity": "Optional HA temperature sensor to bias-correct outdoor forecast readings.",
+        "ha_entity": "Optional HA temperature sensor to bias-correct outdoor forecast readings. Uses unit_of_measurement (°C or °F→°C).",
         "hdd_base_c": "Heating degree-day base: outdoor temps below this add heating load.",
         "cdd_base_c": "Cooling degree-day base: outdoor temps above this add cooling load.",
         "use_month_fallback": "Use monthly average temperature when the outdoor sensor is unavailable.",
@@ -232,16 +250,16 @@
     },
     "entities": {
       "grid_present": "Binary sensor that is on when utility grid is connected to the inverter.",
-      "battery_soc": "Sensor reporting battery state of charge (%).",
+      "battery_soc": "Sensor reporting battery state of charge. Uses HA unit_of_measurement; stored as %.",
       "battery_voltage": "Battery voltage sensor used for validation and display.",
       "battery_current": "Battery current sensor (charge/discharge sign per your inverter).",
-      "battery_power": "Battery power in watts (positive = charging). Enable “Invert battery power sign” in Settings if your inverter reports the opposite.",
-      "battery_temp": "Battery temperature for history charts and optional derating.",
-      "pv_power": "Total PV production power (W) from the inverter or meter.",
-      "load_power": "House load power (W) seen by the inverter or main meter.",
-      "grid_power": "Grid import/export power (W) if exposed by your integration.",
+      "battery_power": "Battery power sensor. Uses HA unit_of_measurement (W or kW×1000); stored as watts (positive = charging). Enable “Invert battery power sign” in Settings if your inverter reports the opposite.",
+      "battery_temp": "Battery temperature. Uses HA unit_of_measurement (°C or °F→°C) for history charts and optional derating.",
+      "pv_power": "Total PV production power from the inverter or meter. Uses HA unit_of_measurement (W or kW×1000); stored as watts.",
+      "load_power": "House load power seen by the inverter or main meter. Uses HA unit_of_measurement (W or kW×1000); stored as watts.",
+      "grid_power": "Grid import/export power if exposed by your integration. Uses HA unit_of_measurement (W or kW×1000); stored as watts.",
       "grid_charge_enable": "Switch or select that enables grid charging on the inverter.",
-      "max_grid_charge_current": "Entity to limit current drawn from the grid for charging — the only charge-current write the optimizer uses."
+      "max_grid_charge_current": "Entity to limit current drawn from the grid for charging. Uses HA unit_of_measurement (A or mA→A); the only charge-current write the optimizer uses."
     },
     "priorities": {
       "resilience": "Higher rank: larger solar-bridge reserve buffers, stronger blackout-risk response, and more defensive planning when the grid is present.",

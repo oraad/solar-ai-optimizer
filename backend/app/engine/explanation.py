@@ -131,6 +131,10 @@ def build_explanation(
             if reserve.solar_bridge_soc >= reserve.autonomy_floor_soc
             else "autonomy_floor"
         ),
+        effective_critical_w=reserve.effective_critical_w,
+        smoothed_load_w=reserve.smoothed_load_w,
+        smoothed_discharge_w=reserve.smoothed_discharge_w,
+        adaptive_blend_a=reserve.adaptive_blend_a,
     )
 
     gc_x = GridChargeExplanation()

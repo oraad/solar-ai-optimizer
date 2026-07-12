@@ -40,7 +40,13 @@ from ..models import (
     utcnow,
 )
 from .rules import RuleEngine
-from .priorities import buffer_scale, mpc_weights, resolve_weights
+from .priorities import (
+    buffer_scale,
+    effective_critical_w,
+    mpc_weights,
+    resolve_weights,
+    savings_buffer_relief,
+)
 
 log = logging.getLogger("engine.mpc")
 
@@ -54,6 +60,7 @@ class MPCEngine:
         shedding: LoadSheddingConfig | None = None,
         grid_charge: GridChargeConfig | None = None,
         total_kwp: float = 1.0,
+        rule_engine: RuleEngine | None = None,
     ) -> None:
         self._battery = battery
         self._reserve = reserve
@@ -61,8 +68,21 @@ class MPCEngine:
         self._shedding = shedding or LoadSheddingConfig()
         self._grid_charge = grid_charge or GridChargeConfig()
         self._total_kwp = total_kwp
-        self._rule: RuleEngine | None = None
+        self._rule: RuleEngine | None = rule_engine
         self._weights = resolve_weights(engine_cfg.priority_order)
+        self._site_import_w: float | None = None
+
+    def set_site_import_w(self, watts: float | None) -> None:
+        self._site_import_w = watts
+
+    def _effective_max_charge_a(self) -> float:
+        from ..ha.units import effective_max_grid_charge_a
+
+        return effective_max_grid_charge_a(
+            max_grid_charge_a=self._grid_charge.max_grid_charge_a,
+            nominal_voltage=self._battery.nominal_voltage,
+            site_import_w=self._site_import_w,
+        )
 
     def _rule_engine(self, reactive: ReactiveGrid) -> RuleEngine:
         if self._rule is None:
@@ -93,12 +113,17 @@ class MPCEngine:
         plan_shedding: bool = True,
         pending_restore: Collection[str] | None = None,
         modifiers: DecisionModifiers | None = None,
+        smoothed_load_w: float | None = None,
+        smoothed_discharge_w: float | None = None,
+        update_hysteresis: bool = True,
     ) -> Decision:
         # Build the action set with the rule engine; pass MPC reserve explicitly
         # (never fake it as an operator override.reserve_soc).
         rule = self._rule_engine(reactive)
 
-        mpc_reserve, unserved_wh, feasible = self._solve(telemetry, forecast)
+        mpc_reserve, unserved_wh, feasible = self._solve(
+            telemetry, forecast, smoothed_load_w=smoothed_load_w, rule=rule
+        )
 
         pin: float | None = None
         if plan_optimization and mpc_reserve is not None:
@@ -119,10 +144,18 @@ class MPCEngine:
             pending_restore=pending_restore,
             mpc_reserve=pin,
             modifiers=modifiers,
+            smoothed_load_w=smoothed_load_w,
+            smoothed_discharge_w=smoothed_discharge_w,
+            update_hysteresis=update_hysteresis,
         )
 
         # Enrich risk + summary with MPC survivability result.
-        if plan_optimization and (not feasible or unserved_wh > 1.0):
+        # Missing forecast / no pin: leave rules risk intact (do not force CRITICAL).
+        if (
+            plan_optimization
+            and mpc_reserve is not None
+            and (not feasible or unserved_wh > 1.0)
+        ):
             decision.blackout_risk = BlackoutRisk.CRITICAL
             decision.blackout_risk_score = max(decision.blackout_risk_score, 0.9)
             if decision.explanation is not None:
@@ -136,17 +169,30 @@ class MPCEngine:
                     "has_mpc": "yes",
                     "horizon": self._engine_cfg.mpc_horizon_hours,
                     "reserve": int(mpc_reserve) if mpc_reserve is not None else "",
-                    "survivable": "yes" if feasible and unserved_wh <= 1.0 else "no",
+                    "survivable": (
+                        "yes"
+                        if mpc_reserve is not None and feasible and unserved_wh <= 1.0
+                        else "no"
+                    ),
                     "kwh": f"{unserved_wh/1000:.1f}",
                 },
             )
             if decision.explanation is not None and pin is not None:
-                decision.explanation.reserve.mpc_soc = pin
+                decision.explanation.reserve.mpc_soc = (
+                    decision.reserve.target_soc
+                    if decision.reserve.source.value == "mpc"
+                    else pin
+                )
         decision.ts = utcnow()
         return decision
 
     def _solve(
-        self, telemetry: Telemetry, forecast: ForecastBundle | None
+        self,
+        telemetry: Telemetry,
+        forecast: ForecastBundle | None,
+        *,
+        smoothed_load_w: float | None = None,
+        rule: RuleEngine | None = None,
     ) -> tuple[float | None, float, bool]:
         """Return (reserve_soc_pct, expected_unserved_wh, feasible).
 
@@ -162,8 +208,28 @@ class MPCEngine:
         floor_wh = cap_wh * self._battery.min_soc_floor / 100.0
         eff = self._battery.round_trip_efficiency
         dt = 1.0  # forecast is hourly
-        max_power_w = self._grid_charge.max_grid_charge_a * self._battery.nominal_voltage
+        max_power_w = self._effective_max_charge_a() * self._battery.nominal_voltage
         max_charge_w = max_discharge_w = max_power_w
+
+        w_r = self._weights[OptimizationPriority.resilience]
+        w_s = self._weights[OptimizationPriority.savings]
+        w_ss = self._weights[OptimizationPriority.self_sufficiency]
+        smooth = smoothed_load_w
+        if smooth is None and telemetry.load_power is not None:
+            smooth = float(telemetry.load_power)
+        prev = rule.last_effective_critical_w if rule is not None else None
+        leff, _ = effective_critical_w(
+            critical_load_w=self._reserve.critical_load_w,
+            smoothed_load_w=(
+                smooth if self._reserve.adaptive_load_enabled else None
+            ),
+            adaptive_enabled=self._reserve.adaptive_load_enabled,
+            adaptive_cap_w=self._reserve.adaptive_load_cap_w,
+            resilience_weight=w_r,
+            savings_weight=w_s,
+            self_sufficiency_weight=w_ss,
+            prev_effective_w=prev,
+        )
 
         # Align hourly solar to load timeline over the horizon.
         horizon = min(self._engine_cfg.mpc_horizon_hours, len(forecast.load))
@@ -177,7 +243,7 @@ class MPCEngine:
         for i in range(horizon):
             ts = now + timedelta(hours=i)
             pv.append(max(0.0, solar_by_ts.get(ts, 0.0)))
-            load.append(max(0.0, self._load_at(forecast, i)))
+            load.append(max(leff, self._load_at_ts(forecast, ts)))
 
         if telemetry.battery_soc is None:
             return None, 0.0, False
@@ -219,12 +285,48 @@ class MPCEngine:
 
         # Reserve = peak forward cumulative deficit (Wh) -> % on top of floor.
         peak_def = self._peak_forward_deficit(pv, load, eff)
-        peak_def *= buffer_scale(self._weights[OptimizationPriority.resilience])
+        peak_def *= buffer_scale(w_r)
+        peak_def *= savings_buffer_relief(w_s)
         reserve_pct = min(
             self._battery.max_soc_ceiling,
             self._battery.min_soc_floor + 100.0 * peak_def / cap_wh,
         )
         return round(reserve_pct, 1), unserved_wh, feasible
+
+    @staticmethod
+    def _load_at_ts(forecast: ForecastBundle, ts) -> float:
+        """Load at hour ts via timestamp match / nearest (±1h), else last point."""
+        key = ts.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        if not forecast.load:
+            return 400.0
+        for p in forecast.load:
+            pkey = p.ts.astimezone(timezone.utc).replace(
+                minute=0, second=0, microsecond=0
+            )
+            if pkey == key:
+                return p.load_power_w
+        nearest = min(
+            forecast.load,
+            key=lambda p: abs(
+                (
+                    p.ts.astimezone(timezone.utc).replace(
+                        minute=0, second=0, microsecond=0
+                    )
+                    - key
+                ).total_seconds()
+            ),
+        )
+        delta = abs(
+            (
+                nearest.ts.astimezone(timezone.utc).replace(
+                    minute=0, second=0, microsecond=0
+                )
+                - key
+            ).total_seconds()
+        )
+        if delta <= 3600:
+            return nearest.load_power_w
+        return forecast.load[-1].load_power_w
 
     @staticmethod
     def _load_at(forecast: ForecastBundle, i: int) -> float:

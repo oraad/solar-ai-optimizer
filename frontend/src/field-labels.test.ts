@@ -56,10 +56,12 @@ describe("entityLabel", () => {
   });
 
   it("returns inverter entity labels with units for measurable quantities", () => {
-    expect(entityLabel("battery_soc")).toBe("Battery state of charge (%)");
-    expect(entityLabel("pv_power")).toBe("PV power (W)");
-    expect(entityLabel("battery_temp")).toBe("Battery temperature (°C)");
-    expect(entityLabel("max_grid_charge_current")).toBe("Max grid charge current (A)");
+    expect(entityLabel("battery_soc")).toBe("Battery state of charge (normalized to %)");
+    expect(entityLabel("pv_power")).toBe("PV power (normalized to W)");
+    expect(entityLabel("battery_temp")).toBe("Battery temperature (normalized to °C)");
+    expect(entityLabel("max_grid_charge_current")).toBe(
+      "Max grid charge current (normalized to A)",
+    );
   });
 
   it("omits units for binary, switch, and select entities", () => {
@@ -81,7 +83,9 @@ describe("temperature entity label", () => {
   });
 
   it("includes degrees Celsius for outdoor sensor", () => {
-    expect(fieldLabel("temperature", "ha_entity")).toBe("Outdoor temperature sensor (°C)");
+    expect(fieldLabel("temperature", "ha_entity")).toBe(
+      "Outdoor temperature sensor (normalized to °C)",
+    );
   });
 });
 
@@ -93,7 +97,9 @@ describe("capabilityLabel", () => {
   });
 
   it("returns human labels for write capabilities", () => {
-    expect(capabilityLabel("max_grid_charge_current")).toBe("Max grid charge current (A)");
+    expect(capabilityLabel("max_grid_charge_current")).toBe(
+      "Max grid charge current (normalized to A)",
+    );
   });
 });
 

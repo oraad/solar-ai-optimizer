@@ -81,6 +81,14 @@ Set `LOG_FORMAT=json` for production log aggregators (one JSON object per line).
 
 Set **Engine → mode** in Settings. MPC falls back to rules if PuLP is unavailable.
 
+### Grid present opportunity window
+
+Under **Settings → Grid charge**, configure how long a present opportunity typically lasts (`max_continuous_present_minutes`, default 120) and a safety derating (`grid_window_safety_factor`, default 0.75). Short mid-window outages up to `max_outage_ignore_minutes` (default 30) are merged into one opportunity for averages and remaining-time charge urgency; live `grid_present=false` still stops charging. Optional `max_grid_import_w` / `max_grid_import_entity` (HA sensor, W or kW) caps planning amps below the inverter max when the site breaker is tighter.
+
+### Reserve and adaptive load
+
+`reserve.critical_load_w` and `min_autonomy_hours` are the configured survival baseline. With `adaptive_load_enabled` (default on), the autonomy floor and solar-bridge also respect a smoothed recent house load (mean of `load_power` over `adaptive_load_window_minutes`) and, when discharging, `max(0, -battery_power)` — the adaptive signal is **max(load mean, discharge mean)** so inverter conversion losses raise the floor without double-counting. Priority order scales how much of that smoothed load above critical is trusted: resilience-first uses more; savings- or self-sufficiency-first blends toward the configured critical load. Optional `adaptive_load_cap_w` caps the effective watts (default 3× critical). See [decision-cycle.md](decision-cycle.md).
+
 ### Optimization priority order
 
 In **Settings → Engine**, reorder `priority_order` (default: resilience, savings,

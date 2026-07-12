@@ -35,6 +35,8 @@ from .explanation import build_explanation, build_inputs_digest
 from .priorities import (
     DEFAULT_PRIORITY_ORDER,
     buffer_scale,
+    effective_critical_w,
+    autonomy_hours_scale,
     grid_present_risk_multiplier,
     resolve_weights,
     savings_buffer_relief,
@@ -63,6 +65,13 @@ class RuleEngine:
         self._total_kwp = 1.0
         self._last_grid_charge_amps: float | None = None
         self._weights = resolve_weights(engine_cfg.priority_order)
+        self._prev_effective_critical_w: float | None = None
+        self._last_adaptive_meta: dict[str, float | None] = {
+            "effective_critical_w": None,
+            "smoothed_load_w": None,
+            "smoothed_discharge_w": None,
+            "adaptive_blend_a": None,
+        }
 
     def set_last_grid_charge_amps(self, amps: float | None) -> None:
         self._last_grid_charge_amps = amps
@@ -70,19 +79,89 @@ class RuleEngine:
     def set_total_kwp(self, total_kwp: float) -> None:
         self._total_kwp = max(0.1, total_kwp)
 
+    @property
+    def last_effective_critical_w(self) -> float | None:
+        return self._prev_effective_critical_w
+
     # --------------------------------------------------------- reserve floor --
     def compute_reserve(
-        self, telemetry: Telemetry, forecast: ForecastBundle | None
+        self,
+        telemetry: Telemetry,
+        forecast: ForecastBundle | None,
+        *,
+        smoothed_load_w: float | None = None,
+        smoothed_discharge_w: float | None = None,
+        update_hysteresis: bool = True,
     ) -> ReserveTarget:
-        cap_wh = self._battery.capacity_kwh * 1000.0
+        from .priorities import discharge_power_w
 
-        # 1) Minimum autonomy floor: survive min_autonomy_hours of critical load.
-        autonomy_wh = self._reserve.critical_load_w * self._reserve.min_autonomy_hours
+        cap_wh = self._battery.capacity_kwh * 1000.0
+        w_r = self._weights[OptimizationPriority.resilience]
+        w_s = self._weights[OptimizationPriority.savings]
+        w_ss = self._weights[OptimizationPriority.self_sufficiency]
+        adaptive_on = self._reserve.adaptive_load_enabled
+
+        # Thin-history / unit-test fallback when caller didn't pass a mean.
+        if adaptive_on and smoothed_load_w is None:
+            load = (
+                float(telemetry.load_power)
+                if telemetry.load_power is not None
+                else None
+            )
+            dis = discharge_power_w(telemetry.battery_power)
+            if load is None and dis is None:
+                pass
+            elif load is None:
+                smoothed_load_w = dis
+                if smoothed_discharge_w is None:
+                    smoothed_discharge_w = dis
+            elif dis is None:
+                smoothed_load_w = load
+            else:
+                smoothed_load_w = max(load, dis)
+                if smoothed_discharge_w is None:
+                    smoothed_discharge_w = dis
+
+        leff, blend_a = effective_critical_w(
+            critical_load_w=self._reserve.critical_load_w,
+            smoothed_load_w=smoothed_load_w if adaptive_on else None,
+            adaptive_enabled=adaptive_on,
+            adaptive_cap_w=self._reserve.adaptive_load_cap_w,
+            resilience_weight=w_r,
+            savings_weight=w_s,
+            self_sufficiency_weight=w_ss,
+            prev_effective_w=self._prev_effective_critical_w,
+        )
+        if update_hysteresis:
+            self._prev_effective_critical_w = leff
+
+        # Explanation fields only when adaptive is on and a real signal was used.
+        show_adaptive = adaptive_on and smoothed_load_w is not None
+        meta_smooth = (
+            round(smoothed_load_w, 1) if show_adaptive and smoothed_load_w is not None else None
+        )
+        meta_dis = (
+            round(smoothed_discharge_w, 1)
+            if show_adaptive and smoothed_discharge_w is not None
+            else None
+        )
+        meta_blend = round(blend_a, 3) if show_adaptive else None
+        meta_leff = round(leff, 1) if adaptive_on else None
+        self._last_adaptive_meta = {
+            "effective_critical_w": meta_leff,
+            "smoothed_load_w": meta_smooth,
+            "smoothed_discharge_w": meta_dis,
+            "adaptive_blend_a": meta_blend,
+        }
+
+        # 1) Minimum autonomy floor: survive min_autonomy_hours of effective load.
+        hours_eff = self._reserve.min_autonomy_hours * autonomy_hours_scale(w_r)
+        autonomy_wh = leff * hours_eff
         autonomy_pct = 100.0 * autonomy_wh / cap_wh
         autonomy_floor_soc = max(self._battery.min_soc_floor, autonomy_pct)
 
         # 2) Solar-bridge: peak overnight cumulative deficit until solar recovers.
-        bridge_wh = self._solar_bridge_wh(forecast)
+        bridge_wh = self._solar_bridge_wh(forecast, load_floor_w=leff)
         buffer = self._reserve.solar_bridge_buffer_pct
         degraded_note = ""
         if forecast and forecast.cloudy_tomorrow:
@@ -90,8 +169,8 @@ class RuleEngine:
         if forecast and forecast.degraded:
             buffer += self._reserve.cloudy_extra_buffer_pct
             degraded_note = "degraded"
-        buffer *= buffer_scale(self._weights[OptimizationPriority.resilience])
-        buffer *= savings_buffer_relief(self._weights[OptimizationPriority.savings])
+        buffer *= buffer_scale(w_r)
+        buffer *= savings_buffer_relief(w_s)
         bridge_wh *= 1.0 + buffer / 100.0
         bridge_pct = 100.0 * bridge_wh / cap_wh
         solar_bridge_soc = min(
@@ -127,8 +206,8 @@ class RuleEngine:
             target=round(target, 0),
             driver=driver_label,
             autonomy=round(autonomy_floor_soc, 0),
-            hours=round(self._reserve.min_autonomy_hours, 0),
-            load=round(self._reserve.critical_load_w, 0),
+            hours=round(hours_eff, 0),
+            load=round(leff, 0),
             bridge=round(solar_bridge_soc, 0),
             bridge_kwh=round(bridge_wh / 1000, 1),
             buffer=round(buffer, 0),
@@ -143,17 +222,28 @@ class RuleEngine:
             solar_bridge_soc=round(solar_bridge_soc, 1),
             autonomy_floor_soc=round(autonomy_floor_soc, 1),
             rationale=rationale,
+            effective_critical_w=meta_leff if adaptive_on else round(leff, 1),
+            smoothed_load_w=meta_smooth,
+            smoothed_discharge_w=meta_dis,
+            adaptive_blend_a=meta_blend if show_adaptive else (0.0 if not adaptive_on else None),
         )
 
-    def _solar_bridge_wh(self, forecast: ForecastBundle | None) -> float:
+    def _solar_bridge_wh(
+        self, forecast: ForecastBundle | None, *, load_floor_w: float | None = None
+    ) -> float:
         """Peak cumulative (load - solar) deficit over the next 24h, in Wh.
 
         This is the energy the battery must supply to carry loads through the
         dark hours until tomorrow's solar takes over.
         """
+        floor = (
+            load_floor_w
+            if load_floor_w is not None
+            else self._reserve.critical_load_w
+        )
         if not forecast or not forecast.load:
-            # No forecast yet: bridge critical load through a default night.
-            return self._reserve.critical_load_w * 12.0
+            # No forecast yet: bridge effective critical load through a default night.
+            return floor * 12.0
 
         solar_by_hour = {
             p.ts.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0): p.pv_power_w
@@ -164,7 +254,7 @@ class RuleEngine:
         peak = 0.0
         for i in range(24):
             ts = now + timedelta(hours=i)
-            load_w = self._load_at(forecast, ts)
+            load_w = max(self._load_at(forecast, ts, load_floor_w=floor), floor)
             solar_w = solar_by_hour.get(ts, 0.0)
             net_deficit = max(0.0, load_w - solar_w)
             surplus = max(0.0, solar_w - load_w)
@@ -174,7 +264,18 @@ class RuleEngine:
             peak = max(peak, cum)
         return peak
 
-    def _load_at(self, forecast: ForecastBundle, ts: datetime) -> float:
+    def _load_at(
+        self,
+        forecast: ForecastBundle,
+        ts: datetime,
+        *,
+        load_floor_w: float | None = None,
+    ) -> float:
+        fallback = (
+            load_floor_w
+            if load_floor_w is not None
+            else self._reserve.critical_load_w
+        )
         key = ts.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
         for p in forecast.load:
             if p.ts.astimezone(timezone.utc).replace(
@@ -182,7 +283,7 @@ class RuleEngine:
             ) == key:
                 return p.load_power_w
         if not forecast.load:
-            return self._reserve.critical_load_w
+            return fallback
         nearest = min(
             forecast.load,
             key=lambda p: abs(
@@ -204,8 +305,7 @@ class RuleEngine:
         )
         if delta <= 3600:
             return nearest.load_power_w
-        return self._reserve.critical_load_w
-
+        return fallback
     # ------------------------------------------------------------- decision --
     def decide(
         self,
@@ -223,13 +323,22 @@ class RuleEngine:
         pending_restore: Collection[str] | None = None,
         mpc_reserve: float | None = None,
         modifiers: DecisionModifiers | None = None,
+        smoothed_load_w: float | None = None,
+        smoothed_discharge_w: float | None = None,
+        update_hysteresis: bool = True,
     ) -> Decision:
         risk_breakdown = RiskBreakdown()
         mpc_soc_applied: float | None = None
         rules_soc: float | None = None
 
         if plan_optimization:
-            reserve = self.compute_reserve(telemetry, forecast)
+            reserve = self.compute_reserve(
+                telemetry,
+                forecast,
+                smoothed_load_w=smoothed_load_w,
+                smoothed_discharge_w=smoothed_discharge_w,
+                update_hysteresis=update_hysteresis,
+            )
             rules_soc = reserve.target_soc
             target_soc = reserve.target_soc
             source = ReserveSource.RULES
@@ -247,9 +356,11 @@ class RuleEngine:
                     rules=round(rules_soc, 0),
                 )
             elif mpc_reserve is not None:
+                # MPC may not undercut the rules reserve floor.
+                pinned = max(float(mpc_reserve), float(rules_soc))
                 target_soc = max(
                     self._battery.min_soc_floor,
-                    min(self._battery.max_soc_ceiling, mpc_reserve),
+                    min(self._battery.max_soc_ceiling, pinned),
                 )
                 source = ReserveSource.MPC
                 mpc_soc_applied = target_soc
@@ -266,9 +377,13 @@ class RuleEngine:
                 rationale=rationale,
                 source=source,
                 rules_soc=round(rules_soc, 1),
+                effective_critical_w=reserve.effective_critical_w,
+                smoothed_load_w=reserve.smoothed_load_w,
+                smoothed_discharge_w=reserve.smoothed_discharge_w,
+                adaptive_blend_a=reserve.adaptive_blend_a,
             )
             risk, score, risk_breakdown = self._blackout_risk(
-                telemetry, effective, forecast
+                telemetry, effective, forecast, grid_stats
             )
             reserve = effective
         else:
@@ -289,7 +404,7 @@ class RuleEngine:
         advisories: list[Msg] = []
         grid_charge_plan: GridChargePlan | None = None
         gc_mode = ""
-        max_a = self._grid_charge.max_grid_charge_a
+        max_a = self._reactive.effective_max_charge_a()
 
         last_amps = (
             last_grid_charge_amps
@@ -471,6 +586,7 @@ class RuleEngine:
         telemetry: Telemetry,
         reserve: ReserveTarget,
         forecast: ForecastBundle | None,
+        grid_stats: GridStats | None = None,
     ) -> tuple[BlackoutRisk, float, RiskBreakdown]:
         soc = telemetry.battery_soc
         if soc is None:
@@ -508,6 +624,12 @@ class RuleEngine:
             grid_mult = grid_present_risk_multiplier(
                 self._weights[OptimizationPriority.resilience],
                 self._weights[OptimizationPriority.savings],
+                present_elapsed_minutes=(
+                    grid_stats.present_elapsed_minutes if grid_stats else None
+                ),
+                remaining_window_minutes=(
+                    grid_stats.remaining_window_minutes if grid_stats else None
+                ),
             )
             score *= grid_mult
 

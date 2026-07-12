@@ -209,10 +209,10 @@
       },
       "grid_window": {
         "unknown": "statistiques réseau inconnues",
-        "none": "pas de fenêtres réseau historiques",
-        "short": "fenêtre réseau courte ({minutes} min moy.)",
-        "long": "fenêtre réseau longue ({minutes} min moy.)",
-        "mid": "fenêtre réseau {minutes} min moy."
+        "none": "pas de fenêtre restante (ignorer coupures ≤{ignore} min)",
+        "short": "fenêtre restante courte ({minutes} min ; ignorer ≤{ignore} min)",
+        "long": "fenêtre restante longue ({minutes} min ; ignorer ≤{ignore} min)",
+        "mid": "fenêtre restante {minutes} min (ignorer ≤{ignore} min)"
       },
       "blackout_risk": "risque {risk} (score {score}%)",
       "solar_bridge": {

@@ -209,10 +209,10 @@
       },
       "grid_window": {
         "unknown": "grid stats unknown",
-        "none": "no historical grid windows",
-        "short": "short grid window ({minutes} min avg)",
-        "long": "long grid window ({minutes} min avg)",
-        "mid": "grid window {minutes} min avg"
+        "none": "no remaining grid window (ignore short outages ≤{ignore} min)",
+        "short": "short remaining window ({minutes} min; ignore ≤{ignore} min outages)",
+        "long": "long remaining window ({minutes} min; ignore ≤{ignore} min outages)",
+        "mid": "remaining grid window {minutes} min (ignore ≤{ignore} min outages)"
       },
       "blackout_risk": "risk {risk} (score {score}%)",
       "solar_bridge": {

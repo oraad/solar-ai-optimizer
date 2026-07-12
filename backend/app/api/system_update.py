@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import time
 from datetime import UTC, datetime
+from functools import cmp_to_key
 from pathlib import Path
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
@@ -449,6 +450,13 @@ def _filter_github_releases(
         and (include_prereleases or not r.get("prerelease"))
         and _normalize_version(str(r.get("tag_name", "")))
     ]
+
+    def _tag_cmp(left: dict[str, Any], right: dict[str, Any]) -> int:
+        left_ver = _normalize_version(str(left.get("tag_name", ""))) or ""
+        right_ver = _normalize_version(str(right.get("tag_name", ""))) or ""
+        return _compare_versions(left_ver, right_ver)
+
+    filtered.sort(key=cmp_to_key(_tag_cmp), reverse=True)
     return filtered[:RELEASES_LIST_LIMIT]
 
 

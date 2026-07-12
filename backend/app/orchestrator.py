@@ -429,6 +429,7 @@ class Orchestrator:
                 self.cfg.load_shedding,
                 self.cfg.grid_charge,
                 total_kwp=total_kwp(self.cfg.forecast.arrays),
+                rule_engine=self.engine,
             )
         except Exception as e:  # noqa: BLE001
             log.warning("MPC unavailable (%s); using rule engine.", e)
@@ -555,10 +556,18 @@ class Orchestrator:
 
         metrics.control_cycles += 1
         await self._refresh_grid_stats(telemetry.grid_present)
+        await self._resolve_site_import_w()
 
         forecast = self.forecast.current
 
-        decision = self._decide(telemetry, forecast, self._telemetry_stale(telemetry))
+        smoothed, discharge = await self._smoothed_load_pair(telemetry)
+        decision = self._decide(
+            telemetry,
+            forecast,
+            self._telemetry_stale(telemetry),
+            smoothed_load_w=smoothed,
+            smoothed_discharge_w=discharge,
+        )
         content_changed = not repo.decisions_audit_equal(self.latest_decision, decision)
 
         if self.grid_charge_writes_allowed() and decision.actions:
@@ -673,9 +682,24 @@ class Orchestrator:
             grid_charge_status=gc_status,
         )
 
-    def _decide(self, telemetry, forecast, telemetry_stale: bool = False) -> Decision:
+    def _decide(
+        self,
+        telemetry,
+        forecast,
+        telemetry_stale: bool = False,
+        *,
+        smoothed_load_w: float | None = None,
+        smoothed_discharge_w: float | None = None,
+        update_hysteresis: bool = True,
+    ) -> Decision:
         return self._compute_decision(
-            telemetry, forecast, telemetry_stale, count_mpc_fallback=True
+            telemetry,
+            forecast,
+            telemetry_stale,
+            count_mpc_fallback=True,
+            smoothed_load_w=smoothed_load_w,
+            smoothed_discharge_w=smoothed_discharge_w,
+            update_hysteresis=update_hysteresis,
         )
 
     def simulate_decision(self) -> Decision | None:
@@ -685,9 +709,46 @@ class Orchestrator:
             return None
         forecast = self.forecast.current
         stale = self._telemetry_stale(telemetry)
+        from .engine.priorities import smoothed_adaptive_load_w
+
+        # Thin sync path (no DB history): latest load/discharge only.
+        smooth, dis = smoothed_adaptive_load_w([], telemetry)
         return self._compute_decision(
-            telemetry, forecast, stale, count_mpc_fallback=False
+            telemetry,
+            forecast,
+            stale,
+            count_mpc_fallback=False,
+            smoothed_load_w=smooth,
+            smoothed_discharge_w=dis,
+            update_hysteresis=False,
         )
+
+    async def _smoothed_load_pair(
+        self, telemetry: Telemetry
+    ) -> tuple[float | None, float | None]:
+        """Windowed mean house load and discharge proxy for adaptive reserve.
+
+        Uses max(mean_load, mean_discharge). Thin history (<3 samples) falls back
+        to the latest telemetry sample for that channel.
+        """
+        from datetime import timedelta
+
+        from .engine.priorities import smoothed_adaptive_load_w
+
+        reserve = self.cfg.reserve
+        if not reserve.adaptive_load_enabled:
+            return None, None
+        window = max(1, int(reserve.adaptive_load_window_minutes))
+        try:
+            rows = await repo.get_telemetry_since(utcnow() - timedelta(minutes=window))
+        except Exception as e:  # noqa: BLE001
+            log.debug("smoothed load history unavailable: %s", e)
+            rows = []
+        return smoothed_adaptive_load_w(rows, telemetry)
+
+    async def _smoothed_load_w(self, telemetry: Telemetry) -> float | None:
+        smooth, _ = await self._smoothed_load_pair(telemetry)
+        return smooth
 
     def _compute_decision(
         self,
@@ -696,6 +757,9 @@ class Orchestrator:
         telemetry_stale: bool,
         *,
         count_mpc_fallback: bool,
+        smoothed_load_w: float | None = None,
+        smoothed_discharge_w: float | None = None,
+        update_hysteresis: bool = True,
     ) -> Decision:
         plan_opt, plan_gc, plan_shed = self._plan_flags()
         modifiers = DecisionModifiers(
@@ -716,6 +780,9 @@ class Orchestrator:
             "plan_shedding": plan_shed,
             "pending_restore": frozenset(self.snapshot_store.list_all().keys()),
             "modifiers": modifiers,
+            "smoothed_load_w": smoothed_load_w,
+            "smoothed_discharge_w": smoothed_discharge_w,
+            "update_hysteresis": update_hysteresis,
         }
         if self._mpc is not None and plan_opt:
             try:
@@ -809,6 +876,26 @@ class Orchestrator:
         log.info("Grid change -> immediate re-evaluation (present=%s).", present)
         await self._refresh_grid_stats(present)
         await self.control_cycle()
+
+    async def _resolve_site_import_w(self) -> None:
+        """Resolve optional site import ceiling (HA entity or manual W) into reactive/MPC."""
+        gc = self.cfg.grid_charge
+        watts: float | None = None
+        entity = (gc.max_grid_import_entity or "").strip() or None
+        if entity:
+            try:
+                from .ha.units import power_watts_from_ha_state
+
+                st = await self.ha.get_state(entity)
+                watts = power_watts_from_ha_state(st)
+            except Exception as e:  # noqa: BLE001
+                log.debug("max_grid_import_entity read failed: %s", e)
+                watts = None
+        if watts is None and gc.max_grid_import_w is not None:
+            watts = float(gc.max_grid_import_w)
+        self.reactive.set_site_import_w(watts)
+        if self._mpc is not None:
+            self._mpc.set_site_import_w(watts)
 
     async def _refresh_grid_stats(self, live_present: bool | None = None) -> None:
         try:

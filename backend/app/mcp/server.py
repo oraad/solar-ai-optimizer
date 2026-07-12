@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
 from ..models import Override
@@ -21,6 +22,8 @@ GetBackend = Callable[[], SolarBackend | Awaitable[SolarBackend]]
 
 
 def create_mcp_server(get_backend: GetBackend, *, transport: str = "stdio") -> FastMCP:
+    # Bearer auth already gates HTTP; disable Host-header DNS-rebinding checks so
+    # LAN IPs and TestClient ("testserver") are not rejected with HTTP 421.
     mcp = FastMCP(
         "solar-ai-optimizer",
         instructions=(
@@ -29,6 +32,9 @@ def create_mcp_server(get_backend: GetBackend, *, transport: str = "stdio") -> F
         ),
         stateless_http=True,
         json_response=True,
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=False,
+        ),
     )
 
     async def be() -> SolarBackend:

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.4] - 2026-07-12
+
+### Added
+
+- Settings-driven MCP: Agent access can enable/token MCP via `data/mcp.env`, sticky-bar **Restart service**, and Software updates **Recreate container** (Docker/Proxmox with self-update)
+- Admin APIs `GET/PUT /api/system/mcp`, `POST /api/system/restart`, `POST /api/system/recreate`
+
+### Fixed
+
+- MCP HTTP mount is registered before the static UI catch-all so `/mcp` is not swallowed (POST 405)
+- `/api/health` `mcp_http_mounted` reflects the live mount (`app.state.mcp_server`), not settings inference alone
+- Refuse MCP mount when enabled without a token (including HA add-on)
+
 ### Changed
 
 - HACS integration moved to [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration); this repo is app / HA Apps add-on only

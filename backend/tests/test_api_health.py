@@ -82,14 +82,21 @@ def test_health_mcp_fields_disabled_by_default(client):
     assert "api_token" not in body
 
 
-def test_health_mcp_mounted_when_enabled_with_token(client, monkeypatch):
+def test_health_mcp_mounted_reflects_live_mount(client, monkeypatch):
     monkeypatch.setenv("MCP_ENABLED", "true")
     monkeypatch.setenv("MCP_TOKEN", "agent-secret")
     get_settings.cache_clear()
+    # Router-only app has no MCP lifespan mount until state is set.
     res = client.get("/api/health")
     body = res.json()
     assert body["mcp_enabled"] is True
     assert body["mcp_auth_configured"] is True
+    assert body["mcp_http_mounted"] is False
+    assert body["mcp_http_url"] is None
+
+    client.app.state.mcp_server = object()
+    res = client.get("/api/health")
+    body = res.json()
     assert body["mcp_http_mounted"] is True
     assert body["mcp_http_url"] == "http://testserver/mcp"
 

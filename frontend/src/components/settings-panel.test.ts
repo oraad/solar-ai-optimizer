@@ -106,4 +106,43 @@ describe("SettingsPanel MCP section", () => {
     expect(buttons.some((t) => t?.includes("Copy"))).toBe(true);
     el.remove();
   });
+
+  it("shows sticky Restart when can_restart", async () => {
+    const el = mountPanel();
+    (el as unknown as { layoutWide: boolean }).layoutWide = true;
+    (el as unknown as { mcpSettings: unknown }).mcpSettings = {
+      enabled: false,
+      has_token: false,
+      editable: true,
+      can_restart: true,
+      can_recreate: true,
+      pending: { mcp_env: true },
+      is_addon: false,
+    };
+    (el as unknown as { mcpPendingRestart: boolean }).mcpPendingRestart = true;
+    el.requestUpdate();
+    await el.updateComplete;
+    const sticky = el.shadowRoot!.querySelector(".settings-sticky-bar");
+    expect(sticky?.textContent).toContain("Restart service");
+    expect(el.shadowRoot!.querySelector(".restart-needed")).not.toBeNull();
+    el.remove();
+  });
+
+  it("renders editable MCP controls when settings are editable", async () => {
+    const el = mountPanel();
+    (el as unknown as { layoutWide: boolean }).layoutWide = true;
+    (el as unknown as { mcpSettings: unknown }).mcpSettings = {
+      enabled: false,
+      has_token: false,
+      editable: true,
+      can_restart: false,
+      can_recreate: false,
+      pending: { mcp_env: false },
+      is_addon: false,
+    };
+    el.requestUpdate();
+    await el.updateComplete;
+    expect(el.shadowRoot!.textContent).toContain("Save MCP");
+    el.remove();
+  });
 });

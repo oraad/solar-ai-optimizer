@@ -67,6 +67,16 @@
         "proxmox": "على Proxmox LXC، نفّذ: update\n\nأو يدوياً:\n  docker pull ghcr.io/oraad/solar-ai-optimizer:latest\n  docker stop solar-optimizer && docker rm solar-optimizer\n  docker run -d --name solar-optimizer --restart unless-stopped \\\n    --env-file /opt/solar-ai-optimizer/solar.env \\\n    -v solar-data:/app/data -p 8000:8000 \\\n    ghcr.io/oraad/solar-ai-optimizer:latest",
         "proxmox_versioned": "على Proxmox LXC، نفّذ: update\n\nأو يدوياً:\n  docker pull {image}\n  docker stop solar-optimizer && docker rm solar-optimizer\n  docker run -d --name solar-optimizer --restart unless-stopped \\\n    --env-file /opt/solar-ai-optimizer/solar.env \\\n    -v solar-data:/app/data -p 8000:8000 \\\n    {image}"
       }
+    },
+    "mcp": {
+      "addon_readonly": "إعدادات MCP تُدار من Home Assistant ← الإعدادات ← التطبيقات لهذا النشر.",
+      "addon_lifecycle": "أعد تشغيل التطبيق من Home Assistant ← الإعدادات ← التطبيقات.",
+      "lifecycle_unavailable": "إعادة تشغيل الحاوية غير متاحة (فعّل التحديث الذاتي مع Docker socket، أو أعد التشغيل يدوياً).",
+      "token_required": "عيّن أو أنشئ رمز MCP قبل تفعيل وصول الوكيل.",
+      "restart_started": "بدأت إعادة التشغيل؛ بانتظار عودة الخدمة.",
+      "restart_failed": "فشلت إعادة التشغيل: {detail}",
+      "recreate_started": "بدأ إعادة إنشاء الحاوية؛ بانتظار عودة الخدمة.",
+      "recreate_failed": "فشل إعادة الإنشاء: {detail}"
     }
   },
   "engine": {

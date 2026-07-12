@@ -287,8 +287,37 @@ export const api = {
     if (res.status === 202) return;
     if (!res.ok) throw new Error(await parseError(res, "/api/system/update/restore"));
   },
+  mcpSettings: () => getJSON<McpSettingsInfo>("/api/system/mcp"),
+  putMcpSettings: (body: {
+    enabled: boolean;
+    token?: string | null;
+    clear_token?: boolean;
+    generate_token?: boolean;
+  }) => putJSON<McpSettingsInfo & { ok: boolean; token?: string }>("/api/system/mcp", body),
+  restartService: () =>
+    postJSON<{ ok: boolean; action: string; message?: string }>("/api/system/restart", {}),
+  recreateService: () =>
+    postJSON<{ ok: boolean; action: string; message?: string }>("/api/system/recreate", {}),
   health: () => getJSON<HealthInfo>("/api/health"),
 };
+
+export interface McpSettingsInfo {
+  enabled: boolean;
+  has_token: boolean;
+  http_path: string;
+  http_mounted: boolean;
+  http_url: string | null;
+  tool_calls: number;
+  auth_failures: number;
+  is_addon: boolean;
+  editable: boolean;
+  can_restart: boolean;
+  can_recreate: boolean;
+  recommended_action: "restart" | "recreate" | "manual" | "none";
+  pending: { mcp_env: boolean };
+  restart_required: boolean;
+  token?: string;
+}
 
 export interface HealthInfo {
   status: string;

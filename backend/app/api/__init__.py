@@ -6,6 +6,7 @@ from .ha_oauth_routes import router as ha_oauth_router
 from .metrics import metrics_router
 from .pair_routes import router as pair_router
 from .routes import router as api_router
+from .system_mcp import router as system_mcp_router
 from .system_update import router as system_update_router
 from .ws import ws_router
 
@@ -16,6 +17,7 @@ __all__ = [
     "ha_oauth_router",
     "metrics_router",
     "pair_router",
+    "system_mcp_router",
     "system_update_router",
     "ws_router",
 ]

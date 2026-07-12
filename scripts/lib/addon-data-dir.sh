@@ -9,7 +9,7 @@ if [ -d "$_solar_data_root" ]; then
 
   if [ ! -f "${_solar_data_root}/config.runtime.yaml" ] && [ -d "$_solar_app_data" ]; then
     _solar_migrated=0
-    for _solar_f in config.runtime.yaml solar.db model.json runtime_state.json local_auth.env; do
+    for _solar_f in config.runtime.yaml solar.db model.json runtime_state.json local_auth.env mcp.env; do
       if [ -f "${_solar_app_data}/${_solar_f}" ] && [ ! -e "${_solar_data_root}/${_solar_f}" ]; then
         cp -a "${_solar_app_data}/${_solar_f}" "${_solar_data_root}/${_solar_f}"
         _solar_migrated=1

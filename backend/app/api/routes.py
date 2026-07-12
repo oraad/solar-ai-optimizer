@@ -65,11 +65,9 @@ async def health(request: Request) -> dict:
     forecast = orch.forecast.current
     fs = orch.cfg.fail_safe
     hb = orch.heartbeat.last_pulse_at
-    mcp_http_mounted = bool(
-        settings.mcp_enabled
-        and (settings.is_addon or settings.mcp_auth_configured)
-    )
     mcp_path = settings.mcp_http_path.rstrip("/") or "/mcp"
+    # Live mount truth (not settings inference — static "/" used to swallow /mcp).
+    mcp_http_mounted = getattr(request.app.state, "mcp_server", None) is not None
     mcp_http_url = None
     if mcp_http_mounted:
         mcp_http_url = f"{str(request.base_url).rstrip('/')}{mcp_path}"

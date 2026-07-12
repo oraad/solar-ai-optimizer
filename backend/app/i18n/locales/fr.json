@@ -67,6 +67,16 @@
         "proxmox": "Sur Proxmox LXC, exécutez : update\n\nOu manuellement :\n  docker pull ghcr.io/oraad/solar-ai-optimizer:latest\n  docker stop solar-optimizer && docker rm solar-optimizer\n  docker run -d --name solar-optimizer --restart unless-stopped \\\n    --env-file /opt/solar-ai-optimizer/solar.env \\\n    -v solar-data:/app/data -p 8000:8000 \\\n    ghcr.io/oraad/solar-ai-optimizer:latest",
         "proxmox_versioned": "Sur Proxmox LXC, exécutez : update\n\nOu manuellement :\n  docker pull {image}\n  docker stop solar-optimizer && docker rm solar-optimizer\n  docker run -d --name solar-optimizer --restart unless-stopped \\\n    --env-file /opt/solar-ai-optimizer/solar.env \\\n    -v solar-data:/app/data -p 8000:8000 \\\n    {image}"
       }
+    },
+    "mcp": {
+      "addon_readonly": "Les paramètres MCP sont gérés dans Home Assistant → Paramètres → Applications pour ce déploiement.",
+      "addon_lifecycle": "Redémarrez l'application depuis Home Assistant → Paramètres → Applications.",
+      "lifecycle_unavailable": "Le redémarrage du conteneur n'est pas disponible (activez la mise à jour automatique avec le socket Docker, ou redémarrez manuellement).",
+      "token_required": "Définissez ou générez un jeton MCP avant d'activer l'accès agent.",
+      "restart_started": "Redémarrage démarré ; en attente du retour du service.",
+      "restart_failed": "Échec du redémarrage : {detail}",
+      "recreate_started": "Recréation du conteneur démarrée ; en attente du retour du service.",
+      "recreate_failed": "Échec de la recréation : {detail}"
     }
   },
   "engine": {

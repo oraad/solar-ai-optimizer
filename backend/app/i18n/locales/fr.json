@@ -86,7 +86,28 @@
       "degraded_buffer": " Prévision dégradée/obsolète — tampon supplémentaire conservateur appliqué.",
       "driver_solar_bridge": "pont-solaire",
       "driver_autonomy_floor": "plancher-autonomie",
-      "optimization_disabled": "Optimisation désactivée — objectif de réserve non calculé."
+      "optimization_disabled": "Optimisation désactivée — objectif de réserve non calculé.",
+      "mpc_pin": "MPC a fixé la réserve à {target}% (les règles utiliseraient {rules}%).",
+      "operator_pin": "L'opérateur a fixé la réserve à {target}% (les règles utiliseraient {rules}%)."
+    },
+    "explain": {
+      "step": {
+        "reserve": "Cible de réserve",
+        "grid_charge": "Charge réseau",
+        "risk": "Risque de coupure"
+      },
+      "reserve": {
+        "rules": "Les règles fixent la réserve à {target}% (pont solaire {bridge}%, plancher {floor}%).",
+        "mpc": "MPC fixe la réserve à {target}% (base règles {rules}%).",
+        "operator": "L'opérateur a fixé la réserve à {target}% (base règles {rules}%)."
+      },
+      "grid_charge": {
+        "on": "Charge réseau {amps} A (plafond limitant: {binding} à {ceiling} A).",
+        "off": "Charge réseau désactivée."
+      },
+      "risk": {
+        "detail": "Risque {label} (score {score})."
+      }
     },
     "summary": {
       "main": "SOC {soc} vs réserve {target}% | {grid} | risque de coupure : {risk}. {rationale}",

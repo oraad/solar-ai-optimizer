@@ -11,6 +11,7 @@ from ..engine.priorities import FACTOR_BLEND, RANK_WEIGHTS, blend_ceiling, resol
 from ..i18n import msg
 from ..models import (
     BlackoutRisk,
+    CapChainFactor,
     ForecastBundle,
     GridChargePlan,
     GridStats,
@@ -327,6 +328,21 @@ def compute_ramp_plan(ctx: RampContext) -> GridChargePlan:
         )
 
     notes_json = json.dumps(note_entries, ensure_ascii=False, separators=(",", ":"))
+    cap_chain = [
+        CapChainFactor(
+            factor=str(e["factor"]),
+            ceiling_a=float(e["ceiling"]),
+            note_key=str(e.get("k") or ""),
+            note_params=dict(e.get("p") or {}),  # type: ignore[arg-type]
+            binding=False,
+        )
+        for e in note_entries
+    ]
+    if cap_chain:
+        # Binding = lowest ceiling (last min in chain order among ties: first).
+        binding_idx = min(range(len(cap_chain)), key=lambda i: cap_chain[i].ceiling_a)
+        cap_chain[binding_idx].binding = True
+
     if target < cfg.off_threshold_a:
         return GridChargePlan(
             enabled=False,
@@ -336,6 +352,7 @@ def compute_ramp_plan(ctx: RampContext) -> GridChargePlan:
                 "engine.grid.cap_chain_below_threshold",
                 note_entries=notes_json,
             ),
+            cap_chain=cap_chain,
         )
 
     if target > 0 and target < cfg.min_grid_charge_a:
@@ -356,6 +373,7 @@ def compute_ramp_plan(ctx: RampContext) -> GridChargePlan:
         target_amps=round(target, 1),
         max_amps=max_a,
         rationale=rationale,
+        cap_chain=cap_chain,
     )
 
 

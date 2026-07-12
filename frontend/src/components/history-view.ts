@@ -44,6 +44,7 @@ type ActivityTab = "executions" | "shed" | "grid";
 export type HistoryNavHint = {
   view?: HistoryViewTab;
   activity?: ActivityTab;
+  cycleId?: string;
 };
 
 @customElement("solar-history-view")
@@ -94,6 +95,14 @@ export class HistoryView extends LitElement {
         font-size: 0.78rem;
       }
       .activity-seg button.active { border-color: var(--accent-2); color: var(--accent-2); }
+      .link-btn {
+        background: none; border: none; color: var(--accent);
+        padding: 0; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+      }
+      .cycle-filter {
+        font-size: 0.82rem; color: var(--muted); margin-bottom: 10px;
+        display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+      }
       .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; flex-shrink: 0; }
       .swatch { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); }
       .swatch i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
@@ -136,6 +145,7 @@ export class HistoryView extends LitElement {
   @state() private hours = 24;
   @state() private tab: HistoryViewTab = "timeline";
   @state() private activityTab: ActivityTab = "executions";
+  @state() private cycleFilter: string | null = null;
   @state() private rows: Telemetry[] = [];
   @state() private decisions: DecisionHistoryRow[] = [];
   @state() private gridEvents: GridEventRow[] = [];
@@ -223,6 +233,12 @@ export class HistoryView extends LitElement {
     if (!hint) return;
     if (hint.view) this.tab = hint.view;
     if (hint.activity) this.activityTab = hint.activity;
+    if (hint.cycleId) this.cycleFilter = hint.cycleId;
+  }
+
+  private clearCycleFilter(): void {
+    this.cycleFilter = null;
+    void this.loadActiveTab();
   }
 
   private async loadActiveTab(): Promise<void> {
@@ -253,7 +269,7 @@ export class HistoryView extends LitElement {
   }
 
   private async loadDecisions(): Promise<void> {
-    this.decisions = await api.historyDecisions(100);
+    this.decisions = await api.historyDecisions(100, this.cycleFilter ?? undefined);
   }
 
   private async loadGridEvents(): Promise<void> {
@@ -262,13 +278,14 @@ export class HistoryView extends LitElement {
   }
 
   private async loadExecutions(): Promise<void> {
-    const rows = await api.historyExecutions(100);
-    this.executions = dedupeConsecutiveExecutions(rows);
+    const rows = await api.historyExecutions(100, this.cycleFilter ?? undefined);
+    // When filtering by cycle, keep every row (no consecutive dedupe).
+    this.executions = this.cycleFilter ? rows : dedupeConsecutiveExecutions(rows);
   }
 
   private async loadShedExecutions(): Promise<void> {
-    const rows = await api.historyShedExecutions(100);
-    this.shedExecs = dedupeConsecutiveShedExecutions(rows);
+    const rows = await api.historyShedExecutions(100, this.cycleFilter ?? undefined);
+    this.shedExecs = this.cycleFilter ? rows : dedupeConsecutiveShedExecutions(rows);
   }
 
   private onHours(e: Event): void {
@@ -507,9 +524,34 @@ export class HistoryView extends LitElement {
                 </tr>
                 ${expanded
                   ? html`<tr class="expanded-row"><td colspan="5">
+                      ${d.slim ? html`<div>${t("ui.history.samePlan")}</div>` : null}
+                      ${d.cycle_id ? html`<div>${t("ui.history.cycleId")}: ${d.cycle_id}</div>` : null}
                       ${d.reserve_rationale ? html`<div>${d.reserve_rationale}</div>` : null}
+                      ${d.grid_charge
+                        ? html`<div style="margin-top:6px">${t("ui.decision.gridCharge")}: ${
+                            d.grid_charge.enabled
+                              ? `${d.grid_charge.target_amps} A`
+                              : t("common.off")
+                          }${d.grid_charge.rationale ? ` — ${d.grid_charge.rationale}` : ""}</div>`
+                        : null}
+                      ${(d.actions ?? []).length
+                        ? html`<div style="margin-top:6px">${(d.actions ?? [])
+                            .map((a) => `${a.capability}=${a.value}`)
+                            .join(" · ")}</div>`
+                        : null}
                       ${(d.shed_actions ?? []).length
-                        ? html`<div style="margin-top:6px">${(d.shed_actions ?? []).map((a) => `${a.tier}: ${a.desired_on ? "ON" : "SHED"} (${a.reason})`).join(" · ")}</div>`
+                        ? html`<div style="margin-top:6px">${(d.shed_actions ?? []).map((a) => `${a.tier}: ${a.desired_on ? t("common.on") : t("ui.decision.shed")} (${a.reason})`).join(" · ")}</div>`
+                        : null}
+                      ${d.cycle_id
+                        ? html`<div style="margin-top:8px">
+                            <button type="button" class="link-btn" @click=${(e: Event) => {
+                              e.stopPropagation();
+                              this.cycleFilter = d.cycle_id ?? null;
+                              this.tab = "activity";
+                              this.activityTab = "executions";
+                              void this.loadActiveTab();
+                            }}>${t("ui.decision.relatedWrites")} →</button>
+                          </div>`
                         : null}
                     </td></tr>`
                   : null}
@@ -689,6 +731,12 @@ export class HistoryView extends LitElement {
           <button type="button" role="tab" aria-selected=${this.tab === "activity"} class=${this.tab === "activity" ? "active" : ""} @click=${() => this.setTab("activity")}>${t("ui.history.tabActivity")}</button>
         </div>
         ${this.loadError ? html`<div class="load-error">${this.loadError}</div>` : null}
+        ${this.cycleFilter
+          ? html`<div class="cycle-filter">
+              ${t("ui.history.filteredByCycle")}: <code>${this.cycleFilter}</code>
+              <button type="button" class="link-btn" @click=${this.clearCycleFilter}>${t("ui.history.clearFilter")}</button>
+            </div>`
+          : null}
         ${this.tab === "timeline"
           ? html`
               <div class="chart-panel">

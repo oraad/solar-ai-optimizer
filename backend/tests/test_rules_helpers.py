@@ -64,6 +64,6 @@ def test_blackout_risk_uses_configured_kwp():
     )
     # Same absolute yield is worse for a larger array (3 kWh vs 5 vs 50 kWh clear-sky).
     forecast = ForecastBundle(solar=[], load=[], solar_tomorrow_kwh=3.0)
-    _, score_small = eng_small._blackout_risk(t, reserve, forecast)  # noqa: SLF001
-    _, score_large = eng_large._blackout_risk(t, reserve, forecast)  # noqa: SLF001
+    _, score_small, _ = eng_small._blackout_risk(t, reserve, forecast)  # noqa: SLF001
+    _, score_large, _ = eng_large._blackout_risk(t, reserve, forecast)  # noqa: SLF001
     assert score_large > score_small

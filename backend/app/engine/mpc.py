@@ -31,6 +31,7 @@ from ..grid.reactive import ReactiveGrid
 from ..models import (
     BlackoutRisk,
     Decision,
+    DecisionModifiers,
     ForecastBundle,
     GridStats,
     Msg,
@@ -91,22 +92,24 @@ class MPCEngine:
         plan_grid_charge: bool = True,
         plan_shedding: bool = True,
         pending_restore: Collection[str] | None = None,
+        modifiers: DecisionModifiers | None = None,
     ) -> Decision:
-        # Build the action set with the rule engine, but pin the reserve target
-        # to the MPC-optimised value (unless the operator pinned their own).
+        # Build the action set with the rule engine; pass MPC reserve explicitly
+        # (never fake it as an operator override.reserve_soc).
         rule = self._rule_engine(reactive)
 
         mpc_reserve, unserved_wh, feasible = self._solve(telemetry, forecast)
 
-        eff_override = Override(**(override.model_dump() if override else {}))
-        if plan_optimization and eff_override.reserve_soc is None and mpc_reserve is not None:
-            eff_override.reserve_soc = mpc_reserve
+        pin: float | None = None
+        if plan_optimization and mpc_reserve is not None:
+            if override is None or override.reserve_soc is None:
+                pin = mpc_reserve
 
         decision = rule.decide(
             telemetry,
             forecast,
             grid_stats,
-            eff_override,
+            override,
             shadow_mode,
             telemetry_stale=telemetry_stale,
             last_grid_charge_amps=last_grid_charge_amps,
@@ -114,12 +117,17 @@ class MPCEngine:
             plan_grid_charge=plan_grid_charge,
             plan_shedding=plan_shedding,
             pending_restore=pending_restore,
+            mpc_reserve=pin,
+            modifiers=modifiers,
         )
 
         # Enrich risk + summary with MPC survivability result.
         if plan_optimization and (not feasible or unserved_wh > 1.0):
             decision.blackout_risk = BlackoutRisk.CRITICAL
             decision.blackout_risk_score = max(decision.blackout_risk_score, 0.9)
+            if decision.explanation is not None:
+                decision.explanation.risk.label = BlackoutRisk.CRITICAL
+                decision.explanation.risk.score = decision.blackout_risk_score
         if plan_optimization:
             decision.summary = Msg(
                 key=decision.summary.key,
@@ -132,6 +140,8 @@ class MPCEngine:
                     "kwh": f"{unserved_wh/1000:.1f}",
                 },
             )
+            if decision.explanation is not None and pin is not None:
+                decision.explanation.reserve.mpc_soc = pin
         decision.ts = utcnow()
         return decision
 

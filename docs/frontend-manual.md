@@ -83,7 +83,7 @@ The Overview tab is the control room:
 | **Overview hero** | Large battery SOC bar with reserve marker and blackout-risk pill |
 | **Status cards** | Live PV, load, grid, and related telemetry |
 | **Grid statistics** | Recent grid availability stats |
-| **Decision & rationale** | Current target reserve, risk score, planned actions, and shed details (expand **Details**) |
+| **Decision & rationale** | Why (reserve / grid charge), intended vs applied verification, modifiers, technical details; admins can open **Live forensics**. See [decision-cycle.md](decision-cycle.md). |
 | **Overrides** | Shadow/live, pause, kill switch, reserve pin, grid charge, run cycle — grouped by section |
 
 Read the **Decision** panel first: it explains *why* the optimizer chose its current reserve and actions. Use **View shed history** or **Configure shedding** links when shed actions are active.

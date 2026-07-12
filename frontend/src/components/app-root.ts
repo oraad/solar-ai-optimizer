@@ -38,6 +38,7 @@ type Tab = "overview" | "forecast" | "history" | "settings" | "load_shedding";
 export type HistoryNavHint = {
   view?: "timeline" | "decisions" | "activity";
   activity?: "executions" | "shed" | "grid";
+  cycleId?: string;
 };
 
 const TAB_IDS: Tab[] = [
@@ -283,6 +284,8 @@ export class SolarApp extends LitElement {
   @state() private entitiesConnected = false;
   @state() private execResults: ExecutionResult[] = [];
   @state() private shedResults: ShedResult[] = [];
+  @state() private planCycleId: string | null = null;
+  @state() private planLoading = false;
   @state() private tab: Tab = "overview";
   @state() private theme: "dark" | "light" = "dark";
   @state() private lastUpdate = 0;
@@ -707,13 +710,20 @@ export class SolarApp extends LitElement {
   }
 
   private async refreshPlan(): Promise<void> {
+    this.planLoading = true;
     try {
       const plan = await api.plan();
       this.execResults = plan.results ?? [];
       this.shedResults = plan.shed_results ?? [];
+      this.planCycleId = plan.cycle_id ?? plan.decision?.cycle_id ?? null;
+      if (plan.execution_summary && this.status) {
+        this.status = { ...this.status, execution_summary: plan.execution_summary };
+      }
       this.apiError = "";
     } catch (e) {
       this.noteApiError(e);
+    } finally {
+      this.planLoading = false;
     }
   }
 
@@ -965,6 +975,8 @@ export class SolarApp extends LitElement {
               .results=${this.execResults}
               .shedResults=${this.shedResults}
               .status=${this.status}
+              .planCycleId=${this.planCycleId}
+              .planLoading=${this.planLoading}
               .role=${this.dashboardRole}
             ></solar-decision-panel>
             <solar-overrides-panel

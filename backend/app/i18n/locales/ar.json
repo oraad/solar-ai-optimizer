@@ -86,7 +86,28 @@
       "degraded_buffer": " توقّع متدهور/قديم — هامش إضافي محافظ.",
       "driver_solar_bridge": "جسر-شمسي",
       "driver_autonomy_floor": "حد-اكتفاء",
-      "optimization_disabled": "التحسين معطّل — لم يُحسب هدف الاحتياطي."
+      "optimization_disabled": "التحسين معطّل — لم يُحسب هدف الاحتياطي.",
+      "mpc_pin": "MPC ثبّت الاحتياطي على {target}% (القواعد كانت ستستخدم {rules}%).",
+      "operator_pin": "المشغّل ثبّت الاحتياطي على {target}% (القواعد كانت ستستخدم {rules}%)."
+    },
+    "explain": {
+      "step": {
+        "reserve": "هدف الاحتياطي",
+        "grid_charge": "شحن الشبكة",
+        "risk": "خطر انقطاع"
+      },
+      "reserve": {
+        "rules": "القواعد حددت الاحتياطي إلى {target}% (جسر شمسي {bridge}%، أرضية {floor}%).",
+        "mpc": "MPC حدد الاحتياطي إلى {target}% (أساس القواعد {rules}%).",
+        "operator": "المشغّل ثبّت الاحتياطي على {target}% (أساس القواعد {rules}%)."
+      },
+      "grid_charge": {
+        "on": "شحن الشبكة {amps} أمبير (السقف الملزم: {binding} عند {ceiling} أمبير).",
+        "off": "شحن الشبكة متوقف."
+      },
+      "risk": {
+        "detail": "الخطر {label} (درجة {score})."
+      }
     },
     "summary": {
       "main": "SOC {soc} مقابل احتياطي {target}% | {grid} | خطر انقطاع: {risk}. {rationale}",

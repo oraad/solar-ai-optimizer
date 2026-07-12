@@ -19,15 +19,19 @@ from ..models import (
     Capability,
     ControlAction,
     Decision,
+    DecisionModifiers,
     ForecastBundle,
     GridChargePlan,
     GridStats,
     Msg,
     Override,
+    ReserveSource,
     ReserveTarget,
+    RiskBreakdown,
     Telemetry,
     utcnow,
 )
+from .explanation import build_explanation, build_inputs_digest
 from .priorities import (
     DEFAULT_PRIORITY_ORDER,
     buffer_scale,
@@ -217,16 +221,56 @@ class RuleEngine:
         plan_grid_charge: bool = True,
         plan_shedding: bool = True,
         pending_restore: Collection[str] | None = None,
+        mpc_reserve: float | None = None,
+        modifiers: DecisionModifiers | None = None,
     ) -> Decision:
+        risk_breakdown = RiskBreakdown()
+        mpc_soc_applied: float | None = None
+        rules_soc: float | None = None
+
         if plan_optimization:
             reserve = self.compute_reserve(telemetry, forecast)
+            rules_soc = reserve.target_soc
             target_soc = reserve.target_soc
+            source = ReserveSource.RULES
+            rationale = reserve.rationale
+
             if override and override.reserve_soc is not None:
                 target_soc = max(
                     self._battery.min_soc_floor,
                     min(self._battery.max_soc_ceiling, override.reserve_soc),
                 )
-            risk, score = self._blackout_risk(telemetry, reserve, forecast)
+                source = ReserveSource.OPERATOR
+                rationale = msg(
+                    "engine.reserve.operator_pin",
+                    target=round(target_soc, 0),
+                    rules=round(rules_soc, 0),
+                )
+            elif mpc_reserve is not None:
+                target_soc = max(
+                    self._battery.min_soc_floor,
+                    min(self._battery.max_soc_ceiling, mpc_reserve),
+                )
+                source = ReserveSource.MPC
+                mpc_soc_applied = target_soc
+                rationale = msg(
+                    "engine.reserve.mpc_pin",
+                    target=round(target_soc, 0),
+                    rules=round(rules_soc, 0),
+                )
+
+            effective = ReserveTarget(
+                target_soc=round(target_soc, 1),
+                solar_bridge_soc=reserve.solar_bridge_soc,
+                autonomy_floor_soc=reserve.autonomy_floor_soc,
+                rationale=rationale,
+                source=source,
+                rules_soc=round(rules_soc, 1),
+            )
+            risk, score, risk_breakdown = self._blackout_risk(
+                telemetry, effective, forecast
+            )
+            reserve = effective
         else:
             soc = telemetry.battery_soc or self._battery.min_soc_floor
             reserve = ReserveTarget(
@@ -234,13 +278,17 @@ class RuleEngine:
                 solar_bridge_soc=soc,
                 autonomy_floor_soc=self._battery.min_soc_floor,
                 rationale=msg("engine.reserve.optimization_disabled"),
+                source=ReserveSource.RULES,
+                rules_soc=soc,
             )
             target_soc = soc
             risk, score = BlackoutRisk.LOW, 0.0
+            risk_breakdown = RiskBreakdown(score=0.0, label=BlackoutRisk.LOW)
 
         actions: list[ControlAction] = []
         advisories: list[Msg] = []
         grid_charge_plan: GridChargePlan | None = None
+        gc_mode = ""
         max_a = self._grid_charge.max_grid_charge_a
 
         last_amps = (
@@ -251,6 +299,7 @@ class RuleEngine:
 
         if plan_grid_charge:
             if override and override.force_grid_charge:
+                gc_mode = "override"
                 grid_charge_plan = GridChargePlan(
                     enabled=True,
                     target_amps=max_a,
@@ -274,6 +323,7 @@ class RuleEngine:
                     )
                 )
             elif override and override.force_grid_charge is False:
+                gc_mode = "override"
                 grid_charge_plan = GridChargePlan(
                     enabled=False,
                     target_amps=0.0,
@@ -297,6 +347,7 @@ class RuleEngine:
                     )
                 )
             elif telemetry_stale:
+                gc_mode = "stale"
                 grid_charge_plan, stale_actions = self._conservative_grid_charge_off(
                     max_a,
                     msg("engine.grid.telemetry_stale"),
@@ -315,6 +366,7 @@ class RuleEngine:
                 )
                 actions.extend(result.actions)
                 grid_charge_plan = result.plan
+                gc_mode = "ramp" if grid_charge_plan and grid_charge_plan.cap_chain else "legacy"
 
         if plan_optimization:
             soc = telemetry.battery_soc or 0.0
@@ -356,14 +408,28 @@ class RuleEngine:
         else:
             shed_actions = []
 
+        mods = modifiers or DecisionModifiers(shadow=shadow_mode)
+        explanation = build_explanation(
+            reserve=reserve,
+            risk=risk_breakdown,
+            grid_charge=grid_charge_plan,
+            shed_count=len(shed_actions),
+            modifiers=mods,
+            inputs_digest=build_inputs_digest(
+                telemetry,
+                forecast,
+                telemetry_stale=telemetry_stale,
+                plan_optimization=plan_optimization,
+                plan_grid_charge=plan_grid_charge,
+                plan_shedding=plan_shedding,
+            ),
+            mpc_soc=mpc_soc_applied,
+            gc_mode=gc_mode,
+        )
+
         return Decision(
             ts=utcnow(),
-            reserve=ReserveTarget(
-                target_soc=round(target_soc, 1),
-                solar_bridge_soc=reserve.solar_bridge_soc,
-                autonomy_floor_soc=reserve.autonomy_floor_soc,
-                rationale=reserve.rationale,
-            ),
+            reserve=reserve,
             actions=sorted(actions, key=lambda a: a.priority, reverse=True),
             shed_actions=shed_actions,
             blackout_risk=risk,
@@ -371,6 +437,7 @@ class RuleEngine:
             summary=summary,
             shadow_mode=shadow_mode,
             grid_charge=grid_charge_plan,
+            explanation=explanation,
         )
 
     @staticmethod
@@ -404,13 +471,21 @@ class RuleEngine:
         telemetry: Telemetry,
         reserve: ReserveTarget,
         forecast: ForecastBundle | None,
-    ) -> tuple[BlackoutRisk, float]:
+    ) -> tuple[BlackoutRisk, float, RiskBreakdown]:
         soc = telemetry.battery_soc
         if soc is None:
-            return BlackoutRisk.MODERATE, 0.5
+            return (
+                BlackoutRisk.MODERATE,
+                0.5,
+                RiskBreakdown(score=0.5, label=BlackoutRisk.MODERATE),
+            )
 
         if soc <= self._battery.min_soc_floor:
-            return BlackoutRisk.CRITICAL, 1.0
+            return (
+                BlackoutRisk.CRITICAL,
+                1.0,
+                RiskBreakdown(score=1.0, label=BlackoutRisk.CRITICAL, floor_clamped=True),
+            )
 
         target = max(reserve.target_soc, 1.0)
         deficit_ratio = max(0.0, min(1.0, (target - soc) / target))
@@ -418,23 +493,28 @@ class RuleEngine:
         from ..forecast.helpers import expected_clear_sky_kwh
 
         expected_clear = expected_clear_sky_kwh(self._total_kwp)
+        tomorrow_kwh: float | None = None
         if forecast:
-            tomorrow = forecast.solar_tomorrow_kwh
+            tomorrow_kwh = forecast.solar_tomorrow_kwh
             solar_factor = 1.0 - max(
-                0.0, min(1.0, tomorrow / expected_clear)
+                0.0, min(1.0, tomorrow_kwh / expected_clear)
             )
         else:
             solar_factor = 0.5
 
         score = 0.6 * deficit_ratio + 0.4 * solar_factor
+        grid_mult: float | None = None
         if telemetry.grid_present:
-            score *= grid_present_risk_multiplier(
+            grid_mult = grid_present_risk_multiplier(
                 self._weights[OptimizationPriority.resilience],
                 self._weights[OptimizationPriority.savings],
             )
+            score *= grid_mult
 
+        floor_clamped = False
         if soc <= reserve.autonomy_floor_soc:
             score = max(score, 0.7)
+            floor_clamped = True
 
         if score < 0.25:
             risk = BlackoutRisk.LOW
@@ -444,7 +524,17 @@ class RuleEngine:
             risk = BlackoutRisk.HIGH
         else:
             risk = BlackoutRisk.CRITICAL
-        return risk, score
+        breakdown = RiskBreakdown(
+            score=round(score, 3),
+            label=risk,
+            deficit_ratio=round(deficit_ratio, 3),
+            solar_factor=round(solar_factor, 3),
+            tomorrow_kwh=tomorrow_kwh,
+            clear_sky_kwh=round(expected_clear, 2),
+            grid_multiplier=grid_mult,
+            floor_clamped=floor_clamped,
+        )
+        return risk, score, breakdown
 
     @staticmethod
     def _summary(

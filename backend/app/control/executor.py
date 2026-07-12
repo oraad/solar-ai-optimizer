@@ -96,11 +96,13 @@ class Executor:
         self._last_saved_shed[key] = res
 
     async def apply_decision(
-        self, decision: Decision, shadow_mode: bool
+        self, decision: Decision, shadow_mode: bool, *, cycle_id: str | None = None
     ) -> list[ExecutionResult]:
         results: list[ExecutionResult] = []
+        cid = cycle_id or decision.cycle_id
         for action in decision.actions:
             res = await self._apply_action(action, shadow_mode)
+            res.cycle_id = cid
             results.append(res)
             await self._maybe_save_execution(res)
             if res.applied:
@@ -272,12 +274,15 @@ class Executor:
         actions: list[ShedAction],
         shadow_mode: bool,
         tiers: list[LoadTier] | None = None,
+        *,
+        cycle_id: str | None = None,
     ) -> list[ShedResult]:
         """Apply load-shedding switch states with snapshot/restore support."""
         tier_list = tiers or []
         results: list[ShedResult] = []
         for a in actions:
             res = await self._apply_shed(a, shadow_mode, tier_list)
+            res.cycle_id = cycle_id
             results.append(res)
             await self._maybe_save_shed_execution(res)
             if res.applied:

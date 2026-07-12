@@ -86,7 +86,28 @@
       "degraded_buffer": " Degraded/stale forecast — extra conservative buffer applied.",
       "driver_solar_bridge": "solar-bridge",
       "driver_autonomy_floor": "autonomy-floor",
-      "optimization_disabled": "Optimization disabled — reserve target not computed."
+      "optimization_disabled": "Optimization disabled — reserve target not computed.",
+      "mpc_pin": "MPC pinned reserve to {target}% (rules would use {rules}%).",
+      "operator_pin": "Operator pinned reserve to {target}% (rules would use {rules}%)."
+    },
+    "explain": {
+      "step": {
+        "reserve": "Reserve target",
+        "grid_charge": "Grid charge",
+        "risk": "Blackout risk"
+      },
+      "reserve": {
+        "rules": "Rules set reserve to {target}% (solar-bridge {bridge}%, autonomy floor {floor}%).",
+        "mpc": "MPC set reserve to {target}% (rules baseline {rules}%).",
+        "operator": "Operator pinned reserve to {target}% (rules baseline {rules}%)."
+      },
+      "grid_charge": {
+        "on": "Grid charge {amps} A (binding cap: {binding} at {ceiling} A).",
+        "off": "Grid charge off."
+      },
+      "risk": {
+        "detail": "Risk {label} (score {score})."
+      }
     },
     "summary": {
       "main": "SOC {soc} vs reserve {target}% | {grid} | blackout risk: {risk}. {rationale}",

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.10] - 2026-07-12
+
+### Added
+
+- Structured decide-time `DecisionExplanation` with `cycle_id`, reserve source (`rules` | `mpc` | `operator`), risk breakdown, and grid-charge cap-chain binding factor
+- Overview **Intended vs Applied** for reserve and grid charge; History joins by `cycle_id`
+- Forensics / MCP `causality` section and `docs/decision-cycle.md` playbook for expected vs actual troubleshooting
+
+### Changed
+
+- `solar_explain_decision` and `GET /api/debug/trace` accept `causality` (legacy `reasoning` maps to decision+causality)
+- Decision and History UI surface explanation steps and clearer reserve/grid-charge rationale
+
 ## [0.6.11-beta.9] - 2026-07-12
 
 ### Removed

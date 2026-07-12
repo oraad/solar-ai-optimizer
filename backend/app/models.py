@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
+
+def new_cycle_id() -> str:
+    return str(uuid4())
 
 
 class Msg(BaseModel):
@@ -92,6 +97,7 @@ class ShedResult(BaseModel):
     companions_restored: list[str] = Field(default_factory=list)
     companion_errors: dict[str, str] = Field(default_factory=dict)
     ts: datetime = Field(default_factory=utcnow)
+    cycle_id: str | None = None
 
 
 class GridEvent(BaseModel):
@@ -142,6 +148,12 @@ class ForecastBundle(BaseModel):
     degraded_reasons: list[Msg] = Field(default_factory=list)
 
 
+class ReserveSource(str, Enum):
+    RULES = "rules"
+    MPC = "mpc"
+    OPERATOR = "operator"
+
+
 class ReserveTarget(BaseModel):
     """The computed conservative battery floor and its drivers."""
 
@@ -149,6 +161,18 @@ class ReserveTarget(BaseModel):
     solar_bridge_soc: float          # % from the solar-bridge calc
     autonomy_floor_soc: float        # % from the hard autonomy floor
     rationale: Msg
+    source: ReserveSource = ReserveSource.RULES
+    rules_soc: float | None = None   # pre-pin rules target when source != rules
+
+
+class CapChainFactor(BaseModel):
+    """One factor in the grid-charge amp cap chain."""
+
+    factor: str
+    ceiling_a: float
+    note_key: str = ""
+    note_params: dict[str, str | int | float] = Field(default_factory=dict)
+    binding: bool = False
 
 
 class GridChargePlan(BaseModel):
@@ -158,6 +182,7 @@ class GridChargePlan(BaseModel):
     target_amps: float
     max_amps: float
     rationale: Msg = Field(default_factory=lambda: Msg(key=""))
+    cap_chain: list[CapChainFactor] = Field(default_factory=list)
 
 
 class BlackoutRisk(str, Enum):
@@ -167,10 +192,108 @@ class BlackoutRisk(str, Enum):
     CRITICAL = "critical"
 
 
+class ExplanationStep(BaseModel):
+    """One ordered causal step for the Decision Story."""
+
+    id: str
+    title_key: str
+    detail_key: str = ""
+    params: dict[str, str | int | float] = Field(default_factory=dict)
+    outcome: str = ""  # e.g. applied target, amps, risk label
+
+
+class RiskBreakdown(BaseModel):
+    score: float = 0.0
+    label: BlackoutRisk = BlackoutRisk.LOW
+    deficit_ratio: float | None = None
+    solar_factor: float | None = None
+    tomorrow_kwh: float | None = None
+    clear_sky_kwh: float | None = None
+    grid_multiplier: float | None = None
+    floor_clamped: bool = False
+
+
+class ReserveExplanation(BaseModel):
+    source: ReserveSource = ReserveSource.RULES
+    rules_soc: float | None = None
+    mpc_soc: float | None = None
+    applied_soc: float | None = None
+    solar_bridge_soc: float | None = None
+    autonomy_floor_soc: float | None = None
+    driver: str = ""
+
+
+class GridChargeExplanation(BaseModel):
+    enabled: bool = False
+    target_amps: float = 0.0
+    binding_factor: str | None = None
+    binding_ceiling_a: float | None = None
+    mode: str = ""  # ramp | legacy | override | off | stale
+
+
+class DecisionModifiers(BaseModel):
+    shadow: bool = True
+    paused_writes_grid: bool = False
+    paused_writes_shed: bool = False
+    paused_optimization: bool = False
+    force_grid_charge: bool | None = None
+    force_shed_off: bool | None = None
+    reserve_pin: float | None = None
+    engine_active: str = "rules"
+
+
+class InputsDigest(BaseModel):
+    """Compact decide-time inputs for provenance (not a full telemetry dump)."""
+
+    soc: float | None = None
+    grid_present: bool | None = None
+    telemetry_stale: bool = False
+    forecast_degraded: bool = False
+    cloudy_tomorrow: bool = False
+    solar_today_kwh: float | None = None
+    solar_tomorrow_kwh: float | None = None
+    plan_optimization: bool = True
+    plan_grid_charge: bool = True
+    plan_shedding: bool = True
+
+
+class DecisionExplanation(BaseModel):
+    """Decide-time structured causality (schema_version for forward compat)."""
+
+    schema_version: int = 1
+    steps: list[ExplanationStep] = Field(default_factory=list)
+    reserve: ReserveExplanation = Field(default_factory=ReserveExplanation)
+    risk: RiskBreakdown = Field(default_factory=RiskBreakdown)
+    grid_charge: GridChargeExplanation = Field(default_factory=GridChargeExplanation)
+    shed_count: int = 0
+    modifiers: DecisionModifiers = Field(default_factory=DecisionModifiers)
+    inputs_digest: InputsDigest = Field(default_factory=InputsDigest)
+
+
+class ExecutionSummary(BaseModel):
+    """Post-execute verification summary (never mutates Decision.explanation)."""
+
+    cycle_id: str | None = None
+    grid_charge_writes_allowed: bool = False
+    shedding_writes_allowed: bool = False
+    applied: int = 0
+    verified: int = 0
+    skipped: int = 0
+    errors: int = 0
+    top_skip_keys: list[str] = Field(default_factory=list)
+    shed_applied: int = 0
+    shed_skipped: int = 0
+    intended_reserve_soc: float | None = None
+    intended_grid_charge_amps: float | None = None
+    applied_grid_charge_amps: float | None = None
+    grid_charge_status: str = ""  # applied|verified|skipped|paused|shadow|none
+
+
 class Decision(BaseModel):
     """The engine's output for one cycle."""
 
     ts: datetime = Field(default_factory=utcnow)
+    cycle_id: str = Field(default_factory=new_cycle_id)
     reserve: ReserveTarget
     actions: list[ControlAction] = Field(default_factory=list)
     shed_actions: list[ShedAction] = Field(default_factory=list)
@@ -179,6 +302,8 @@ class Decision(BaseModel):
     summary: Msg = Field(default_factory=lambda: Msg(key=""))
     shadow_mode: bool = True
     grid_charge: GridChargePlan | None = None
+    explanation: DecisionExplanation | None = None
+    slim: bool = False  # True when history row is header-only
 
 
 class ExecutionResult(BaseModel):
@@ -191,6 +316,7 @@ class ExecutionResult(BaseModel):
     skipped_reason: str | None = None
     error: str | None = None
     ts: datetime = Field(default_factory=utcnow)
+    cycle_id: str | None = None
 
 
 class BatterySummary(BaseModel):
@@ -207,6 +333,7 @@ class SystemStatus(BaseModel):
 
     telemetry: Telemetry | None = None
     decision: Decision | None = None
+    execution_summary: ExecutionSummary | None = None
     grid_stats: GridStats | None = None
     battery_summary: BatterySummary | None = None
     ha_connected: bool = False

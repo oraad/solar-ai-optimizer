@@ -135,9 +135,11 @@ export const api = {
   forecast: () => getJSON<ForecastBundle>("/api/forecast"),
   plan: () =>
     getJSON<{
+      cycle_id?: string | null;
       decision: Decision | null;
       results: ExecutionResult[];
       shed_results: ShedResult[];
+      execution_summary?: import("./types.js").ExecutionSummary | null;
       shadow_mode: boolean;
       paused: boolean;
     }>("/api/plan"),
@@ -151,23 +153,26 @@ export const api = {
     }>("/api/config/load-shedding"),
   historyTelemetry: (hours = 24) =>
     getJSON<Telemetry[]>(`/api/history/telemetry?hours=${hours}`),
-  historyDecisions: (limit = 100) =>
+  historyDecisions: (limit = 100, cycleId?: string) =>
     getJSON<import("./types.js").DecisionHistoryRow[]>(
-      `/api/history/decisions?limit=${limit}`,
+      `/api/history/decisions?limit=${limit}${cycleId ? `&cycle_id=${encodeURIComponent(cycleId)}` : ""}`,
     ),
   historyGridEvents: (days = 7) =>
     getJSON<import("./types.js").GridEventRow[]>(
       `/api/history/grid-events?days=${days}`,
     ),
-  historyExecutions: (limit = 100) =>
+  historyExecutions: (limit = 100, cycleId?: string) =>
     getJSON<import("./types.js").ExecutionHistoryRow[]>(
-      `/api/history/executions?limit=${limit}`,
+      `/api/history/executions?limit=${limit}${cycleId ? `&cycle_id=${encodeURIComponent(cycleId)}` : ""}`,
     ),
-  historyShedExecutions: (limit = 100) =>
+  historyShedExecutions: (limit = 100, cycleId?: string) =>
     getJSON<import("./types.js").ShedExecutionRow[]>(
-      `/api/history/shed-executions?limit=${limit}`,
+      `/api/history/shed-executions?limit=${limit}${cycleId ? `&cycle_id=${encodeURIComponent(cycleId)}` : ""}`,
     ),
-  refreshForecast: () => postJSON<ForecastBundle>("/api/forecast/refresh", {}),
+  debugTrace: (sections?: string) =>
+    getJSON<Record<string, unknown>>(
+      `/api/debug/trace${sections ? `?sections=${encodeURIComponent(sections)}` : ""}`,
+    ),  refreshForecast: () => postJSON<ForecastBundle>("/api/forecast/refresh", {}),
   forceCycle: () => postJSON<Decision>("/api/cycle", {}),
   override: (ov: Override) => postJSON<Record<string, unknown>>("/api/override", ov),
   clearOverride: () => postJSON<{ cleared: boolean }>("/api/override/clear", {}),

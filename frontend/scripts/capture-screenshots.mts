@@ -56,9 +56,6 @@ async function captureAdmin(page: Page): Promise<void> {
   await waitForHistoryDecisionsReady(page);
   await shotLayout(page, OUT_DIR, "history-decisions.png");
 
-  await clickMainTab(page, "Assistant");
-  await shotLayout(page, OUT_DIR, "assistant.png");
-
   await clickMainTab(page, "Load shedding");
   await shotLayout(page, OUT_DIR, "load-shedding.png");
   const tierCard = app(page).locator("solar-load-shedding-panel .tier-card").first();

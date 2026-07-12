@@ -44,7 +44,6 @@ Common overrides:
 | `API_TOKEN` | Bearer token for scripts; protects API when set |
 | `CORS_ORIGINS` | Comma-separated CORS origins (default `*`) |
 | `ML_LOAD_ENABLED` | Gradient-boosting load forecast (needs sklearn in image) |
-| `LLM_ENABLED` / `OLLAMA_*` | Local LLM assistant (Phase 4) |
 | `MCP_ENABLED` / `MCP_TOKEN` / `MCP_HTTP_PATH` | MCP agent server — also configurable via Settings → Agent access (`data/mcp.env` on standalone; see [MCP](mcp.md)) |
 | `SOLAR_API_URL` | stdio MCP client API base (host-side only) |
 | `DEMO_MODE` | **Docs only** — synthetic telemetry; never in production |

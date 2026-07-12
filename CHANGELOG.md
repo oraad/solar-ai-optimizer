@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.9] - 2026-07-12
+
+### Removed
+
+- Full LLM Assistant stack: dashboard Assistant tab, `POST /api/assistant/ask`, `backend/app/llm`, MCP `solar_ask`, and `LLM_ENABLED` / `OLLAMA_*` settings
+
 ## [0.6.11-beta.8] - 2026-07-12
 
 ### Fixed

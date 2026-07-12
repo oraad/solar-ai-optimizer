@@ -125,7 +125,7 @@ npm test
   top-up, discharge protection, blackout-risk score.
 - **Phase 3 - MPC (optional):** LP battery dispatch (grid-absent assumption). Set
   `engine.mode: mpc` and install PuLP.
-- **Phase 4 - Learning + LLM (optional):** ML load (`ML_LOAD_ENABLED`), Ollama assistant (`LLM_ENABLED`).
+- **Phase 4 - Learning (optional):** ML load (`ML_LOAD_ENABLED`).
 - **MCP (optional):** Agent control plane for Cursor and remote tools (`MCP_ENABLED`, `MCP_TOKEN`). See [docs/mcp.md](docs/mcp.md).
 
 Configuration details: [Configuration guide](https://oraad.github.io/solar-ai-optimizer/configuration/).
@@ -146,7 +146,6 @@ Configuration details: [Configuration guide](https://oraad.github.io/solar-ai-op
 `GET /api/grid-stats`, `GET /api/history/telemetry`, `GET /api/history/decisions`,
 `GET /api/history/grid-events`, `GET /api/history/shed-executions`, `GET /api/config`,
 `GET /api/entities`, `POST /api/cycle`, `POST /api/override`, `POST /api/model/retrain`,
-`POST /api/assistant/ask`,
 and `WS /ws` (pass `?token=<API_TOKEN>` when `API_TOKEN` or `MCP_TOKEN` is set; browsers cannot send `Authorization` on WebSocket handshakes).
 
 Docker healthcheck hits `/api/health`. Prometheus scrape target: `GET /metrics` (pass `Authorization: Bearer <API_TOKEN>` when local auth or `API_TOKEN` is configured).

@@ -41,7 +41,7 @@ status, forecasts, and history, and may POST limited overrides only:
 Each `pause_*` field is bidirectional: `true` pauses, `false` resumes.
 
 Viewers are denied config reads (`GET /api/config`), entity enumeration (`GET /api/entities`),
-config writes, the Assistant, reserve pin, and other admin-only routes.
+config writes, reserve pin, and other admin-only routes.
 Enforcement is on the backend; the dashboard hides controls as defense-in-depth.
 
 Do not expose port `8000` directly if viewers should not bypass HA ingress identity headers.

@@ -136,7 +136,3 @@ class OrchestratorBackend:
     async def update_config(self, patch: dict) -> dict[str, Any]:
         self._check_write_limit()
         return await self._ops.update_config(patch)
-
-    async def ask(self, question: str) -> dict[str, Any]:
-        self._check_read_limit()
-        return localize_payload(await self._ops.assistant_ask(question, apply=False))

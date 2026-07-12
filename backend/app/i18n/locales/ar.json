@@ -23,7 +23,6 @@
     "override": {
       "kill_switch_confirm": "يتطلب kill_switch تأكيد confirm=true",
       "no_fields": "لم يتم تقديم حقول تجاوز",
-      "assistant_kill_switch": "يتطلب مفتاح الإيقاف تأكيداً صريحاً في سؤالك (مثلاً تضمين « confirm »).",
       "grid_charge_disabled": "التحكم في شحن الشبكة معطّل في الإعدادات.",
       "shedding_disabled": "التحكم في تخفيف الأحمال معطّل في الإعدادات."
     },
@@ -213,26 +212,5 @@
   "discovery": {
     "entity_not_in_registry": "الكيان غير موجود في السجل: {entity}",
     "no_device_id": "لا device_id للكيان؛ اضبط state_entities يدوياً."
-  },
-  "assistant": {
-    "system": {
-      "base": "أنت مساعد محسّن طاقة شمسية/بطارية منزلي يعمل على Home Assistant. ",
-      "answer": "أجب بإيجاز ووضوح باستخدام السياق المباشر المقدّم. إذا طُلب منك شرح قرار، اذكر هدف الاحتياطي وSOC والتوقّع الشمسي وحالة الشبكة."
-    },
-    "priorities": {
-      "header": "أولويات التحسين المضبوطة من المستخدم (الأعلى أولاً): ",
-      "line": "{index}) {name}",
-      "footer": ". الشبكة غير متوقعة وتُعامل كمورد تفاعلي وفرصي فقط (لا تُتوقَّع أبداً)."
-    },
-    "heuristic": {
-      "soc_vs_reserve": "البطارية عند {soc}% مقابل هدف احتياطي {reserve}%.",
-      "grid_present": "الشبكة متوفرة.",
-      "grid_absent": "الشبكة غير متوفرة.",
-      "blackout_risk": "خطر الانقطاع {risk}.",
-      "no_context": "لا يوجد سياق قرار بعد."
-    },
-    "prompt": {
-      "respond_in": "أجب باللغة {language}."
-    }
   }
 }

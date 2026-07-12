@@ -127,9 +127,6 @@ async function waitForTabReady(page: Page, label: string): Promise<void> {
     case "History":
       await waitForChart(page, "solar-history-view");
       break;
-    case "Assistant":
-      await app(page).locator("solar-assistant-panel").waitFor({ state: "visible", timeout: 30_000 });
-      break;
     case "Load shedding":
     case "Shedding":
       await waitForLoadSheddingReady(page);

@@ -23,7 +23,6 @@
     "override": {
       "kill_switch_confirm": "kill_switch nécessite confirm=true",
       "no_fields": "Aucun champ de surcharge fourni",
-      "assistant_kill_switch": "L'arrêt d'urgence nécessite une confirmation explicite dans votre question (par ex. inclure « confirm »).",
       "grid_charge_disabled": "Le contrôle de charge réseau est désactivé dans les paramètres.",
       "shedding_disabled": "Le contrôle du délestage est désactivé dans les paramètres."
     },
@@ -213,26 +212,5 @@
   "discovery": {
     "entity_not_in_registry": "Entité absente du registre : {entity}",
     "no_device_id": "L'entité n'a pas de device_id ; configurez state_entities manuellement."
-  },
-  "assistant": {
-    "system": {
-      "base": "Vous êtes l'assistant d'un optimiseur solaire/batterie domestique sur Home Assistant. ",
-      "answer": "Répondez de façon concise et concrète en utilisant le contexte en direct fourni. Si on vous demande d'expliquer une décision, citez la réserve cible, le SOC, la prévision solaire et l'état du réseau."
-    },
-    "priorities": {
-      "header": "Priorités d'optimisation configurées par l'utilisateur (la plus haute d'abord) : ",
-      "line": "{index}) {name}",
-      "footer": ". Le réseau est imprévisible et est traité comme une ressource réactive et opportuniste uniquement (jamais prédite)."
-    },
-    "heuristic": {
-      "soc_vs_reserve": "La batterie est à {soc}% face à une réserve cible de {reserve}%.",
-      "grid_present": "Le réseau est présent.",
-      "grid_absent": "Le réseau est absent.",
-      "blackout_risk": "Le risque de coupure est {risk}.",
-      "no_context": "Aucun contexte de décision disponible pour l'instant."
-    },
-    "prompt": {
-      "respond_in": "Répondez en {language}."
-    }
   }
 }

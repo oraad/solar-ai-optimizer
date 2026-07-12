@@ -62,7 +62,7 @@ Le montage est refusé en mode autonome si aucun jeton n'est configuré. Termine
 
 ### Niveau 3 – mutation
 
-`solar_trigger_cycle`, `solar_refresh_forecast`, `solar_update_config`, `solar_ask`.
+`solar_trigger_cycle`, `solar_refresh_forecast`, `solar_update_config`.
 
 ## Manuel de dépannage
 

@@ -44,7 +44,6 @@ Remplacements courants :
 | `API_TOKEN`| Jeton porteur pour les scripts ; protège l'API lorsqu'elle est définie |
 | `CORS_ORIGINS`| Origines CORS séparées par des virgules (par défaut`*`) |
 | `ML_LOAD_ENABLED`| Prévisions de charge augmentant le gradient (nécessite Sklearn dans l'image) |
-| `LLM_ENABLED` / `OLLAMA_*`| Assistant local LLM (Phase 4) |
 | `DEMO_MODE`| **Documents uniquement** — télémétrie synthétique ; jamais en production |
 
 Quand`API_TOKEN`est défini, saisissez la même valeur dans **Paramètres → Sécurité API**.
@@ -148,6 +147,7 @@ Le`solar-data`Volume Docker (ou module complémentaire`/data`) contient :
 - `solar.db`— télémétrie et historique d'audit
 - `config.runtime.yaml`- Remplacements de la configuration de l'interface utilisateur
 - `model.json`— Biais de prévision appris / profil de charge
+- `shed_snapshots.json` — état pré-délestage en attente
 
 Sauvegardez ce volume avant les mises à niveau. Voir[Déploiement Proxmox → Sauvegarde](proxmox.md#backup)
 pour un exemple de commande tar.

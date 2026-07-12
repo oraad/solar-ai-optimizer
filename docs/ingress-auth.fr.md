@@ -93,7 +93,7 @@ Pour[hass_ingress](https://github.com/lovelylain/hass_ingress)(HACS), utilisez`w
 Quand`SUPERVISOR_TOKEN`est défini, l'entrée est automatiquement approuvée (en-têtes d'utilisateur et cadrage iframe de la barre latérale). La connexion locale est facultative et désactivée par défaut. Ouvrez le panneau à partir de la barre latérale HA.
 
 !!! info "Les rôles en un coup d'oeil"
-Les utilisateurs **Admin** voient les cinq onglets du tableau de bord (y compris Assistant et Paramètres).
+Les utilisateurs **Admin** voient les cinq onglets du tableau de bord (y compris Paramètres).
 Les utilisateurs **Viewer** voient uniquement la présentation, les prévisions et l'historique, avec des remplacements limités sur la présentation.
 Voir le[Guide d'utilisation du tableau de bord → Rôles du tableau de bord](frontend-manual.md#dashboard-roles)pour les captures d'écran et la matrice complète des fonctionnalités.
 
@@ -101,10 +101,10 @@ Voir le[Guide d'utilisation du tableau de bord → Rôles du tableau de bord](fr
 
 | Rôle | Comment déterminé | Tableau de bord |
 |------|----------------|-----------|
-| **Administrateur** | Propriétaire HA ou`system-admin`groupe; ou`ADMIN_USER_IDS`liste verte | Tableau de bord complet (Aperçu, Prévisions, Historique, Assistant, Paramètres) |
+| **Administrateur** | Propriétaire HA ou`system-admin`groupe; ou`ADMIN_USER_IDS`liste verte | Tableau de bord complet (Aperçu, Prévisions, Historique, Paramètres) |
 | **Visionneuse** | Autres utilisateurs HA via l'entrée | Présentation, Prévisions et Historique uniquement : contrôles limités de l'opérateur sur Présentation |
 
-Les téléspectateurs peuvent **mettre en pause/reprendre** le moteur et chaque sous-système (délestage, charge réseau, optimisation) et activer le **kill switch** (avec confirmation). Ils ne peuvent pas épingler le SOC de réserve, forcer la facturation du réseau, exécuter un cycle de contrôle, actualiser les prévisions, effacer les remplacements, basculer shadow/live dans l'UI, utiliser l'Assistant ou ouvrir les paramètres.
+Les téléspectateurs peuvent **mettre en pause/reprendre** le moteur et chaque sous-système (délestage, charge réseau, optimisation) et activer le **kill switch** (avec confirmation). Ils ne peuvent pas épingler le SOC de réserve, forcer la facturation du réseau, exécuter un cycle de contrôle, actualiser les prévisions, effacer les remplacements, basculer shadow/live dans l'UI ou ouvrir les paramètres.
 
 Les routes d'API en mutation appliquent les mêmes limites sur le backend. Les API de configuration et de modèle restent réservées aux administrateurs.
 

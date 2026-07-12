@@ -32,7 +32,6 @@ Use this checklist when validating the dashboard inside the HA Companion app ing
 - [ ] History tables scroll horizontally without breaking the page layout.
 - [ ] Info tips (ⓘ) open on tap and dismiss on outside tap or Escape.
 - [ ] Overrides segmented controls are tappable.
-- [ ] Assistant chat input stays above the keyboard / safe area.
 
 ## Settings
 

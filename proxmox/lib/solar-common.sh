@@ -363,7 +363,6 @@ solar_write_env_file() {
 # SOLCAST_API_KEY=
 # SOLCAST_RESOURCE_ID=
 # ML_LOAD_ENABLED=false
-# LLM_ENABLED=false
 EOF
   solar_ensure_env_auth
 }

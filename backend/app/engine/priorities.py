@@ -124,21 +124,3 @@ def format_priority_order(
     return " > ".join(
         t(f"engine.priority.{p.value}", locale=loc) for p in seq
     )
-
-
-def system_prompt_priorities(
-    order: list[OptimizationPriority] | None = None,
-    *,
-    locale: str | None = None,
-) -> str:
-    seq = order or DEFAULT_PRIORITY_ORDER
-    loc = locale or get_locale()
-    lines = [
-        t("assistant.priorities.line", {"index": i + 1, "name": t(f"engine.priority.{p.value}", locale=loc)}, locale=loc)
-        for i, p in enumerate(seq)
-    ]
-    return (
-        t("assistant.priorities.header", locale=loc)
-        + "; ".join(lines)
-        + t("assistant.priorities.footer", locale=loc)
-    )

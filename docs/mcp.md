@@ -78,7 +78,7 @@ Or use Settings → Agent access (standalone). Mount is refused if no token is c
 
 ### Tier 3 — mutating
 
-`solar_trigger_cycle`, `solar_refresh_forecast`, `solar_update_config`, `solar_ask`.
+`solar_trigger_cycle`, `solar_refresh_forecast`, `solar_update_config`.
 
 ## Troubleshooting playbook
 

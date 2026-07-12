@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api/ha/oauth", tags=["ha-oauth"])
 class StartBody(BaseModel):
     public_base_url: str = Field(min_length=8, max_length=512)
     ha_base_url: str | None = Field(default=None, max_length=512)
+    verify_ssl: bool | None = Field(default=None)
 
 
 @router.get("/status")
@@ -38,11 +39,15 @@ async def oauth_start(
     if settings.is_addon:
         raise api_error("api.ha_oauth.addon_unsupported", 400)
     ha_url = (body.ha_base_url or settings.ha_base_url).strip()
+    verify = (
+        settings.ha_verify_ssl if body.verify_ssl is None else bool(body.verify_ssl)
+    )
     try:
         started = ha_oauth.start_authorize(
             settings.data_dir,
             ha_base_url=ha_url,
             public_base_url=body.public_base_url,
+            verify_ssl=verify,
         )
     except ValueError as exc:
         raise api_error("api.ha_oauth.invalid_url", 400) from exc
@@ -60,24 +65,21 @@ async def oauth_callback(
     settings: Settings = Depends(get_settings),
 ) -> HTMLResponse:
     try:
+        # verify_ssl comes from pending (set at /start); settings is fallback only.
         await ha_oauth.finish_authorize(
             settings.data_dir,
             code=code,
             state=state,
             verify_ssl=settings.ha_verify_ssl,
         )
-        msg = "Home Assistant connected. You can close this window."
-        ok = True
-    except ha_oauth.OAuthError as exc:
-        msg = f"Connection failed ({exc.code}). Close this window and try again."
-        ok = False
-    color = "#0a7" if ok else "#c33"
-    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>Solar AI</title></head>
+        html = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>Solar AI</title></head>
 <body style="font-family:system-ui;padding:2rem;text-align:center">
-<h1 style="color:{color}">{"Connected" if ok else "Failed"}</h1>
-<p>{msg}</p>
+<h1 style="color:#0a7">Connected</h1>
+<p>Home Assistant connected. You can close this window.</p>
 </body></html>"""
-    return HTMLResponse(html, status_code=200 if ok else 400)
+        return HTMLResponse(html, status_code=200)
+    except ha_oauth.OAuthError as exc:
+        return HTMLResponse(ha_oauth.callback_failure_html(exc), status_code=400)
 
 
 @router.delete("/disconnect")

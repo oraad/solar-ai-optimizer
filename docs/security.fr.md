@@ -22,7 +22,7 @@ N’ouvrez pas de problèmes publics pour des vulnérabilités non divulguées.
 
 - Lors de l'exposition de l'API en dehors de l'entrée Home Assistant, définissez`LOCAL_ADMIN_PASSWORD_HASH` + `SESSION_SECRET`ou`API_TOKEN`et utilisez HTTPS.
 - Ensemble`TRUST_INGRESS_HEADERS=true`uniquement lorsque l'application est accessible **exclusivement** via l'entrée HA (pas directement sur le port 8000). Cela définit également`X-Frame-Options: SAMEORIGIN`pour l'iframe de la barre latérale.
-- Gardez les jetons de longue durée de Home Assistant définis et tournés. Voir[Configuration de Home Assistant → Jeton d'accès longue durée](home-assistant-setup.md#long-lived-access-token).
+- Gardez les jetons de longue durée de Home Assistant définis et tournés. Voir [Connexion de Solar à Home Assistant](home-assistant-setup.md#long-lived-access-token).
 - Exécutez en **mode ombre** jusqu'à ce que vous fassiez confiance aux écritures automatisées de l'onduleur.
 - L'image Docker par défaut inclut des extras ML/MPC facultatifs ; utiliser`INSTALL_EXTRAS=0`pour une surface d’attaque plus légère si ces fonctionnalités ne sont pas utilisées.
 - Ne jamais activer`DEMO_MODE`sur un système connecté à un véritable onduleur.

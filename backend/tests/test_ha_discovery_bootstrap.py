@@ -1,9 +1,9 @@
-"""Hassio discovery publish, HA bootstrap, and HA credential save guards."""
+"""Hassio discovery publish and HA credential save guards."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -98,6 +98,20 @@ def test_sanitize_strips_ha_creds_on_addon():
     assert out["ha"]["verify_ssl"] is True
 
 
+def test_sanitize_always_strips_token(tmp_path: Path):
+    orch = object.__new__(Orchestrator)
+    orch.settings = Settings(
+        ha_token="",
+        database_url="sqlite+aiosqlite:///:memory:",
+        data_dir=str(tmp_path),
+    )
+    patch = {"ha": {"base_url": "http://yaml:8123", "token": "llat-token", "verify_ssl": False}}
+    out = orch._sanitize_config_patch(patch)
+    assert out["ha"]["base_url"] == "http://yaml:8123"
+    assert out["ha"]["verify_ssl"] is False
+    assert "token" not in out["ha"]
+
+
 def test_sanitize_strips_token_when_oauth_live(tmp_path: Path):
     ha_oauth._atomic_write(
         ha_oauth.oauth_path(tmp_path),
@@ -120,148 +134,3 @@ def test_sanitize_strips_token_when_oauth_live(tmp_path: Path):
     out = orch._sanitize_config_patch(patch)
     assert out["ha"]["base_url"] == "http://yaml:8123"
     assert "token" not in out["ha"]
-
-
-def test_sanitize_keeps_token_when_no_oauth(tmp_path: Path):
-    orch = object.__new__(Orchestrator)
-    orch.settings = Settings(
-        ha_token="",
-        database_url="sqlite+aiosqlite:///:memory:",
-        data_dir=str(tmp_path),
-    )
-    patch = {"ha": {"base_url": "http://yaml:8123", "token": "llat-token"}}
-    out = orch._sanitize_config_patch(patch)
-    assert out["ha"]["token"] == "llat-token"
-
-
-@pytest.mark.asyncio
-async def test_ha_bootstrap_validates_and_persists(tmp_path: Path, monkeypatch):
-    cfg = tmp_path / "config.yaml"
-    cfg.write_text("battery:\n  capacity_kwh: 10\n", encoding="utf-8")
-    data = tmp_path / "data"
-    data.mkdir()
-    monkeypatch.setenv("CONFIG_PATH", str(cfg))
-    monkeypatch.setenv("DATA_DIR", str(data))
-    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{data / 'test.db'}")
-    monkeypatch.setenv("HA_TOKEN", "")
-    monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
-    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
-
-    from app.config import get_settings
-
-    get_settings.cache_clear()
-
-    class FakeResponse:
-        status_code = 200
-
-    client = AsyncMock()
-    client.__aenter__.return_value = client
-    client.__aexit__.return_value = None
-    client.get = AsyncMock(return_value=FakeResponse())
-
-    orch = MagicMock()
-    orch.apply_ha_llat = AsyncMock(return_value=None)
-
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-
-    from app.api.routes import router
-    from app.api.session import SessionUser
-
-    app = FastAPI()
-    app.include_router(router)
-    app.state.orchestrator = orch
-
-    async def _admin():
-        return SessionUser(
-            user_id="admin",
-            username="admin",
-            display_name="admin",
-            is_admin=True,
-            auth_mode="local",
-        )
-
-    from app.api import session as session_mod
-
-    app.dependency_overrides[session_mod.require_admin] = _admin
-
-    with patch("httpx.AsyncClient", return_value=client):
-        with TestClient(app) as tc:
-            res = tc.post(
-                "/api/ha/bootstrap",
-                json={
-                    "ha_base_url": "http://ha.local:8123",
-                    "ha_token": "llat-secret",
-                },
-            )
-
-    assert res.status_code == 200
-    body = res.json()
-    assert body["ok"] is True
-    assert body["access_token"] == "llat-secret"
-    assert body["ha_auth_mode"] == "llat"
-    assert body["install_id"]
-    orch.apply_ha_llat.assert_awaited_once_with(
-        base_url="http://ha.local:8123",
-        token="llat-secret",
-    )
-
-
-@pytest.mark.asyncio
-async def test_ha_bootstrap_rejects_bad_token(tmp_path: Path, monkeypatch):
-    cfg = tmp_path / "config.yaml"
-    cfg.write_text("battery:\n  capacity_kwh: 10\n", encoding="utf-8")
-    data = tmp_path / "data"
-    data.mkdir()
-    monkeypatch.setenv("CONFIG_PATH", str(cfg))
-    monkeypatch.setenv("DATA_DIR", str(data))
-    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{data / 'test.db'}")
-    monkeypatch.setenv("HA_TOKEN", "")
-    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
-
-    from app.config import get_settings
-
-    get_settings.cache_clear()
-
-    class FakeResponse:
-        status_code = 401
-
-    client = AsyncMock()
-    client.__aenter__.return_value = client
-    client.__aexit__.return_value = None
-    client.get = AsyncMock(return_value=FakeResponse())
-
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-
-    from app.api.routes import router
-    from app.api.session import SessionUser
-
-    app = FastAPI()
-    app.include_router(router)
-    app.state.orchestrator = MagicMock()
-
-    async def _admin():
-        return SessionUser(
-            user_id="admin",
-            username="admin",
-            display_name="admin",
-            is_admin=True,
-            auth_mode="local",
-        )
-
-    from app.api import session as session_mod
-
-    app.dependency_overrides[session_mod.require_admin] = _admin
-
-    with patch("httpx.AsyncClient", return_value=client):
-        with TestClient(app) as tc:
-            res = tc.post(
-                "/api/ha/bootstrap",
-                json={
-                    "ha_base_url": "http://ha.local:8123",
-                    "ha_token": "bad",
-                },
-            )
-
-    assert res.status_code == 400

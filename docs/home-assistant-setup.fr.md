@@ -18,21 +18,24 @@ Après la connexion, complétez[mappage d'entité](#inverter-entity-discovery)et
 
 ---
 
-## Jeton d'accès longue durée {#long-lived-access-token}
+## Connexion de Solar à Home Assistant {#long-lived-access-token}
 
-Requis pour les déploiements Docker et Proxmox (l'application HA utilise automatiquement le jeton Supervisor lorsque les champs sont laissés vides).
+| Déploiement | Comment Solar s'authentifie auprès de HA |
+|------------|-------------------------------|
+| **Application HAOS** | `SUPERVISOR_TOKEN` automatiquement — rien à coller |
+| **Autonome (interactif)** | Paramètres → **Solar contrôle Home Assistant** → **IndieAuth** |
+| **Autonome (sans interface)** | Env `HA_BASE_URL` + `HA_TOKEN` (jeton d'accès longue durée) |
 
-1. Dans Home Assistant, ouvrez votre **Profil** (avatar en bas à gauche).
-2. Faites défiler jusqu'à **Sécurité** → **Jetons d'accès longue durée**.
-3. Cliquez sur **Créer un jeton**, nommez-le (par ex.`solar-ai-optimizer`), et copiez le jeton immédiatement — il n'est affiché qu'une seule fois.
-4. Dans le tableau de bord de l'optimiseur → **Paramètres → Connexion Home Assistant** :
-- **URL :**`http://homeassistant.local:8123`ou votre IP HA (par ex.`http://192.168.1.10:8123`)
-- **Jeton :** collez le jeton de longue durée
-- **Vérifier SSL :** activer si HA utilise HTTPS avec un certificat valide
+L'intégration HACS parle **à** Solar avec un **code d'appairage** ou la découverte Supervisor — pas un jeton HA de longue durée.
+Les scripts peuvent toujours utiliser l'env `API_TOKEN` pour l'API HTTP propre de Solar.
 
-Pour l'**application HA**, laissez l'URL/le jeton vide pour utiliser `http://supervisor/core` et `SUPERVISOR_TOKEN`.
+### `HA_TOKEN` sans interface (facultatif)
 
-Faites pivoter périodiquement les jetons et révoquez les jetons inutilisés à partir de la même page de sécurité.
+1. Dans Home Assistant, ouvrez **Profil** → **Sécurité** → **Jetons d'accès longue durée**.
+2. Créez un jeton et définissez `HA_BASE_URL` / `HA_TOKEN` dans l'environnement du conteneur.
+3. Préférez IndieAuth pour les configurations interactives ; révoquez périodiquement les jetons inutilisés.
+
+Pour l'**application HA**, laissez les identifiants vides — Supervisor injecte le jeton.
 
 ---
 
@@ -54,11 +57,12 @@ Les options de l'application (interface utilisateur du superviseur) sont mappée
 
 | Option de l'application | Variable d'environnement |
 |---------------|---------------------|
+| `prerelease_updates` | `ADDON_PRERELEASE_UPDATES` |
 | `shadow_mode` | `SHADOW_MODE` |
 | `log_level` | `LOG_LEVEL` |
-| `ha_base_url` / `ha_token` | `HA_BASE_URL` / `HA_TOKEN` |
-| `solcast_api_key` | `SOLCAST_API_KEY` |
-| `api_token` | `API_TOKEN` |
+| `ha_verify_ssl` | `HA_VERIFY_SSL` |
+| `mcp_token` | `MCP_TOKEN` |
+| `api_token` (options.json héritées uniquement) | `API_TOKEN` |
 
 Ingress est automatiquement approuvé lors de son exécution en tant qu'application Superviseur (`SUPERVISOR_TOKEN`); ensemble `TRUST_INGRESS_HEADERS=true` pour les déploiements externes Docker/Proxmox. Cela permet l'identité de l'utilisateur mandaté et `X-Frame-Options: SAMEORIGIN` pour le panneau de la barre latérale.
 Voir[Rôles et accès](ingress-auth.md)pour le comportement de l'administrateur par rapport au spectateur.

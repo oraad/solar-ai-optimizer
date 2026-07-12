@@ -24,26 +24,34 @@ use the [custom integration](https://oraad.github.io/solar-ai-integration/home-a
 
 ---
 
-## Long-lived access token {#long-lived-access-token}
+## Connecting Solar to Home Assistant {#long-lived-access-token}
 
-Required for Docker and Proxmox when Solar must **write** inverter entities
-(the HA app uses the Supervisor token when fields are left empty). Prefer
-**IndieAuth** in Solar Settings when available.
+| Deployment | How Solar authenticates to HA |
+|------------|-------------------------------|
+| **HAOS add-on** | `SUPERVISOR_TOKEN` automatically — nothing to paste |
+| **Standalone (interactive)** | Settings → **Solar controls Home Assistant** → **IndieAuth** |
+| **Standalone (headless)** | Env `HA_BASE_URL` + `HA_TOKEN` (long-lived access token) |
 
-The HACS integration talks **to** Solar with a **pairing code** (not this LLAT).
-Scripts may still use env `API_TOKEN`.
+The HACS integration talks **to** Solar with a **pairing code** or Supervisor discovery — not an HA long-lived token.
+Scripts may still use env `API_TOKEN` for Solar's own HTTP API.
 
-1. In Home Assistant, open your **Profile** (bottom-left avatar).
-2. Scroll to **Security** → **Long-Lived Access Tokens**.
-3. Click **Create Token**, name it (e.g. `solar-ai-optimizer`), and copy the token immediately — it is shown only once.
-4. In the optimizer dashboard → **Settings → Home Assistant connection**:
-   - **URL:** `http://homeassistant.local:8123` or your HA IP (e.g. `http://192.168.1.10:8123`)
-   - **Token:** paste the long-lived token
-   - **Verify SSL:** enable if HA uses HTTPS with a valid certificate
+### Headless `HA_TOKEN` (optional)
 
-For the **HA app**, leave URL/token empty to use `http://supervisor/core` and `SUPERVISOR_TOKEN`.
+1. In Home Assistant, open **Profile** → **Security** → **Long-Lived Access Tokens**.
+2. Create a token and set `HA_BASE_URL` / `HA_TOKEN` in the container environment.
+3. Prefer IndieAuth for interactive setups; revoke unused tokens periodically.
 
-Rotate tokens periodically and revoke unused tokens from the same Security page.
+For the **HA app**, leave credentials empty — Supervisor injects the token.
+
+### IndieAuth troubleshooting
+
+If the browser authorize step succeeds but the callback page shows **Failed**:
+
+1. Check Solar logs for `HA token exchange failed:` — the HTTP status and body are the source of truth.
+2. **403 / `ha_forbidden`:** Solar’s host IP is likely in HA `config/ip_bans.yaml`. Stop Solar, clear the ban, restart Home Assistant Core, then retry IndieAuth. (Authorize uses your browser IP; token exchange uses Solar’s IP.)
+3. **`ha_unreachable`:** The HA URL in Settings must be reachable **from the Solar container/host** (not only from your browser). Prefer a LAN IP over `homeassistant.local` if DNS differs inside Docker.
+4. **`ha_ssl_error`:** Disable **Verify SSL** in Settings for self-signed HA certificates, then start IndieAuth again.
+5. **`token_exchange_failed`:** Often an expired/spent code or client mismatch — close the popup and click **Connect with Home Assistant** once more.
 
 ---
 
@@ -70,9 +78,9 @@ App options (Supervisor UI) map to environment variables via `run.sh`:
 | `prerelease_updates` | `ADDON_PRERELEASE_UPDATES` |
 | `shadow_mode` | `SHADOW_MODE` |
 | `log_level` | `LOG_LEVEL` |
-| `ha_base_url` / `ha_token` | `HA_BASE_URL` / `HA_TOKEN` |
-| `solcast_api_key` | `SOLCAST_API_KEY` |
-| `api_token` | `API_TOKEN` |
+| `ha_verify_ssl` | `HA_VERIFY_SSL` |
+| `mcp_token` | `MCP_TOKEN` |
+| `api_token` (legacy options.json only) | `API_TOKEN` |
 
 Ingress is trusted automatically when running as a Supervisor app (`SUPERVISOR_TOKEN`); set `TRUST_INGRESS_HEADERS=true` for external Docker/Proxmox deployments. This enables proxied user identity and `X-Frame-Options: SAMEORIGIN` for the sidebar panel.
 See [Roles and access](ingress-auth.md) for admin vs viewer behavior.
@@ -296,7 +304,7 @@ Home Assistant can ban Solar’s source IP after failed WebSocket/token attempts
 1. **Stop Solar** so it cannot re-create the ban.
 2. Remove Solar’s IP(s) from HA `config/ip_bans.yaml` (or delete the file). Docker bridge / gateway addresses may differ from the LAN IP you expect — clear all matching entries.
 3. **Restart Home Assistant Core** so the ban list reloads; confirm the file stays empty for about a minute.
-4. Mint a **new** long-lived access token (or re-run IndieAuth in Solar Settings). Revoke the old token.
+4. Mint a **new** long-lived access token for `HA_TOKEN` (or re-run IndieAuth in Solar Settings). Revoke the old token.
 5. Start Solar. In Settings → Solar controls Home Assistant, use **Retry connection** if the circuit is open.
 6. In Solar logs, distinguish `auth_invalid` / `WebSocket auth failed` (bad token) from HTTP `403` (ban or proxy).
 
@@ -309,7 +317,7 @@ Optional test-only: set `http.ip_ban_enabled: false`, restart HA, confirm Solar 
 | **Human (ingress UI)** | Nothing — HA sidebar ingress |
 | **HACS integration → Solar** | Supervisor discovery on HAOS, or LAN URL + pairing code (standalone) |
 | **Solar engine → HA (add-on)** | Nothing — Supervisor token |
-| **Solar engine → HA (standalone)** | IndieAuth in Settings (preferred) or manual LLAT under Advanced |
+| **Solar engine → HA (standalone)** | IndieAuth in Settings (preferred) or `HA_TOKEN` env (headless) |
 
 ## Related guides
 

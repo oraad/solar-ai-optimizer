@@ -21,15 +21,14 @@ try:
 except Exception:
     opts = {}
 # Map add-on option keys -> app env vars.
-# Legacy keys api_token / ha_base_url / ha_token are no longer in the options
-# schema but remain mapped for one release so upgrades keep working.
+# Legacy ha_token / ha_base_url are no longer in the options schema and are
+# not mapped (add-on uses SUPERVISOR_TOKEN). api_token remains mapped for
+# upgrades that still have it in options.json (Solar inbound API auth).
 mapping = {
     'prerelease_updates': 'ADDON_PRERELEASE_UPDATES',
     'shadow_mode': 'SHADOW_MODE',
     'log_level': 'LOG_LEVEL',
     'log_format': 'LOG_FORMAT',
-    'ha_base_url': 'HA_BASE_URL',
-    'ha_token': 'HA_TOKEN',
     'ha_verify_ssl': 'HA_VERIFY_SSL',
     'ml_load_enabled': 'ML_LOAD_ENABLED',
     'llm_enabled': 'LLM_ENABLED',

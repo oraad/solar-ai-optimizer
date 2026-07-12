@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import json
 import logging
 import secrets
@@ -20,6 +21,7 @@ log = logging.getLogger("ha.oauth")
 OAUTH_FILENAME = "ha_oauth.json"
 PENDING_FILENAME = "ha_oauth_pending.json"
 DEFAULT_ACCESS_TTL = 1800
+_DETAIL_TRUNCATE = 240
 
 
 def oauth_path(data_dir: Path | str) -> Path:
@@ -104,11 +106,75 @@ class AuthorizeStart:
     expires_at: str
 
 
+class OAuthError(Exception):
+    """IndieAuth failure with a machine code and optional human detail."""
+
+    def __init__(self, code: str, detail: str | None = None) -> None:
+        super().__init__(code)
+        self.code = code
+        self.detail = (detail or "").strip() or None
+
+    def user_message(self) -> str:
+        """Short message suitable for the callback HTML page."""
+        base = {
+            "missing_pending": "Authorization session expired or missing. Start again from Settings.",
+            "invalid_state": "Authorization state mismatch. Start again from Settings.",
+            "expired": "Authorization timed out. Start again from Settings.",
+            "ha_forbidden": (
+                "Home Assistant returned 403 Forbidden. Clear the Solar host IP "
+                "from HA config/ip_bans.yaml, restart Home Assistant, then retry."
+            ),
+            "ha_unreachable": (
+                "Solar could not reach Home Assistant at the configured URL. "
+                "Use an address the Solar container/host can resolve."
+            ),
+            "ha_ssl_error": (
+                "TLS verification failed talking to Home Assistant. "
+                "Disable Verify SSL in Settings if you use a self-signed certificate."
+            ),
+            "token_exchange_failed": (
+                "Home Assistant rejected the token exchange. "
+                "Check Solar logs and that the HA URL is reachable from Solar."
+            ),
+        }.get(self.code, f"Connection failed ({self.code}).")
+        if self.detail:
+            return f"{base} ({self.detail})"
+        return base
+
+
+def _truncate_detail(text: str) -> str:
+    text = " ".join(text.split())
+    if len(text) > _DETAIL_TRUNCATE:
+        return text[: _DETAIL_TRUNCATE - 3] + "..."
+    return text
+
+
+def _detail_from_ha_response(res: httpx.Response) -> str:
+    try:
+        body = res.json()
+    except Exception:  # noqa: BLE001
+        return _truncate_detail(f"HTTP {res.status_code}: {res.text[:180]}")
+    if isinstance(body, dict):
+        desc = body.get("error_description") or body.get("error")
+        if desc:
+            return _truncate_detail(f"HTTP {res.status_code}: {desc}")
+    return _truncate_detail(f"HTTP {res.status_code}: {res.text[:180]}")
+
+
+def _raise_for_token_status(res: httpx.Response) -> None:
+    detail = _detail_from_ha_response(res)
+    log.warning("HA token exchange failed: %s %s", res.status_code, res.text[:200])
+    if res.status_code == 403:
+        raise OAuthError("ha_forbidden", detail)
+    raise OAuthError("token_exchange_failed", detail)
+
+
 def start_authorize(
     data_dir: Path | str,
     *,
     ha_base_url: str,
     public_base_url: str,
+    verify_ssl: bool = True,
 ) -> AuthorizeStart:
     public = normalize_public_base_url(public_base_url)
     ha = ha_base_url.strip().rstrip("/")
@@ -125,6 +191,7 @@ def start_authorize(
             "ha_base_url": ha,
             "public_base_url": public,
             "redirect_uri": redirect_uri,
+            "verify_ssl": bool(verify_ssl),
             "expires_at": _iso(expires),
         },
     )
@@ -150,7 +217,7 @@ async def finish_authorize(
     *,
     code: str,
     state: str,
-    verify_ssl: bool = True,
+    verify_ssl: bool | None = None,
 ) -> dict[str, Any]:
     pending_file = pending_path(data_dir)
     if not pending_file.is_file():
@@ -171,6 +238,14 @@ async def finish_authorize(
         pending_file.unlink(missing_ok=True)
         raise OAuthError("expired")
 
+    # Prefer verify_ssl stored when authorize started; fall back to caller/settings.
+    if "verify_ssl" in pending:
+        use_verify = bool(pending["verify_ssl"])
+    elif verify_ssl is not None:
+        use_verify = bool(verify_ssl)
+    else:
+        use_verify = True
+
     ha = str(pending["ha_base_url"]).rstrip("/")
     token_url = f"{ha}/auth/token"
     form = {
@@ -180,16 +255,39 @@ async def finish_authorize(
         "redirect_uri": pending["redirect_uri"],
         "code_verifier": pending["code_verifier"],
     }
-    async with httpx.AsyncClient(verify=verify_ssl, timeout=30.0) as client:
-        res = await client.post(token_url, data=form)
+    try:
+        async with httpx.AsyncClient(verify=use_verify, timeout=30.0) as client:
+            res = await client.post(token_url, data=form)
+    except httpx.ConnectError as exc:
+        log.warning("HA token exchange unreachable: %s", exc)
+        raise OAuthError("ha_unreachable", _truncate_detail(str(exc))) from exc
+    except httpx.TimeoutException as exc:
+        log.warning("HA token exchange timeout: %s", exc)
+        raise OAuthError("ha_unreachable", "Timed out contacting Home Assistant") from exc
+    except httpx.HTTPError as exc:
+        msg = str(exc).lower()
+        if "ssl" in msg or "certificate" in msg or "tls" in msg:
+            log.warning("HA token exchange SSL error: %s", exc)
+            raise OAuthError("ha_ssl_error", _truncate_detail(str(exc))) from exc
+        log.warning("HA token exchange network error: %s", exc)
+        raise OAuthError("ha_unreachable", _truncate_detail(str(exc))) from exc
+
     if res.status_code >= 400:
-        log.warning("HA token exchange failed: %s %s", res.status_code, res.text[:200])
-        raise OAuthError("token_exchange_failed")
-    body = res.json()
+        _raise_for_token_status(res)
+    try:
+        body = res.json()
+    except Exception as exc:  # noqa: BLE001
+        raise OAuthError(
+            "token_exchange_failed",
+            _truncate_detail(f"Invalid JSON from HA: {res.text[:120]}"),
+        ) from exc
     access = body.get("access_token")
     refresh = body.get("refresh_token")
     if not access or not refresh:
-        raise OAuthError("token_exchange_failed")
+        raise OAuthError(
+            "token_exchange_failed",
+            "Home Assistant response missing access_token or refresh_token",
+        )
     expires_in = int(body.get("expires_in") or DEFAULT_ACCESS_TTL)
     expires_at = _utc_now() + timedelta(seconds=max(60, expires_in - 60))
     payload = {
@@ -204,6 +302,18 @@ async def finish_authorize(
     _atomic_write(oauth_path(data_dir), payload)
     pending_file.unlink(missing_ok=True)
     return oauth_status(data_dir)
+
+
+def callback_failure_html(exc: OAuthError) -> str:
+    """Render a simple HTML failure page (escaped)."""
+    msg = html.escape(exc.user_message())
+    code = html.escape(exc.code)
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>Solar AI</title></head>
+<body style="font-family:system-ui;padding:2rem;text-align:center;max-width:36rem;margin:0 auto">
+<h1 style="color:#c33">Failed</h1>
+<p>{msg}</p>
+<p style="color:#666;font-size:0.9rem">Error code: <code>{code}</code>. Close this window and try again from Settings.</p>
+</body></html>"""
 
 
 async def ensure_access_token(
@@ -262,9 +372,3 @@ async def ensure_access_token(
     data["degraded"] = False
     _atomic_write(oauth_path(data_dir), data)
     return str(new_access)
-
-
-class OAuthError(Exception):
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code

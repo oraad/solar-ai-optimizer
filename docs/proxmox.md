@@ -44,7 +44,7 @@ Use the **Alpine script for updates** on Alpine installs (the in-LXC `update` co
 ## Post-install
 
 1. **Save the local admin password** shown at install completion (username defaults to `admin`). Use it to sign in at `http://<lxc-ip>:8000` when not using HA ingress.
-2. Open **Settings** and set your [Home Assistant URL and long-lived token](home-assistant-setup.md#long-lived-access-token).
+2. Open **Settings** and connect via [IndieAuth or `HA_TOKEN` env](home-assistant-setup.md#long-lived-access-token).
 3. Map inverter entities, location, and battery settings.
 4. Leave **SHADOW MODE** on until you trust the decisions (default).
 5. Optionally set `API_TOKEN` in `/opt/solar-ai-optimizer/solar.env` on the LXC and the same value in **Settings → API security**.

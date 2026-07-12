@@ -101,7 +101,8 @@ class Orchestrator:
     def resolve_ha_auth_mode(self) -> str:
         """Return which credential path `_resolve_ha` would use.
 
-        Values: ``supervisor`` | ``oauth`` | ``llat`` | ``env`` | ``none``.
+        Values: ``supervisor`` | ``oauth`` | ``env`` | ``none``.
+        YAML ``ha.token`` (LLAT) is no longer used; prefer IndieAuth or ``HA_TOKEN``.
         """
         if self.settings.is_addon and self.settings.supervisor_token:
             return "supervisor"
@@ -114,9 +115,6 @@ class Orchestrator:
         if stored and stored.get("access_token") and not stored.get("degraded"):
             return "oauth"
 
-        ha = self.cfg.ha
-        if ha.base_url and ha.token:
-            return "llat"
         if self.settings.ha_base_url and self.settings.ha_token:
             return "env"
         return "none"
@@ -125,9 +123,9 @@ class Orchestrator:
         """Resolve HA URL/token.
 
         Order:
-        1. Add-on: SUPERVISOR_TOKEN always wins (ignore YAML ha.token).
-        2. External: IndieAuth access from DATA_DIR (caller refreshes async) →
-           YAML ha.token (LLAT) → env HA_TOKEN.
+        1. Add-on: SUPERVISOR_TOKEN always wins.
+        2. Standalone: IndieAuth access from DATA_DIR → env HA_TOKEN.
+        YAML ``ha.token`` is ignored (stripped by config migration).
         """
         verify = self.cfg.ha.verify_ssl if self.cfg.ha.base_url else self.settings.ha_verify_ssl
         if self.settings.is_addon:
@@ -141,16 +139,18 @@ class Orchestrator:
 
         stored = ha_oauth.load_oauth(self.settings.data_dir)
         if stored and stored.get("access_token") and not stored.get("degraded"):
-            base = str(stored.get("ha_base_url") or self.settings.ha_base_url)
+            base = str(
+                stored.get("ha_base_url")
+                or self.cfg.ha.base_url
+                or self.settings.ha_base_url
+            )
             return base, str(stored["access_token"]), verify
 
-        ha = self.cfg.ha
-        if ha.base_url and ha.token:
-            return ha.base_url, ha.token, ha.verify_ssl
+        base = self.cfg.ha.base_url or self.settings.ha_base_url
         return (
-            self.settings.ha_base_url,
+            base,
             self.settings.ha_token,
-            self.settings.ha_verify_ssl,
+            self.cfg.ha.verify_ssl if self.cfg.ha.base_url else self.settings.ha_verify_ssl,
         )
 
     def ha_connection_diagnostics(self) -> dict:
@@ -449,9 +449,8 @@ class Orchestrator:
     def _sanitize_config_patch(self, patch: dict) -> dict:
         """Strip secrets that must not be persisted for the current deploy mode.
 
-        - Add-on: never persist ha.base_url / ha.token (Supervisor owns HA auth).
-        - Standalone with live OAuth: ignore ha.token so UI/YAML cannot overwrite OAuth.
-        - Empty token from the UI: keep the previously stored token.
+        - Never persist ``ha.token`` (LLAT writes removed; use IndieAuth or HA_TOKEN).
+        - Add-on: never persist ``ha.base_url`` (Supervisor owns HA URL).
         """
         if not isinstance(patch, dict):
             return patch
@@ -461,21 +460,10 @@ class Orchestrator:
 
         ha_patch = dict(ha_patch)
         ha_patch.pop("has_token", None)
+        ha_patch.pop("token", None)
 
         if self.settings.is_addon:
-            ha_patch.pop("token", None)
             ha_patch.pop("base_url", None)
-        else:
-            from .ha import oauth as ha_oauth
-
-            stored = ha_oauth.load_oauth(self.settings.data_dir)
-            oauth_live = bool(
-                stored and stored.get("access_token") and not stored.get("degraded")
-            )
-            if oauth_live:
-                ha_patch.pop("token", None)
-            elif not ha_patch.get("token"):
-                ha_patch.pop("token", None)
 
         out = dict(patch)
         if not ha_patch:
@@ -483,17 +471,6 @@ class Orchestrator:
         else:
             out["ha"] = ha_patch
         return out
-
-    async def apply_ha_llat(self, *, base_url: str, token: str) -> AppConfig:
-        """Validate-path helper: persist LLAT for Solar→HA and reconnect."""
-        old_ha = self._resolve_ha()
-        async with self._cycle_lock:
-            self.cfg = self.store.update(
-                {"ha": {"base_url": base_url, "token": token}}
-            )
-            if self._resolve_ha() != old_ha:
-                await self._reconnect_ha()
-        return self.cfg
 
     async def reset_config(self) -> AppConfig:
         old_ha = self._resolve_ha()

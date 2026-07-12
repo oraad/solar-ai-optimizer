@@ -20,12 +20,6 @@
       "addon_unsupported": "IndieAuth n'est pas utilisé en mode add-on Home Assistant.",
       "invalid_url": "URL publique ou Home Assistant invalide."
     },
-    "ha_bootstrap": {
-      "addon_unsupported": "Le bootstrap LLAT n'est pas utilisé en mode add-on Home Assistant.",
-      "oauth_connected": "Déconnectez IndieAuth avant d'utiliser un jeton longue durée.",
-      "invalid_credentials": "Home Assistant a rejeté l'URL ou le jeton longue durée.",
-      "unreachable": "Impossible de joindre Home Assistant à l'URL indiquée."
-    },
     "override": {
       "kill_switch_confirm": "kill_switch nécessite confirm=true",
       "no_fields": "Aucun champ de surcharge fourni",

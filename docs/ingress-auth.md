@@ -178,7 +178,7 @@ Operational reads (`/api/status`, forecasts, history, etc.) require **Session**.
 
 1. Open DevTools → Network and check `GET .../api/me`. Expect `auth_mode: "ingress"` and `is_admin: true` for HA owners.
 2. If `is_admin` is false, check optimizer logs for `config/auth/list failed` or `Failed to fetch HA config/auth/list`.
-3. Ensure the HA long-lived token (env `HA_TOKEN` or **Settings → Home Assistant connection**) was created from an admin/owner account — the user list API requires admin credentials on the token.
+3. Ensure HA credentials (IndieAuth or env `HA_TOKEN`) come from an admin/owner account — the user list API requires admin credentials on the token.
 4. Break-glass: set `ADMIN_USER_IDS=<your-user-id>` (copy `user_id` from `/api/me`) and restart the container.
 
 ### Blank iframe or HA UI flashes inside the panel on first load {#blank-iframe-or-ha-ui-flashes-inside-the-panel-on-first-load}

@@ -10,7 +10,7 @@ import yaml
 
 log = logging.getLogger("config_migration")
 
-CURRENT_SCHEMA_VERSION = 6
+CURRENT_SCHEMA_VERSION = 7
 SCHEMA_VERSION_KEY = "schema_version"
 OVERRIDES_KEY = "overrides"
 
@@ -172,13 +172,30 @@ def migrate_v5_to_v6(overrides: dict[str, Any]) -> dict[str, Any]:
     return _strip_grid_charge_factor_order(overrides)
 
 
+def migrate_v6_to_v7(overrides: dict[str, Any]) -> dict[str, Any]:
+    """Strip deprecated YAML ha.token (LLAT); use IndieAuth or HA_TOKEN instead."""
+    out = dict(overrides)
+    ha = out.get("ha")
+    if not isinstance(ha, dict):
+        return out
+    ha = dict(ha)
+    if ha.pop("token", None) is not None:
+        log.warning(
+            "Removed deprecated ha.token from config.runtime.yaml; "
+            "connect via IndieAuth in Settings or set HA_TOKEN / HA_BASE_URL."
+        )
+        out["ha"] = ha
+    return out
+
+
 def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
     """Apply structural migrations to base YAML / merged config dicts."""
     if not data:
         return {}
     data = migrate_v3_to_v4(dict(data))
     data = migrate_v4_to_v5(data)
-    return migrate_v5_to_v6(data)
+    data = migrate_v5_to_v6(data)
+    return migrate_v6_to_v7(data)
 
 
 MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = [
@@ -188,6 +205,7 @@ MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = 
     (3, 4, migrate_v3_to_v4),
     (4, 5, migrate_v4_to_v5),
     (5, 6, migrate_v5_to_v6),
+    (6, 7, migrate_v6_to_v7),
 ]
 
 

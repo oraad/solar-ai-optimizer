@@ -249,12 +249,13 @@ export const api = {
       ha_base_url: string | null;
       degraded: boolean;
     }>("/api/ha/oauth/status"),
-  haOauthStart: (publicBaseUrl: string, haBaseUrl?: string) =>
+  haOauthStart: (publicBaseUrl: string, haBaseUrl?: string, verifySsl?: boolean) =>
     postJSON<{ authorize_url: string; state: string; expires_at: string }>(
       "/api/ha/oauth/start",
       {
         public_base_url: publicBaseUrl,
         ...(haBaseUrl ? { ha_base_url: haBaseUrl } : {}),
+        ...(typeof verifySsl === "boolean" ? { verify_ssl: verifySsl } : {}),
       },
     ),
   haOauthDisconnect: async (): Promise<void> => {

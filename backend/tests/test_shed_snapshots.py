@@ -38,3 +38,19 @@ def test_prune_removes_unknown_entities(tmp_path: Path):
     store.prune({"switch.keep"})
     assert store.get("switch.old") is None
     assert store.get("switch.keep") is not None
+
+
+def test_capture_does_not_overwrite_pending(tmp_path: Path):
+    store = ShedSnapshotStore(str(tmp_path))
+    store.capture(
+        "switch.pool",
+        was_on=True,
+        companions={
+            "climate.pool": EntitySnapshot(state="cool", attributes={"temperature": 22}),
+        },
+    )
+    store.capture("switch.pool", was_on=False, companions={})
+    snap = store.get("switch.pool")
+    assert snap is not None
+    assert snap.was_on is True
+    assert "climate.pool" in snap.companions

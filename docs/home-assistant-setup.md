@@ -260,6 +260,11 @@ Use `switch.*` or `input_boolean.*` entities for power control.
 discovered automatically and snapshotted when shedding; they are restored when the tier
 comes back. Devices that were **off before shedding** are never turned on by restore.
 
+Snapshots are captured **once per shed episode** and held until restore, clear, or
+config prune — repeat shed cycles while the switch is already off do not overwrite
+the pre-shed state. Capture may run while the HA write watchdog is stale; the OFF
+write still waits until HA is fresh.
+
 Per-tier options:
 
 | Field | Purpose |

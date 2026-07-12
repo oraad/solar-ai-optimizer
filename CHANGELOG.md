@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.8] - 2026-07-12
+
+### Fixed
+
+- Load-shed snapshots are captured **once per shed episode**: repeat shed cycles while a switch is already off no longer overwrite a good `was_on=True` snapshot (and companions), so grid/SOC restore can turn the load back on. Failed HA reads no longer invent `was_on=False`.
+- Restore actions are only planned while a shed snapshot is pending; after a legitimate clear, `no_shed_snapshot` skips are no longer written to shed history
+- Shed `already_set` skips are no longer written to shed history (steady-state while still enforcing OFF each cycle)
+- Load-shed snapshots may be captured while the HA write watchdog is stale (so restore intent survives); shed writes stay blocked until HA is fresh. `ha_stale` shed skips are no longer written to shed history
+
 ## [0.6.11-beta.7] - 2026-07-12
 
 ### Fixed

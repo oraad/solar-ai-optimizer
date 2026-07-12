@@ -148,3 +148,33 @@ def test_force_off_plan_turns_off_all_tier_entities():
         "switch.ac",
     }
     assert all(a.desired_on is False for a in actions)
+
+
+def test_soc_restore_only_when_pending():
+    ctrl = _ctrl()
+    tel = Telemetry(battery_soc=80.0, grid_present=False)
+    assert ctrl.plan(tel, pending_restore=set()) == []
+    actions = ctrl.plan(tel, pending_restore={"switch.pool"})
+    assert len(actions) == 1
+    assert actions[0].desired_on is True
+    assert actions[0].entity == "switch.pool"
+
+
+def test_grid_restore_only_when_pending():
+    ctrl = _ctrl()
+    tel = Telemetry(battery_soc=30.0, grid_present=True)
+    assert ctrl.plan(tel, pending_restore=set()) == []
+    actions = ctrl.plan(tel, pending_restore={"switch.pool"})
+    assert len(actions) == 1
+    assert actions[0].desired_on is True
+    assert actions[0].entity == "switch.pool"
+
+
+def test_shed_below_ignores_pending_restore():
+    ctrl = _ctrl()
+    actions = ctrl.plan(
+        Telemetry(battery_soc=30.0, grid_present=False),
+        pending_restore=set(),
+    )
+    assert len(actions) == 1
+    assert actions[0].desired_on is False

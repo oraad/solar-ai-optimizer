@@ -110,6 +110,12 @@ sont découverts automatiquement et pris en photo lors de la perte ; ils sont r
 le niveau revient. Les appareils qui étaient **éteints avant la perte** ne sont jamais éteints
 allumé par restauration.
 
+Les instantanés sont capturés **une fois par épisode de délestage** (première fois qu'une entité
+d'alimentation est coupée) et conservés jusqu'à la restauration, l'effacement ou le prune de
+configuration. Les cycles de délestage suivants pendant que l'interrupteur reste éteint ne
+re-capturent pas et n'écrasent pas cet instantané. Un instantané peut être capturé même lorsque
+le watchdog d'écriture HA est périmé ; l'écriture OFF attend toujours que HA soit frais.
+
 | Champ | Objectif |
 |-------|---------|
 | `restore_enabled`| Restaurer sur SOC lorsque`soc >= restore_above_soc` |

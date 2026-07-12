@@ -8,6 +8,7 @@ does appear, the reactive layer exploits it immediately as a bonus.
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from datetime import datetime, timedelta, timezone
 
 from ..config import BatteryConfig, EngineConfig, GridChargeConfig, LoadSheddingConfig, OptimizationPriority, ReserveConfig
@@ -215,6 +216,7 @@ class RuleEngine:
         plan_optimization: bool = True,
         plan_grid_charge: bool = True,
         plan_shedding: bool = True,
+        pending_restore: Collection[str] | None = None,
     ) -> Decision:
         if plan_optimization:
             reserve = self.compute_reserve(telemetry, forecast)
@@ -347,7 +349,9 @@ class RuleEngine:
             shed_actions = self._shedding.force_off_plan()
         elif plan_shedding:
             shed_actions = self._shedding.plan(
-                telemetry, telemetry_stale=telemetry_stale
+                telemetry,
+                telemetry_stale=telemetry_stale,
+                pending_restore=pending_restore,
             )
         else:
             shed_actions = []

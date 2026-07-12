@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.13] - 2026-07-12
+
+### Fixed
+
+- Software update progress no longer flashes all steps complete before the first poll; stale progress clears when the update is idle
+- Self-update helper starts from the current image so the target image pull reports percent progress instead of a long silent “starting” phase
+
+### Changed
+
+- Entity picker prefers HA friendly names in the datalist (falls back to `entity_id` when names collide)
+- Heartbeat entity picker uses a stable `input_datetime` domains list and shows a hint when no helpers are available
+
 ## [0.6.11-beta.12] - 2026-07-12
 
 ### Changed

@@ -38,6 +38,17 @@ describe("update-progress", () => {
     expect(activeStageIndex(stages, progress, true, false)).toBe(stages.length);
   });
 
+  it("activeStageIndex uses starting when in progress with no progress payload", () => {
+    const stages = flowStages("update");
+    expect(activeStageIndex(stages, null, false, true)).toBe(0);
+    expect(stages[0]).toBe("starting");
+  });
+
+  it("activeStageIndex marks flow complete when idle with no progress", () => {
+    const stages = flowStages("update");
+    expect(activeStageIndex(stages, null, false, false)).toBe(stages.length);
+  });
+
   it("pullProgressLabel includes percent when set", () => {
     const progress: UpdateProgress = {
       operation: "update",

@@ -33,6 +33,7 @@ import {
   validateConfigDraft,
   type ValidationIssue,
 } from "../settings-utils.js";
+import { hasEntitiesForDomains, INPUT_DATETIME_DOMAINS } from "../entity-datalists.js";
 import {
   readSettingsMobileNavHeightPx,
   releaseAfterProgrammaticScroll,
@@ -2234,6 +2235,8 @@ export class SettingsPanel extends LitElement {
     this.updateInfo = info;
     if (info.update_progress) {
       this.updateProgress = info.update_progress;
+    } else if (!info.update_in_progress && !this.updateHealthWait) {
+      this.updateProgress = null;
     }
     this.dispatchEvent(
       new CustomEvent("solar-update-info", { detail: info, bubbles: true, composed: true }),
@@ -2501,13 +2504,13 @@ export class SettingsPanel extends LitElement {
           stages,
           progress,
           this.updateHealthWait,
-          Boolean(this.updateInfo?.update_in_progress),
+          inProgress,
         );
     const activeStage = failedActive
       ? "failed"
       : this.updateHealthWait
         ? null
-        : (progress?.stage ?? (this.updateInfo?.update_in_progress ? "starting" : null));
+        : (progress?.stage ?? (inProgress ? "starting" : null));
 
     return html`
       <div class="update-progress">
@@ -3359,6 +3362,7 @@ export class SettingsPanel extends LitElement {
     const d = this.draft as unknown as Record<string, any>;
     const fs = (d.fail_safe ?? {}) as Record<string, unknown>;
     const heartbeatEntity = (fs.heartbeat_entity ?? "") as string;
+    const hasDatetimeHelpers = hasEntitiesForDomains(this.entities, INPUT_DATETIME_DOMAINS);
     return this.renderSectionPanel(
       t("ui.settings.nav.safety"),
       sectionHelp("fail_safe"),
@@ -3379,11 +3383,14 @@ export class SettingsPanel extends LitElement {
             <solar-entity-input
               .entityId=${heartbeatEntity}
               .entities=${this.entities}
-              .domains=${["input_datetime"]}
+              .domains=${INPUT_DATETIME_DOMAINS}
               placeholder="input_datetime.solar_optimizer_heartbeat"
               @entity-id-change=${(e: CustomEvent<string | null>) =>
                 this.setField("fail_safe", "heartbeat_entity", e.detail ?? "")}
             />
+            ${this.entitiesConnected && !hasDatetimeHelpers
+              ? html`<p class="label">${t("ui.settings.failSafeNoDatetimeHelpers")}</p>`
+              : null}
           </div>
           ${typeof fs.shutdown_failsafe_enabled === "boolean"
             ? this.renderField(

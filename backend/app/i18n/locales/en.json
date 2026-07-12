@@ -55,7 +55,7 @@
       "restore_image_unknown": "Could not determine image for restore.",
       "restore_start_failed": "Failed to start restore: {error}",
       "downgrade_warning": "Installing an older release will restart the service. A backup of /app/data is created automatically before every install. Downgrading may be incompatible if config or database schema changed since that version.",
-      "preparing_update": "Preparing update",
+      "preparing_update": "Starting update helper…",
       "update_started": "Update started; service will restart.",
       "preparing_restore": "Preparing restore",
       "restore_started": "Restore started; service will restart.",

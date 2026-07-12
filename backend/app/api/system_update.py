@@ -705,10 +705,13 @@ def _spawn_updater(
     from_version: str,
     to_version: str,
 ) -> None:
+    # Run the helper from the already-local current image so Docker does not
+    # silently pull the target before docker-self-update.sh can report progress.
+    helper_image = _current_container_image(settings) or settings.self_update_image
     cmd = _build_helper_argv(
         settings,
         operation="update",
-        helper_image=target_image,
+        helper_image=helper_image,
         target_image=target_image,
         from_version=from_version,
         to_version=to_version,
@@ -823,6 +826,7 @@ async def build_update_info(
     if progress and isinstance(progress.get("message"), str):
         progress_msgs = {
             "Preparing update": "api.update.preparing_update",
+            "Starting update helper…": "api.update.preparing_update",
             "Preparing restore": "api.update.preparing_restore",
         }
         key = progress_msgs.get(progress["message"])

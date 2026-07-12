@@ -10,6 +10,7 @@ from app.api.system_update import (
     UPDATE_SCRIPT,
     _build_helper_argv,
     _current_container_image,
+    _spawn_updater,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -130,3 +131,44 @@ def test_current_container_image_mock(monkeypatch):
     image = _current_container_image(settings)
     assert image == "ghcr.io/oraad/solar-ai-optimizer:0.5.10"
     assert calls[0][:3] == ["docker", "inspect", "-f"]
+
+
+def test_spawn_updater_uses_current_image_as_helper(monkeypatch, tmp_path):
+    """Helper must start from the running image so target pull is progress-reported."""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    settings = get_settings()
+    current = "ghcr.io/oraad/solar-ai-optimizer:0.5.10"
+    target = "ghcr.io/oraad/solar-ai-optimizer:0.5.11"
+    captured: list[list[str]] = []
+
+    monkeypatch.setattr(
+        "app.api.system_update._current_container_image",
+        lambda _s: current,
+    )
+
+    def fake_spawn(_settings, cmd, *, log_label):
+        captured.append(cmd)
+
+    monkeypatch.setattr("app.api.system_update._spawn_helper", fake_spawn)
+
+    _spawn_updater(
+        settings,
+        target_image=target,
+        from_version="0.5.10",
+        to_version="0.5.11",
+    )
+
+    assert len(captured) == 1
+    argv = captured[0]
+    joined = " ".join(argv)
+    # docker run … helper_image … (helper is last arg before operation, or the image before "update")
+    assert current in argv
+    assert target in joined
+    assert "TARGET_IMAGE=" + target in joined
+    # helper image is the run image (last non-flag positional before operation)
+    assert argv[-2] == current
+    assert argv[-1] == "update"
+    assert target not in {argv[-2]}  # helper is not the target

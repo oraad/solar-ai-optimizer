@@ -1,7 +1,9 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 import type { EntityInput } from "./entity-input.js";
+import { datalistOptionValue } from "./entity-input.js";
 import type { EntityInfo } from "../types.js";
+import { resolveEntity } from "../entity-resolve.js";
 
 const ENTITIES: EntityInfo[] = [
   { entity_id: "sensor.battery_soc", name: "Battery SOC", domain: "sensor" },
@@ -30,6 +32,21 @@ function mountInput(domains: string[], entities = ENTITIES): EntityInput {
   return el;
 }
 
+describe("datalistOptionValue", () => {
+  it("uses friendly name when unique", () => {
+    expect(datalistOptionValue(ENTITIES[3]!, ENTITIES)).toBe("Solar optimizer heartbeat");
+  });
+
+  it("falls back to entity_id when names collide", () => {
+    const peers: EntityInfo[] = [
+      { entity_id: "input_datetime.a", name: "Heartbeat", domain: "input_datetime" },
+      { entity_id: "input_datetime.b", name: "Heartbeat", domain: "input_datetime" },
+    ];
+    expect(datalistOptionValue(peers[0]!, peers)).toBe("input_datetime.a");
+    expect(datalistOptionValue(peers[1]!, peers)).toBe("input_datetime.b");
+  });
+});
+
 describe("EntityInput datalist", () => {
   it("renders a co-located datalist linked to the input for matching domains", async () => {
     const el = mountInput(["switch", "input_boolean"]);
@@ -42,7 +59,7 @@ describe("EntityInput datalist", () => {
     expect(input.getAttribute("autocomplete")).toBe("off");
 
     const values = [...datalist.querySelectorAll("option")].map((o) => o.value);
-    expect(values).toEqual(["switch.pool", "input_boolean.guest"]);
+    expect(values).toEqual(["Pool pump", "Guest mode"]);
 
     el.remove();
   });
@@ -58,21 +75,36 @@ describe("EntityInput datalist", () => {
     el.remove();
   });
 
-  it("filters input_datetime and sets option label to friendly name", async () => {
+  it("filters input_datetime and uses friendly name as option value", async () => {
     const el = mountInput(["input_datetime"]);
     await el.updateComplete;
 
     const opts = [...root(el).querySelectorAll("option")];
     expect(opts).toHaveLength(1);
-    expect(opts[0]!.value).toBe("input_datetime.solar_optimizer_heartbeat");
-    expect(opts[0]!.getAttribute("label")).toBe("Solar optimizer heartbeat");
-    expect(opts[0]!.textContent).toBe("Solar optimizer heartbeat");
+    expect(opts[0]!.value).toBe("Solar optimizer heartbeat");
+    expect(opts[0]!.textContent).toBe("input_datetime.solar_optimizer_heartbeat");
 
     el.entityId = "input_datetime.solar_optimizer_heartbeat";
     el.requestUpdate();
     await el.updateComplete;
     expect(root(el).querySelector("input")!.value).toBe("Solar optimizer heartbeat");
 
+    expect(
+      resolveEntity("Solar optimizer heartbeat", ENTITIES, ["input_datetime"]),
+    ).toBe("input_datetime.solar_optimizer_heartbeat");
+
+    el.remove();
+  });
+
+  it("uses entity_id option values when friendly names collide", async () => {
+    const peers: EntityInfo[] = [
+      { entity_id: "input_datetime.a", name: "Heartbeat", domain: "input_datetime" },
+      { entity_id: "input_datetime.b", name: "Heartbeat", domain: "input_datetime" },
+    ];
+    const el = mountInput(["input_datetime"], peers);
+    await el.updateComplete;
+    const values = [...root(el).querySelectorAll("option")].map((o) => o.value);
+    expect(values).toEqual(["input_datetime.a", "input_datetime.b"]);
     el.remove();
   });
 
@@ -104,7 +136,7 @@ describe("EntityInput datalist", () => {
     const datalist = root(el).querySelector("datalist")!;
     expect(input.getAttribute("list")).toBe(datalist.id);
     const values = [...datalist.querySelectorAll("option")].map((o) => o.value);
-    expect(values).toEqual(["switch.pool", "input_boolean.guest"]);
+    expect(values).toEqual(["Pool pump", "Guest mode"]);
 
     host.remove();
   });

@@ -55,7 +55,7 @@
       "restore_image_unknown": "Impossible de déterminer l'image pour la restauration.",
       "restore_start_failed": "Échec du démarrage de la restauration : {error}",
       "downgrade_warning": "L'installation d'une version plus ancienne redémarrera le service. Une sauvegarde de /app/data est créée automatiquement avant chaque installation. Le retour en arrière peut être incompatible si la configuration ou le schéma de base de données a changé depuis cette version.",
-      "preparing_update": "Préparation de la mise à jour",
+      "preparing_update": "Démarrage de l'assistant de mise à jour…",
       "update_started": "Mise à jour démarrée ; le service va redémarrer.",
       "preparing_restore": "Préparation de la restauration",
       "restore_started": "Restauration démarrée ; le service va redémarrer.",

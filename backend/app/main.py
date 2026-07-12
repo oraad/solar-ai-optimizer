@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -29,6 +29,7 @@ from .api import (
     ha_oauth_router,
     metrics_router,
     pair_router,
+    system_mcp_router,
     system_update_router,
     ws_router,
 )
@@ -128,14 +129,25 @@ async def lifespan(app: FastAPI):
 
     from .mcp.mount import mount_mcp_http
 
-    mount_mcp_http(app, orchestrator, settings)
+    # Mount MCP before the static "/" catch-all so /mcp is not swallowed by the UI.
+    mcp_lifespan = mount_mcp_http(app, orchestrator, settings)
 
-    try:
-        yield
-    finally:
-        log.info("Shutting down...")
-        scheduler.shutdown(wait=False)
-        await orchestrator.shutdown()
+    static_path = Path(STATIC_DIR)
+    if static_path.is_dir() and not any(
+        getattr(r, "name", None) == "ui" for r in app.router.routes
+    ):
+        app.mount("/", CompressedStaticFiles(directory=str(static_path), html=True), name="ui")
+        log.info("Serving dashboard from %s", static_path)
+
+    async with AsyncExitStack() as stack:
+        if mcp_lifespan is not None:
+            await stack.enter_async_context(mcp_lifespan)
+        try:
+            yield
+        finally:
+            log.info("Shutting down...")
+            scheduler.shutdown(wait=False)
+            await orchestrator.shutdown()
 
 
 def create_app() -> FastAPI:
@@ -193,14 +205,12 @@ def create_app() -> FastAPI:
     app.include_router(ha_oauth_router)
     app.include_router(debug_router)
     app.include_router(system_update_router)
+    app.include_router(system_mcp_router)
     app.include_router(ws_router)
 
-    # Serve the built dashboard if it was bundled into the image.
-    static_path = Path(STATIC_DIR)
-    if static_path.is_dir():
-        app.mount("/", CompressedStaticFiles(directory=str(static_path), html=True), name="ui")
-        log.info("Serving dashboard from %s", static_path)
-    else:
+    # Static UI is mounted in lifespan *after* MCP so "/" does not capture /mcp.
+    # When no static bundle exists, expose a tiny JSON root for API-only runs.
+    if not Path(STATIC_DIR).is_dir():
         @app.get("/")
         async def root() -> dict:
             return {"name": "Solar AI Optimizer", "docs": "/docs", "api": "/api"}

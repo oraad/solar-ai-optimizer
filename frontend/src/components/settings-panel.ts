@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
-import { api, getApiToken, getBase, setApiToken, type HealthInfo } from "../api.js";
+import { api, getApiToken, getBase, setApiToken, type HealthInfo, type McpSettingsInfo } from "../api.js";
 import { entityLabel, fieldLabel, INVERTER_READ_ENTITY_KEYS, optimizationPriorityLabel, pvLabel, sectionTitle } from "../field-labels.js";
 import { entityHelp, fieldHelp, priorityEffectHelp, pvHelp, sectionHelp } from "../field-help.js";
 import { labelWithTip } from "../label-tip.js";
@@ -642,7 +642,18 @@ export class SettingsPanel extends LitElement {
         border-radius: 50%;
         background: var(--warn, #c90);
       }
-      .sticky-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      .sticky-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .sticky-actions button.restart-needed {
+        border-color: var(--warn, #c97800);
+        color: var(--warn, #c97800);
+      }
+      .mcp-pending-banner {
+        margin: 8px 0;
+        padding: 10px 12px;
+        border-radius: var(--radius, 8px);
+        border: 1px solid color-mix(in srgb, var(--warn, #c97800) 45%, transparent);
+        background: color-mix(in srgb, var(--warn, #c97800) 12%, transparent);
+      }
     `,
   ];
 
@@ -688,6 +699,14 @@ export class SettingsPanel extends LitElement {
   @state() private validationIssues: ValidationIssue[] = [];
   @state() private dragPriorityIndex: number | null = null;
   @state() private mcpHealth: HealthInfo | null = null;
+  @state() private mcpSettings: McpSettingsInfo | null = null;
+  @state() private mcpDraftEnabled = false;
+  @state() private mcpDraftToken = "";
+  @state() private mcpTokenDirty = false;
+  @state() private mcpGeneratedToken: string | null = null;
+  @state() private mcpBusy = false;
+  @state() private restartBusy = false;
+  @state() private mcpPendingRestart = false;
 
   private savedSnapshot = "";
   private layoutWide = false;
@@ -780,6 +799,155 @@ export class SettingsPanel extends LitElement {
       this.mcpHealth = await api.health();
     } catch {
       /* optional until backend deployed */
+    }
+    try {
+      this.mcpSettings = await api.mcpSettings();
+      this.mcpDraftEnabled = this.mcpSettings.enabled;
+      this.mcpPendingRestart = Boolean(this.mcpSettings.pending?.mcp_env);
+      if (!this.mcpTokenDirty) {
+        this.mcpDraftToken = "";
+      }
+    } catch {
+      this.mcpSettings = null;
+    }
+  }
+
+  private async saveMcpSettings(opts?: { generate?: boolean; clearToken?: boolean }): Promise<void> {
+    if (!this.mcpSettings?.editable || this.mcpBusy) return;
+    this.mcpBusy = true;
+    try {
+      const body: {
+        enabled: boolean;
+        token?: string;
+        clear_token?: boolean;
+        generate_token?: boolean;
+      } = { enabled: this.mcpDraftEnabled };
+      if (opts?.generate) body.generate_token = true;
+      else if (opts?.clearToken) body.clear_token = true;
+      else if (this.mcpTokenDirty && this.mcpDraftToken.trim()) {
+        body.token = this.mcpDraftToken.trim();
+      }
+      const res = await api.putMcpSettings(body);
+      this.mcpSettings = res;
+      this.mcpPendingRestart = true;
+      this.mcpTokenDirty = false;
+      this.mcpDraftToken = "";
+      if (res.token) {
+        this.mcpGeneratedToken = res.token;
+        showToast({ message: t("ui.settings.mcp.tokenGeneratedOnce"), variant: "success" });
+      } else {
+        showToast({ message: t("ui.settings.mcp.saveSuccess"), variant: "success" });
+      }
+      await this.refreshMcpStatus();
+    } catch (e) {
+      showToast({
+        message: e instanceof Error ? e.message : t("ui.settings.mcp.saveFailed"),
+        variant: "error",
+      });
+    } finally {
+      this.mcpBusy = false;
+    }
+  }
+
+  private async restartService(): Promise<void> {
+    if (this.restartBusy || this.updateBusy || this.updateWatchActive) return;
+    if (!this.mcpSettings?.can_restart && !this.updateInfo?.can_apply) return;
+    if (!window.confirm(t("ui.settings.restartConfirm"))) return;
+    this.restartBusy = true;
+    const toastId = showToast({
+      message: t("ui.settings.restarting"),
+      variant: "loading",
+      persistent: true,
+    });
+    try {
+      await api.restartService();
+      const deadline = Date.now() + 120_000;
+      const healthStart = Date.now();
+      while (Date.now() < deadline) {
+        const elapsed = Math.floor((Date.now() - healthStart) / 1000);
+        updateToast(toastId, {
+          message: t("ui.settings.waitingRestartElapsed", { seconds: String(elapsed) }),
+        });
+        await new Promise((r) => setTimeout(r, 3000));
+        try {
+          const h = await api.health();
+          if (h.status === "ok") {
+            updateToast(toastId, {
+              message: t("ui.settings.restartComplete"),
+              variant: "success",
+            });
+            this.mcpPendingRestart = false;
+            await this.refreshMcpStatus();
+            window.setTimeout(() => dismissToast(toastId), 2500);
+            return;
+          }
+        } catch {
+          /* restarting */
+        }
+      }
+      updateToast(toastId, {
+        message: t("ui.settings.restartTimeout"),
+        variant: "error",
+      });
+    } catch (e) {
+      updateToast(toastId, {
+        message: e instanceof Error ? e.message : t("ui.settings.restartFailed"),
+        variant: "error",
+      });
+    } finally {
+      this.restartBusy = false;
+    }
+  }
+
+  private async recreateService(): Promise<void> {
+    if (this.restartBusy || this.updateBusy || this.updateWatchActive) return;
+    if (!this.mcpSettings?.can_recreate && !this.updateInfo?.can_apply) return;
+    if (!window.confirm(t("ui.settings.recreateConfirm"))) return;
+    this.restartBusy = true;
+    const toastId = showToast({
+      message: t("ui.settings.recreating"),
+      variant: "loading",
+      persistent: true,
+    });
+    try {
+      await api.recreateService();
+      const deadline = Date.now() + 180_000;
+      const healthStart = Date.now();
+      while (Date.now() < deadline) {
+        const elapsed = Math.floor((Date.now() - healthStart) / 1000);
+        updateToast(toastId, {
+          message: t("ui.settings.waitingRestartElapsed", { seconds: String(elapsed) }),
+        });
+        await new Promise((r) => setTimeout(r, 3000));
+        try {
+          const h = await api.health();
+          if (h.status === "ok") {
+            updateToast(toastId, {
+              message: t("ui.settings.recreateComplete"),
+              variant: "success",
+            });
+            await this.refreshMcpStatus();
+            window.setTimeout(() => {
+              dismissToast(toastId);
+              window.location.reload();
+            }, 1500);
+            return;
+          }
+        } catch {
+          /* recreating */
+        }
+      }
+      updateToast(toastId, {
+        message: t("ui.settings.restartTimeout"),
+        variant: "error",
+      });
+    } catch (e) {
+      updateToast(toastId, {
+        message: e instanceof Error ? e.message : t("ui.settings.recreateFailed"),
+        variant: "error",
+      });
+    } finally {
+      this.restartBusy = false;
     }
   }
 
@@ -1708,7 +1876,9 @@ export class SettingsPanel extends LitElement {
 
   private renderMcpSection() {
     const h = this.mcpHealth;
-    const httpOpen = Boolean(h?.mcp_enabled);
+    const s = this.mcpSettings;
+    const httpOpen = Boolean(h?.mcp_enabled || s?.enabled || this.mcpDraftEnabled);
+    const editable = Boolean(s?.editable);
     return html`
       ${this.renderSectionPanel(
         t("ui.settings.mcp.statusTitle"),
@@ -1717,7 +1887,10 @@ export class SettingsPanel extends LitElement {
           <p class="label">
             <span class=${this.mcpStatusPillClass()}>${this.mcpStatusLabel()}</span>
           </p>
-          <p class="label">${t("ui.settings.mcp.envPersistenceNote")}</p>
+          <p class="label">${editable ? t("ui.settings.mcp.envPersistenceNoteEditable") : t("ui.settings.mcp.envPersistenceNote")}</p>
+          ${this.mcpPendingRestart
+            ? html`<div class="mcp-pending-banner" role="status">${t("ui.settings.mcp.pendingRestartBanner")}</div>`
+            : null}
           ${h
             ? html`
                 <ul class="label" style="margin:8px 0 0;padding-inline-start:1.2em">
@@ -1742,6 +1915,71 @@ export class SettingsPanel extends LitElement {
             : html`<p class="label">${t("ui.settings.mcp.statusLoading")}</p>`}
         `,
       )}
+      ${editable
+        ? this.renderSectionPanel(
+            t("ui.settings.mcp.configTitle"),
+            undefined,
+            html`
+              <div class="fields">
+                <label class="check">
+                  <input
+                    type="checkbox"
+                    .checked=${this.mcpDraftEnabled}
+                    ?disabled=${this.mcpBusy}
+                    @change=${(e: Event) => {
+                      this.mcpDraftEnabled = (e.target as HTMLInputElement).checked;
+                    }}
+                  />
+                  ${t("ui.settings.mcp.enableLabel")}
+                </label>
+                <div class="field" style="grid-column:1/-1">
+                  <label>${t("ui.settings.mcp.tokenLabel")}</label>
+                  <input
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder=${s?.has_token
+                      ? t("ui.settings.mcp.tokenConfiguredPlaceholder")
+                      : t("ui.settings.mcp.tokenPlaceholder")}
+                    .value=${this.mcpDraftToken}
+                    ?disabled=${this.mcpBusy}
+                    @input=${(e: Event) => {
+                      this.mcpDraftToken = (e.target as HTMLInputElement).value;
+                      this.mcpTokenDirty = true;
+                    }}
+                  />
+                  <p class="label">${t("ui.settings.mcp.tokenHint")}</p>
+                </div>
+              </div>
+              ${this.mcpGeneratedToken
+                ? html`<p class="label" role="status">${t("ui.settings.mcp.generatedTokenNote")}: <code>${this.mcpGeneratedToken}</code></p>`
+                : null}
+              <div class="buttons">
+                <button
+                  type="button"
+                  class="primary"
+                  ?disabled=${this.mcpBusy}
+                  @click=${() => void this.saveMcpSettings()}
+                >
+                  ${t("ui.settings.mcp.saveMcp")}
+                </button>
+                <button
+                  type="button"
+                  ?disabled=${this.mcpBusy}
+                  @click=${() => void this.saveMcpSettings({ generate: true })}
+                >
+                  ${t("ui.settings.mcp.generateToken")}
+                </button>
+                <button
+                  type="button"
+                  ?disabled=${this.mcpBusy || !s?.has_token}
+                  @click=${() => void this.saveMcpSettings({ clearToken: true })}
+                >
+                  ${t("ui.settings.mcp.clearToken")}
+                </button>
+              </div>
+            `,
+          )
+        : null}
       ${this.renderSectionPanel(
         t("ui.settings.mcp.securityTitle"),
         undefined,
@@ -2415,7 +2653,20 @@ export class SettingsPanel extends LitElement {
           >
             ${this.updateChecking ? t("ui.settings.checking") : t("ui.settings.checkUpdates")}
           </button>
+          ${info?.can_apply
+            ? html`<button
+                type="button"
+                ?disabled=${this.updateBusy || this.restartBusy || Boolean(info.update_in_progress)}
+                title=${t("ui.settings.recreateHelp")}
+                @click=${() => void this.recreateService()}
+              >
+                ${t("ui.settings.recreateContainer")}
+              </button>`
+            : null}
         </div>
+        ${info?.can_apply
+          ? html`<p class="label">${t("ui.settings.recreateHelp")}</p>`
+          : null}
       `,
       "immediate",
     );
@@ -3149,6 +3400,11 @@ export class SettingsPanel extends LitElement {
   }
 
   private renderStickyBar() {
+    const canRestart = Boolean(
+      this.mcpSettings?.can_restart || this.updateInfo?.can_apply,
+    );
+    const showRestart = canRestart && !this.session?.is_addon;
+    const restartHighlight = this.mcpPendingRestart && showRestart;
     return html`
       <div class="settings-sticky-bar">
         <div class="dirty-indicator">
@@ -3157,6 +3413,16 @@ export class SettingsPanel extends LitElement {
             : html`<span class="label">${t("ui.settings.badge.server")}</span>`}
         </div>
         <div class="sticky-actions">
+          ${showRestart
+            ? html`<button
+                type="button"
+                class=${restartHighlight ? "restart-needed" : ""}
+                ?disabled=${this.busy || this.restartBusy || this.updateBusy || this.updateWatchActive}
+                @click=${() => void this.restartService()}
+              >
+                ${t("ui.settings.restartService")}
+              </button>`
+            : null}
           <button type="button" ?disabled=${!this.isDirty || this.busy} @click=${() => void this.reset()}>${t("ui.settings.revertToFile")}</button>
           <button type="button" ?disabled=${this.busy} @click=${() => void this.exportConfig()}>${t("ui.settings.exportConfig")}</button>
           <button class="primary" type="button" ?disabled=${!this.isDirty || this.busy} @click=${() => void this.save()}>${t("ui.settings.saveChanges")}</button>

@@ -67,6 +67,16 @@
         "proxmox": "On Proxmox LXC, run: update\n\nOr manually:\n  docker pull ghcr.io/oraad/solar-ai-optimizer:latest\n  docker stop solar-optimizer && docker rm solar-optimizer\n  docker run -d --name solar-optimizer --restart unless-stopped \\\n    --env-file /opt/solar-ai-optimizer/solar.env \\\n    -v solar-data:/app/data -p 8000:8000 \\\n    ghcr.io/oraad/solar-ai-optimizer:latest",
         "proxmox_versioned": "On Proxmox LXC, run: update\n\nOr manually:\n  docker pull {image}\n  docker stop solar-optimizer && docker rm solar-optimizer\n  docker run -d --name solar-optimizer --restart unless-stopped \\\n    --env-file /opt/solar-ai-optimizer/solar.env \\\n    -v solar-data:/app/data -p 8000:8000 \\\n    {image}"
       }
+    },
+    "mcp": {
+      "addon_readonly": "MCP settings are managed in Home Assistant → Settings → Apps for this deployment.",
+      "addon_lifecycle": "Restart the app from Home Assistant → Settings → Apps.",
+      "lifecycle_unavailable": "Container restart is not available (enable self-update with Docker socket, or restart manually).",
+      "token_required": "Set or generate an MCP token before enabling agent access.",
+      "restart_started": "Restart started; waiting for service to come back.",
+      "restart_failed": "Restart failed: {detail}",
+      "recreate_started": "Container recreate started; waiting for service to come back.",
+      "recreate_failed": "Recreate failed: {detail}"
     }
   },
   "engine": {

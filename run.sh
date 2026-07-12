@@ -58,6 +58,16 @@ if [ -f "$LOCAL_AUTH_ENV" ]; then
   set +a
 fi
 
+# Standalone MCP settings from the data volume (Settings → Agent access).
+# Skip when running as an HA add-on — options.json remains the source of truth.
+MCP_ENV="${DATA_DIR}/mcp.env"
+if [ ! -f "$OPTIONS" ] && [ -f "$MCP_ENV" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$MCP_ENV"
+  set +a
+fi
+
 # WebSocket keepalive: align with the 30s app heartbeat in api/ws.py; tolerate LAN latency.
 WS_PING_INTERVAL="${WS_PING_INTERVAL:-30}"
 WS_PING_TIMEOUT="${WS_PING_TIMEOUT:-60}"

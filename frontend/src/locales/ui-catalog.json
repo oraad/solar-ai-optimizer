@@ -369,6 +369,8 @@
     "configBackupIntro": "Export or import the full server configuration. Import applies immediately.",
     "unsavedChanges": "Unsaved changes",
     "saveChanges": "Save changes",
+    "restartService": "Restart service",
+    "recreateContainer": "Recreate container",
     "revertToFile": "Revert to file",
     "exportConfig": "Export config",
     "importConfig": "Import config",

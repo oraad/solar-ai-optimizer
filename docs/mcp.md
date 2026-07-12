@@ -15,13 +15,21 @@ MCP is a **sidecar control plane** — it does not replace the real-time control
 ## Security checklist
 
 - **Bearer token = full admin.** `API_TOKEN` and `MCP_TOKEN` grant the same mutating access as a local admin.
-- Set `MCP_TOKEN` separately from `API_TOKEN` so you can revoke agent access without breaking CI scripts. Both tokens are accepted for REST and WebSocket auth; stdio `ApiBackend` calls the REST API with whichever token is configured.
-- Setting `MCP_TOKEN` alone (without `API_TOKEN`) activates the auth gate and protects REST endpoints.
-- On standalone deployments, **never** set `MCP_ENABLED=true` without `MCP_TOKEN` or `API_TOKEN`.
-- On the HA add-on, `mcp_enabled` defaults to `false`. Enable only on trusted networks.
+- Prefer a dedicated `MCP_TOKEN` so you can revoke agent access without breaking CI scripts.
 - HTTP MCP (`/mcp`) accepts **Bearer only** — no ingress cookies.
 - Kill switch requires `confirm_kill_switch=true` (MCP) or `confirm=true` (REST).
 - Treat tool outputs as untrusted (entity names can contain prompt-injection text).
+
+## Configure from Settings (standalone / Proxmox / Docker)
+
+1. Open **Settings → System → Agent access**.
+2. Enable HTTP MCP, set or **Generate** a token, click **Save MCP** (writes `data/mcp.env` on the data volume).
+3. Click **Restart service** in the sticky bar next to **Save changes** (Docker socket + self-update required).
+4. Confirm health shows MCP mounted, then point Cursor at `http://<host>:8000/mcp` with the Bearer token.
+
+On **Home Assistant apps**, use Apps options (`mcp_enabled` / `mcp_token`) and restart the app — Settings remains status-only for that path.
+
+**Recreate container** (Software updates) is for host `solar.env` edits. A plain restart does **not** re-read host env files; `mcp.env` on the data volume is enough for Settings-driven MCP.
 
 ## Cursor setup (stdio)
 
@@ -41,7 +49,15 @@ environment:
   # MCP_HTTP_PATH: /mcp   # optional, default /mcp
 ```
 
-Mount is refused on standalone if no token is configured. Terminate TLS at your reverse proxy or HA ingress.
+Or use Settings → Agent access (standalone). Mount is refused if no token is configured. Terminate TLS at your reverse proxy or HA ingress.
+
+## Persistence notes
+
+| Source | When |
+|--------|------|
+| `data/mcp.env` | Settings UI on standalone; loaded by `run.sh` when not an HA add-on |
+| HA `options.json` | Add-on options → env at start |
+| Host `solar.env` / Compose env | Bootstrap; recreate container after edits |
 
 ## Tool catalog
 
@@ -72,13 +88,7 @@ Mount is refused on standalone if no token is configured. Terminate TLS at your 
 4. **`solar_simulate_decision`** — test a config hypothesis without live writes.
 5. If rationale keys point to a rule bug, fix code in `backend/app/engine/`.
 
-### Worked examples
-
-**Reserve too high:** In the trace, compare `decision.reserve.solar_bridge_soc` vs `autonomy_floor_soc`. Check `inputs.forecast.degraded_reasons` and `engine.priority_weights`.
-
-**Writes skipped:** Check `execution.results[].skipped_reason` for `shadow_mode`, HA stale, or unmapped capability.
-
-**MPC fallback:** Check `ops.metrics.mpc_fallbacks` and `engine.mpc_unavailable`.
+Unauthenticated `POST /mcp` should return **401** Bearer required (not 405). If you see 405, the static UI may be swallowing `/mcp` — upgrade to a build that mounts MCP before the static catch-all.
 
 ## REST debug endpoints
 

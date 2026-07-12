@@ -86,8 +86,16 @@ def test_put_generate_token_returns_once(mcp_api_client):
 def test_put_addon_forbidden(mcp_api_client, monkeypatch):
     client, _data = mcp_api_client
     monkeypatch.setenv("SUPERVISOR_TOKEN", "sup")
+    monkeypatch.setenv("ADMIN_USER_IDS", "ha-admin")
     get_settings.cache_clear()
-    res = client.put("/api/system/mcp", json={"enabled": True, "token": "x"})
+    res = client.put(
+        "/api/system/mcp",
+        json={"enabled": True, "token": "x"},
+        headers={
+            "X-Remote-User-Id": "ha-admin",
+            "X-Remote-User-Name": "admin",
+        },
+    )
     assert res.status_code == 403
 
 

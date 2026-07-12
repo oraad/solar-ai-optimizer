@@ -8,6 +8,8 @@ from typing import Any
 
 from fastapi import FastAPI
 from mcp.server.fastmcp.server import StreamableHTTPASGIApp
+from starlette.routing import Match, Mount
+from starlette.types import Scope
 
 from ..config import Settings
 from ..orchestrator import Orchestrator
@@ -16,6 +18,31 @@ from .backends.orchestrator import OrchestratorBackend
 from .server import create_mcp_server
 
 log = logging.getLogger("mcp.mount")
+
+
+class ExactPathMount(Mount):
+    """Like Mount, but also matches the exact base path (no trailing slash).
+
+    Starlette ``Mount("/mcp")`` only matches ``/mcp/...`` (regex requires a
+    slash after the prefix). Without this, bare ``POST /mcp`` falls through to
+    the static UI mount at ``/`` and returns 405.
+    """
+
+    def matches(self, scope: Scope) -> tuple[Match, Scope]:
+        if scope["type"] in ("http", "websocket"):
+            from starlette.routing import get_route_path
+
+            route_path = get_route_path(scope)
+            if route_path == self.path:
+                root_path = scope.get("root_path", "")
+                return Match.FULL, {
+                    "path_params": dict(scope.get("path_params", {})),
+                    "app_root_path": scope.get("app_root_path", root_path),
+                    "root_path": root_path + self.path,
+                    "path": "/",
+                    "endpoint": self.app,
+                }
+        return super().matches(scope)
 
 
 def mount_mcp_http(
@@ -46,7 +73,8 @@ def mount_mcp_http(
     # Builds the session manager and a Starlette lifespan we must enter below.
     inner = mcp.streamable_http_app()
     handler = wrap_mcp_app(StreamableHTTPASGIApp(mcp.session_manager), settings)
-    app.mount(path, handler)
+    # Prefer router.routes so ExactPathMount is used (app.mount always builds Mount).
+    app.router.routes.append(ExactPathMount(path, app=handler, name="mcp"))
     app.state.mcp_server = mcp
     log.info("MCP Streamable HTTP mounted at %s", path)
     return inner.router.lifespan_context(inner)

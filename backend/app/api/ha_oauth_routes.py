@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from ..config import Settings, get_settings
 from ..ha import oauth as ha_oauth
 from ..i18n import api_error
+from ..orchestrator import Orchestrator
 from .session import SessionUser, require_admin
 
 router = APIRouter(prefix="/api/ha/oauth", tags=["ha-oauth"])
@@ -20,6 +22,19 @@ class StartBody(BaseModel):
     public_base_url: str = Field(min_length=8, max_length=512)
     ha_base_url: str | None = Field(default=None, max_length=512)
     verify_ssl: bool | None = Field(default=None)
+
+
+def _orch(request: Request) -> Orchestrator | None:
+    return getattr(request.app.state, "orchestrator", None)
+
+
+async def _reload_ha_after_credential_change(request: Request) -> None:
+    """Pick up new/cleared oauth tokens on the live HA WebSocket client."""
+    orch = _orch(request)
+    if orch is None:
+        return
+    with contextlib.suppress(Exception):
+        await orch.reload_ha_credentials()
 
 
 @router.get("/status")
@@ -60,6 +75,7 @@ async def oauth_start(
 
 @router.get("/callback")
 async def oauth_callback(
+    request: Request,
     code: str = Query(...),
     state: str = Query(...),
     settings: Settings = Depends(get_settings),
@@ -72,6 +88,7 @@ async def oauth_callback(
             state=state,
             verify_ssl=settings.ha_verify_ssl,
         )
+        await _reload_ha_after_credential_change(request)
         html = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>Solar AI</title></head>
 <body style="font-family:system-ui;padding:2rem;text-align:center">
 <h1 style="color:#0a7">Connected</h1>
@@ -84,8 +101,10 @@ async def oauth_callback(
 
 @router.delete("/disconnect")
 async def oauth_disconnect(
+    request: Request,
     _admin: SessionUser = Depends(require_admin),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
     ha_oauth.clear_oauth(settings.data_dir)
+    await _reload_ha_after_credential_change(request)
     return {"ok": True}

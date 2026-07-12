@@ -53,6 +53,11 @@ If the browser authorize step succeeds but the callback page shows **Failed**:
 4. **`ha_ssl_error`:** Disable **Verify SSL** in Settings for self-signed HA certificates, then start IndieAuth again.
 5. **`token_exchange_failed`:** Often an expired/spent code or client mismatch — close the popup and click **Connect with Home Assistant** once more.
 
+If the callback shows **Connected** but Settings still reports **auth_invalid** / “Invalid access token”:
+
+1. Click **Retry connection** — Solar reloads IndieAuth credentials from disk and rebuilds the HA WebSocket client (a full container restart is not required for a successful re-auth).
+2. If Retry still fails after a fresh IndieAuth, stop Solar, clear any IP bans, restart HA Core, then start Solar and connect again (see [IP ban recovery](#ip-ban-recovery)).
+
 ---
 
 ## Supervisor app {#supervisor-add-on}
@@ -305,7 +310,7 @@ Home Assistant can ban Solar’s source IP after failed WebSocket/token attempts
 2. Remove Solar’s IP(s) from HA `config/ip_bans.yaml` (or delete the file). Docker bridge / gateway addresses may differ from the LAN IP you expect — clear all matching entries.
 3. **Restart Home Assistant Core** so the ban list reloads; confirm the file stays empty for about a minute.
 4. Mint a **new** long-lived access token for `HA_TOKEN` (or re-run IndieAuth in Solar Settings). Revoke the old token.
-5. Start Solar. In Settings → Solar controls Home Assistant, use **Retry connection** if the circuit is open.
+5. Start Solar. In Settings → Solar controls Home Assistant, use **Retry connection** to reload credentials and close an open circuit (IndieAuth success also rebuilds the live HA client automatically).
 6. In Solar logs, distinguish `auth_invalid` / `WebSocket auth failed` (bad token) from HTTP `403` (ban or proxy).
 
 Optional test-only: set `http.ip_ban_enabled: false`, restart HA, confirm Solar connects, then re-enable bans.

@@ -196,11 +196,5 @@ def create_mcp_server(get_backend: GetBackend, *, transport: str = "stdio") -> F
         b = await be()
         return await _call("solar_update_config", b.update_config(patch))
 
-    @mcp.tool(name="solar_ask", annotations=_ro())
-    async def solar_ask(question: str) -> dict[str, Any]:
-        """Natural-language Q&A via local LLM (read-only; apply=false)."""
-        b = await be()
-        return await _call("solar_ask", b.ask(question[:2000]))
-
     register_prompts(mcp)
     return mcp

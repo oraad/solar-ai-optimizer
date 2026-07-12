@@ -28,13 +28,12 @@ import "./overrides-panel.js";
 import "./forecast-chart.js";
 import "./forecast-insights.js";
 import "./history-view.js";
-import "./assistant-panel.js";
 import "./load-shedding-panel.js";
 import "./settings-panel.js";
 import "./login-page.js";
 import "./toast-host.js";
 
-type Tab = "overview" | "forecast" | "history" | "assistant" | "settings" | "load_shedding";
+type Tab = "overview" | "forecast" | "history" | "settings" | "load_shedding";
 
 export type HistoryNavHint = {
   view?: "timeline" | "decisions" | "activity";
@@ -45,7 +44,6 @@ const TAB_IDS: Tab[] = [
   "overview",
   "forecast",
   "history",
-  "assistant",
   "load_shedding",
   "settings",
 ];
@@ -54,14 +52,11 @@ const TAB_ICONS: Record<Tab, string> = {
   overview: "\u25A0",
   forecast: "\u2600",
   history: "\u29D6",
-  assistant: "\u2709",
   load_shedding: "\u26A1",
   settings: "\u2699",
 };
 
-const VIEWER_TAB_IDS: Tab[] = TAB_IDS.filter(
-  (id) => id !== "settings" && id !== "assistant",
-);
+const VIEWER_TAB_IDS: Tab[] = TAB_IDS.filter((id) => id !== "settings");
 
 const UPDATE_FORCE_INTERVAL_MS = 15 * 60 * 1000;
 
@@ -698,10 +693,7 @@ export class SolarApp extends LitElement {
   }
 
   private tabDisplayLabel(id: Tab): string {
-    if (this.navNarrow) {
-      if (id === "load_shedding") return t("nav.shedding");
-      if (id === "assistant") return t("nav.chat");
-    }
+    if (this.navNarrow && id === "load_shedding") return t("nav.shedding");
     return this.tabLabel(id);
   }
 
@@ -944,8 +936,6 @@ export class SolarApp extends LitElement {
           </div>`;
       case "history":
         return html`<div class="layout"><solar-history-view class="span-12" .entities=${this.entities} .navHint=${this.historyNavHint}></solar-history-view></div>`;
-      case "assistant":
-        return html`<div class="layout"><solar-assistant-panel class="span-12 center"></solar-assistant-panel></div>`;
       case "settings":
         return html`<div class="layout"><solar-settings-panel class="span-12 center" .config=${this.config} .status=${this.status} .session=${this.session} .updateInfo=${this.updateInfo} .entities=${this.entities} .entitiesConnected=${this.entitiesConnected}></solar-settings-panel></div>`;
       case "load_shedding":

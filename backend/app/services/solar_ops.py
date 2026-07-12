@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
-from ..llm.assistant import Assistant
 from ..services.forensics import build_decision_trace, build_simulate_response
 from ..models import GridStats, Override, utcnow
 from ..storage import repo
@@ -115,47 +114,4 @@ class SolarOps:
                 }
                 for entity, snap in snaps.items()
             ]
-        }
-
-    async def assistant_ask(self, question: str, *, apply: bool = False) -> dict[str, Any]:
-        assistant = Assistant(self._orch.settings)
-        status = self._orch.build_status()
-        forecast = self._orch.forecast.current
-        context = {
-            "telemetry": (
-                status.telemetry.model_dump(mode="json") if status.telemetry else None
-            ),
-            "decision": (
-                status.decision.model_dump(mode="json") if status.decision else None
-            ),
-            "grid_stats": (
-                status.grid_stats.model_dump(mode="json") if status.grid_stats else None
-            ),
-            "forecast": {
-                "solar_today_kwh": forecast.solar_today_kwh if forecast else None,
-                "solar_tomorrow_kwh": forecast.solar_tomorrow_kwh if forecast else None,
-                "cloudy_tomorrow": forecast.cloudy_tomorrow if forecast else None,
-            },
-            "shadow_mode": self._orch.shadow_mode,
-            "paused": self._orch.paused,
-            "priority_order": [p.value for p in self._orch.cfg.engine.priority_order],
-        }
-        intent = assistant.parse_intent(question)
-        answer = await assistant.answer(question, context)
-        applied = None
-        blocked = False
-        block_reason: str | None = None
-        if apply and intent is not None:
-            if intent.kill_switch and not assistant.kill_switch_confirmed(question):
-                blocked = True
-                block_reason = "kill_switch_confirm_required"
-            else:
-                applied = await self._orch.apply_override(intent)
-        return {
-            "answer": answer,
-            "intent": intent.model_dump(mode="json") if intent else None,
-            "applied": applied,
-            "blocked": blocked,
-            "block_reason": block_reason,
-            "llm_enabled": assistant.enabled,
         }

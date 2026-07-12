@@ -125,6 +125,3 @@ class ApiBackend:
 
     async def update_config(self, patch: dict) -> dict[str, Any]:
         return await self._request("PUT", "/api/config", json=patch)
-
-    async def ask(self, question: str) -> dict[str, Any]:
-        return await self._request("POST", "/api/assistant/ask", json={"question": question})

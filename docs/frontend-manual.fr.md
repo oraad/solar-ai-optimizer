@@ -33,7 +33,7 @@ Il existe **un tableau de bord** pour tous les utilisateurs. Les rôles contrôl
 
 | Rôle | Accès typique | Onglets |
 |------|----------------|------|
-| **Administrateur** | Propriétaire de HA,`system-admin`groupe, connexion locale ou`API_TOKEN`| Présentation, Prévisions, Historique, **Assistant**, **Délestage**, **Paramètres** |
+| **Administrateur** | Propriétaire de HA,`system-admin`groupe, connexion locale ou`API_TOKEN`| Présentation, Prévisions, Historique, **Délestage**, **Paramètres** |
 | **Visionneuse** | Autres utilisateurs HA via[entrée](ingress-auth.md)| Aperçu, prévisions, historique uniquement |
 
 Résolution des rôles et application de l'API :[Rôles et accès](ingress-auth.md).
@@ -50,7 +50,6 @@ Résolution des rôles et application de l'API :[Rôles et accès](ingress-auth
 | Kill switch (avec confirmation) | Oui | Oui |
 | Broche de réserve, charge de réseau, suppression des remplacements | Oui | Non |
 | Exécuter le cycle de contrôle, actualiser les prévisions | Oui | Non |
-| Assistant (LLM) | Oui | Non |
 | Paramètres/config/entités | Oui | Non |
 | Bannières d'état de configuration (SET LOCATION, etc.) | Oui | Caché |
 | Temps de décharge de la batterie lors de la présentation | Oui | Oui |
@@ -59,7 +58,7 @@ Résolution des rôles et application de l'API :[Rôles et accès](ingress-auth
 
 ## Tableau de bord d'administration
 
-Les administrateurs voient les six onglets et le panneau **Remplacements** complet dans la vue d'ensemble.
+Les administrateurs voient les cinq onglets et le panneau **Remplacements** complet dans la vue d'ensemble.
 
 ![Overview tab with status strip and navigation](../images/frontend/overview.png)
 
@@ -93,15 +92,12 @@ Les administrateurs obtiennent le panneau de commande complet :
 
 ![Overrides panel](../images/frontend/overrides.png)
 
-### Prévisions, Historique, Assistant, Délestage, Paramètres (admin)
+### Prévisions, Historique, Délestage, Paramètres (admin)
 
 Les administrateurs utilisent **Prévisions** et **Historique** de la même manière que les spectateurs (voir ci-dessous), plus :
 
-- **Assistant** — Discussion LLM sur les décisions récentes ; commande facultative appliquer
 - **Délestage de charge** : niveaux, seuils SOC, découverte d'entités associées, options de restauration et préréglage de **déploiement en mode hangar uniquement** (désactive la charge et l'optimisation du réseau ; réserve consultative facultative)
 - **Paramètres** — La connexion HA, les entités, la batterie, les prévisions, le **moteur** / **la charge du réseau** activent les bascules, etc.
-
-![Assistant chat panel](../images/frontend/assistant.png)
 
 ![Settings panel (sidebar navigation — Engine section)](../images/frontend/settings.png)
 
@@ -113,14 +109,14 @@ Lorsque vous vous connectez via l'entrée Home Assistant en tant qu'utilisateur 
 
 ![Viewer Overview — three tabs and VIEWER badge](../images/frontend/viewer-overview.png)
 
-- **Onglets :** Aperçu, prévisions et historique uniquement – pas d'assistant, de délestage ou de paramètres
+- **Onglets :** Aperçu, prévisions et historique uniquement – pas de délestage ou de paramètres
 - **Barre supérieure :** Badge **VIEWER** ; votre nom d'affichage HA peut apparaître sous le titre de l'application
 - **Aperçu des remplacements :** **Tout mettre en pause**, **Tout reprendre**, bascules pause/reprise par sous-système et kill switch (avec confirmation) — pas de broche de réserve, forçage charge réseau, cycle d'exécution, bascule shadow/live ni effacer les remplacements
 - **Bannières en lecture seule** dans la vue d'ensemble lorsqu'un administrateur a épinglé un SOC de réserve ou forcé des frais de réseau : les spectateurs voient le remplacement actif mais ne peuvent pas le modifier.
 - **Prévision de l'état vide** — si l'emplacement n'est pas configuré, le graphique affiche un message demandant à un administrateur de définir la latitude/longitude dans les paramètres (les spectateurs ne peuvent pas ouvrir les paramètres).
 - **Délai de décharge de la batterie** dans la vue d'ensemble utilise les données d'état en temps réel – aucun accès aux paramètres n'est requis
 
-Les téléspectateurs ne peuvent pas épingler le SOC de réserve, forcer la facturation du réseau, exécuter un cycle de contrôle, actualiser les prévisions, effacer les remplacements, utiliser l'Assistant ou modifier la configuration.
+Les téléspectateurs ne peuvent pas épingler le SOC de réserve, forcer la facturation du réseau, exécuter un cycle de contrôle, actualiser les prévisions, effacer les remplacements ou modifier la configuration.
 
 Voir[Rôles et accès](ingress-auth.md)pour savoir comment les rôles d'administrateur et de spectateur sont déterminés.
 
@@ -165,20 +161,6 @@ L'historique combine des graphiques de télémétrie et des tableaux d'audit. Ch
 
 ---
 
-## Assistant
-
-**Administrateur uniquement.** L'Assistant répond aux questions sur les décisions récentes et peut appliquer des **commandes analysées** lorsque vous activez **Autoriser l'Assistant à appliquer des commandes de contrôle**.
-
-Exemples :
-
-- "Pourquoi avez-vous facturé le réseau ?"
-- "Régler la réserve à 60%" (avec Appliquer coché)
-- « Engage kill switch confirm » (dangereux — nécessite un texte de confirmation explicite)
-
-Les tentatives de kill-switch bloquées affichent une bannière rouge expliquant l'exigence de confirmation.
-
----
-
 ## Paramètres {#settings}
 
 **Administrateur uniquement.** Toute la configuration d'exécution est modifiée ici et conservée dans le`solar-data`volume. Utilisez **Enregistrer les modifications** après les modifications.
@@ -191,7 +173,7 @@ Principales rubriques :
 | **Site** | **Fuseau horaire** — liste IANA consultable ou **Auto** (Open-Meteo à l'emplacement du site). **Latitude/longitude** pour les API solaires et météorologiques. S’applique aux totaux quotidiens prévus, aux horodatages de l’historique/des graphiques et au regroupement de charge/température du back-end. |
 | **Sécurité** | Entité Heartbeat, arrêt de la charge du réseau au maximum |
 | **Sécurité des API** | Jeton API stocké dans le navigateur lorsque`API_TOKEN`est défini sur le serveur |
-| **Préférences d'affichage** | **Langue** (English, العربية, Français) et **format de date** pour ce navigateur : paramètres régionaux par défaut, JJ/MM/AA ou AAAA-MM-JJ (ISO). L'arabe définit la disposition de droite à gauche. S'applique aux tables d'historique, aux axes/curseurs des graphiques et aux dates de sortie. Les justifications de décision, les erreurs d'API, les messages de mise à jour du système et les solutions heuristiques de secours de l'assistant suivent la langue sélectionnée lors de l'envoi du tableau de bord.`X-Solar-Locale`au back-end. Changer de langue reconnecte le WebSocket en direct et récupère l'historique. Les invites du système Ollama et les réponses heuristiques sont sauvegardées dans un catalogue par langue ; la sortie du modèle peut encore varier. Les lignes de l'historique stockées avant la migration i18n peuvent afficher le texte ignoré en anglais jusqu'à ce qu'elles soient récupérées à nouveau ; l'API normalise les chaînes héritées connues lorsque cela est possible. |
+| **Préférences d'affichage** | **Langue** (English, العربية, Français) et **format de date** pour ce navigateur : paramètres régionaux par défaut, JJ/MM/AA ou AAAA-MM-JJ (ISO). L'arabe définit la disposition de droite à gauche. S'applique aux tables d'historique, aux axes/curseurs des graphiques et aux dates de sortie. Les justifications de décision, les erreurs d'API et les messages de mise à jour du système suivent la langue sélectionnée lors de l'envoi du tableau de bord.`X-Solar-Locale`au back-end. Changer de langue reconnecte le WebSocket en direct et récupère l'historique. Les lignes de l'historique stockées avant la migration i18n peuvent afficher le texte ignoré en anglais jusqu'à ce qu'elles soient récupérées à nouveau ; l'API normalise les chaînes héritées connues lorsque cela est possible. |
 | **Batterie / Réserve / Prévisions / Contrôle** | Paramètres physiques et algorithmiques |
 | **Générateurs photovoltaïques** | Inclinaison, azimut et kWc par réseau |
 | **Moteur** | Mode règles vs MPC ; Ordre **priorité optimisation** (résilience, économies, autosuffisance) |
@@ -285,6 +267,8 @@ plus long que les messages de réussite.
 | **VIEWER** mais nécessite des paramètres | Demandez à un administrateur HA ou utilisez la connexion de l'administrateur local pour un accès direct |
 | Iframe vide lors de l'ouverture de l'entrée | Mettez à niveau vers **v0.5.7+** pour le démarrage ; voir[dépannage d'entrée](ingress-auth.md#blank-iframe-or-ha-ui-flashes-inside-the-panel-on-first-load) |
 | Double barre de défilement dans l'application HA | Fixed in **v0.5.7+** (`background-attachment`et`100vh`ajustements de mise en page); voir[Contrôle qualité des entrées mobiles](mobile-ingress-qa.md) |
+| La charge ne se restaure jamais après délestage | Vérifier les instantanés en attente / Admin `GET /api/shed/snapshots` ; les charges déjà éteintes ne créent pas d'épisode de restauration |
+| Les puces de délestage en direct semblent « ignorées » chaque cycle | Les skips stables (`already_set`, `ha_stale`, …) ne sont pas alarmants ; l'historique ne les enregistre pas |
 
 ---
 

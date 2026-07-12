@@ -195,19 +195,6 @@
     "toastForecastLoading": "Refreshing forecast…",
     "toastForecastSuccess": "Forecast refreshed."
   },
-  "assistant": {
-    "title": "Assistant",
-    "emptyHint": "Ask things like \"why did you grid-charge?\", \"force charge now\", or \"set reserve to 60%\".",
-    "roleYou": "you",
-    "roleAssistant": "assistant",
-    "killBlocked": "Kill switch blocked — include a confirmation word in your message (e.g. engage kill switch confirm) with Apply checked.",
-    "placeholder": "Ask or command...",
-    "send": "Send",
-    "applyLabel": "Allow assistant to apply control commands",
-    "hint": "The LLM only writes explanations. Commands are parsed deterministically and applied only with the checkbox above.",
-    "toastAsking": "Asking assistant…",
-    "toastApplied": "Override applied."
-  },
   "loadShedding": {
     "title": "Load shedding",
     "intro": "Companions on the same Home Assistant device are discovered automatically (climate, select, etc.), snapshotted when shedding, and reapplied on restore. Devices that were off before shedding are never turned on.",

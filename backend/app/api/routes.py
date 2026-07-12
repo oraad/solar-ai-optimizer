@@ -13,7 +13,6 @@ from .. import __version__
 from ..auth.install_id import get_or_create_install_id
 from ..i18n import api_error, format_validation_errors, t
 from ..i18n.serialize import localize_model, localize_payload, serialize_api_payload
-from ..llm.assistant import Assistant
 from ..config import LoadSheddingConfig
 from ..models import GridStats, Override, utcnow
 from ..orchestrator import Orchestrator
@@ -535,69 +534,3 @@ async def history_shed_executions(
 ) -> list[dict]:
     rows = await repo.get_recent_shed_executions(limit=limit)
     return localize_payload(rows, site_tz=site_tz_for(_orch(request)))  # type: ignore[return-value]
-
-
-class AssistRequest(BaseModel):
-    question: str
-    apply: bool = False
-
-
-@router.post("/assistant/ask")
-async def assistant_ask(
-    request: Request,
-    body: AssistRequest,
-    _admin: SessionUser = Depends(require_admin),
-) -> dict:
-    """Natural-language Q&A and (optional) control via the local LLM assistant.
-
-    The LLM only writes prose; control intents are parsed deterministically and
-    applied only when `apply=true`.
-    """
-    orch = _orch(request)
-    tz = site_tz_for(orch)
-    assistant = Assistant(orch.settings)
-
-    status = orch.build_status()
-    forecast = orch.forecast.current
-    context = _dump(
-        {
-            "telemetry": status.telemetry.model_dump(mode="json") if status.telemetry else None,
-            "decision": status.decision.model_dump(mode="json") if status.decision else None,
-            "grid_stats": status.grid_stats.model_dump(mode="json") if status.grid_stats else None,
-            "forecast": {
-                "solar_today_kwh": forecast.solar_today_kwh if forecast else None,
-                "solar_tomorrow_kwh": forecast.solar_tomorrow_kwh if forecast else None,
-                "cloudy_tomorrow": forecast.cloudy_tomorrow if forecast else None,
-            },
-            "shadow_mode": orch.shadow_mode,
-            "paused": orch.paused,
-            "priority_order": [p.value for p in orch.cfg.engine.priority_order],
-        },
-        tz,
-    )
-
-    intent = assistant.parse_intent(body.question)
-    answer = await assistant.answer(body.question, context)
-
-    applied = None
-    blocked = False
-    block_reason: str | None = None
-    if body.apply and intent is not None:
-        if intent.kill_switch and not assistant.kill_switch_confirmed(body.question):
-            answer = f"{answer}\n\n{t('api.override.assistant_kill_switch')}".strip()
-            blocked = True
-            block_reason = "kill_switch_confirm_required"
-        else:
-            applied = await orch.apply_override(intent)
-
-    return _loc_data(
-        {
-            "answer": answer,
-            "intent": intent.model_dump(mode="json") if intent else None,
-            "applied": applied,
-            "blocked": blocked,
-            "block_reason": block_reason,
-            "llm_enabled": assistant.enabled,
-        },
-        tz,
-    )

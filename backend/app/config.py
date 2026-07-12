@@ -58,11 +58,6 @@ class Settings(BaseSettings):
     # Optional ML load forecasting (Phase 4)
     ml_load_enabled: bool = Field(default=False)
 
-    # Optional LLM
-    ollama_base_url: str = Field(default="http://localhost:11434")
-    ollama_model: str = Field(default="llama3.1")
-    llm_enabled: bool = Field(default=False)
-
     # Optional bearer token for mutating API calls in standalone deployments.
     api_token: str = Field(default="")
 

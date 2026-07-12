@@ -23,7 +23,6 @@
     "override": {
       "kill_switch_confirm": "kill_switch requires confirm=true",
       "no_fields": "No override fields provided",
-      "assistant_kill_switch": "Kill switch requires explicit confirmation in your question (e.g. include \"confirm\").",
       "grid_charge_disabled": "Grid charge control is disabled in settings.",
       "shedding_disabled": "Load shedding control is disabled in settings."
     },
@@ -213,26 +212,5 @@
   "discovery": {
     "entity_not_in_registry": "Entity not in registry: {entity}",
     "no_device_id": "Entity has no device_id; configure state_entities manually."
-  },
-  "assistant": {
-    "system": {
-      "base": "You are the assistant for a home solar/battery optimizer running on Home Assistant. ",
-      "answer": "Answer concisely and concretely using the provided live context. If asked to explain a decision, reference the reserve target, SOC, solar forecast, and grid state."
-    },
-    "priorities": {
-      "header": "User-configured optimization priorities (highest first): ",
-      "line": "{index}) {name}",
-      "footer": ". The grid is unpredictable and is treated as a reactive, opportunistic resource only (never predicted)."
-    },
-    "heuristic": {
-      "soc_vs_reserve": "Battery is at {soc}% versus a reserve target of {reserve}%.",
-      "grid_present": "Grid is present.",
-      "grid_absent": "Grid is absent.",
-      "blackout_risk": "Blackout risk is {risk}.",
-      "no_context": "No decision context is available yet."
-    },
-    "prompt": {
-      "respond_in": "Respond in {language}."
-    }
   }
 }

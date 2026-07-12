@@ -41,8 +41,8 @@ There is **one dashboard** for all users. Roles control which tabs and controls 
 
 | Role | Typical access | Tabs |
 |------|----------------|------|
-| **Admin** | HA owner, `system-admin` group, local login, or `API_TOKEN` | Overview, Forecast, History, **Assistant**, **Load shedding**, **Settings** |
-| **Viewer** | Other HA users via [ingress](ingress-auth.md) | Overview, Forecast, History only |
+| **Admin** | HA owner, `system-admin` group, local login, or `API_TOKEN` | Overview, Forecast, History, **Load shedding**, **Settings** |
+| **Viewer** | Other HA users via [ingress](ingress-auth.md) | Overview, Forecast, History, Load shedding (read-only) |
 
 Role resolution and API enforcement: [Roles and access](ingress-auth.md).
 
@@ -62,7 +62,6 @@ Role resolution and API enforcement: [Roles and access](ingress-auth.md).
 | Kill switch (with confirmation) | Yes | Yes |
 | Reserve pin, grid charge, clear overrides | Yes | No |
 | Run control cycle, refresh forecast | Yes | No |
-| Assistant (LLM) | Yes | No |
 | Settings / config / entities | Yes | No |
 | Config status banners (SET LOCATION, etc.) | Yes | Hidden |
 | Battery time-to-empty on Overview | Yes | Yes |
@@ -71,7 +70,7 @@ Role resolution and API enforcement: [Roles and access](ingress-auth.md).
 
 ## Admin dashboard
 
-Admins see all six tabs and the full **Overrides** panel on Overview.
+Admins see all five tabs and the full **Overrides** panel on Overview.
 
 ![Overview tab with status strip and navigation](images/frontend/overview.png)
 
@@ -104,15 +103,12 @@ Admins get the full operator panel:
 
 ![Overrides panel](images/frontend/overrides.png)
 
-### Forecast, History, Assistant, Load shedding, Settings (admin)
+### Forecast, History, Load shedding, Settings (admin)
 
 Admins use **Forecast** and **History** the same as viewers (see below), plus:
 
-- **Assistant** — LLM chat about recent decisions; optional command apply
 - **Load shedding** — tiers, SOC thresholds, companion entity discovery, restore options, and **shed-only deployment** preset (disables grid charge and optimization; optional advisory reserve)
 - **Settings** — HA connection, entities, battery, forecast, **engine** / **grid charge** enable toggles, etc.
-
-![Assistant chat panel](images/frontend/assistant.png)
 
 ![Settings panel (sidebar navigation — Engine section)](images/frontend/settings.png)
 
@@ -124,7 +120,7 @@ When you sign in through Home Assistant ingress as a non-admin user, the dashboa
 
 ![Viewer Overview — tabs without role badge](images/frontend/viewer-overview.png)
 
-- **Tabs:** Overview, Forecast, History, and **Load shedding** (read-only) — no Assistant or Settings
+- **Tabs:** Overview, Forecast, History, and **Load shedding** (read-only) — no Settings
 - **Top bar:** your HA display name may appear under the app title (no role badge for viewers)
 - **Load shedding tab:** view live shed status, tier ladder, and configured entities — configuration changes require an admin
 - **Overview overrides:** **Pause all**, **Resume all**, per-subsystem pause/resume toggles, load shedding **Auto / Force OFF** and grid charge **Auto / Force ON** flip toggles, and kill switch (with confirmation) — no reserve pin, run cycle, shadow/live toggle, or clear overrides
@@ -132,7 +128,7 @@ When you sign in through Home Assistant ingress as a non-admin user, the dashboa
 - **Forecast empty state** — if location is not configured, the chart shows a message to ask an admin to set latitude/longitude in Settings (viewers cannot open Settings)
 - **Battery time-to-empty** on Overview uses live status data — no Settings access required
 
-Viewers cannot pin reserve SOC, run a control cycle, refresh forecast, clear overrides, use the Assistant, or edit configuration (Settings or load shedding tiers).
+Viewers cannot pin reserve SOC, run a control cycle, refresh forecast, clear overrides, or edit configuration (Settings or load shedding tiers).
 
 See [Roles and access](ingress-auth.md) for how admin vs viewer roles are determined.
 
@@ -177,20 +173,6 @@ History combines telemetry charts and audit tables. Choose a **time window** (6h
 
 ---
 
-## Assistant
-
-**Admin only.** The Assistant answers questions about recent decisions and can apply **parsed commands** when you enable **Allow assistant to apply control commands**.
-
-Examples:
-
-- “Why did you grid-charge?”
-- “Set reserve to 60%” (with Apply checked)
-- “Engage kill switch confirm” (dangerous — requires explicit confirmation text)
-
-Blocked kill-switch attempts show a red banner explaining the confirmation requirement.
-
----
-
 ## Settings {#settings}
 
 **Admin only.** All runtime configuration is edited here and persisted to the `solar-data` volume. Use **Save changes** after edits.
@@ -204,7 +186,7 @@ Major sections:
 | **Fail-safe** | Heartbeat entity, shutdown grid-charge-at-max |
 | **API security** | Browser-stored API token when `API_TOKEN` is set on the server |
 | **Agent access (MCP)** | Read-only status for the optional MCP sidecar; HTTP endpoint URL and local agent (stdio) setup snippets. Configured via environment or HA app options — not saved with **Save changes**. See [MCP](mcp.md). |
-| **Display preferences** | **Language** (English, العربية, Français) and **date format** for this browser: locale default, DD/MM/YY, or YYYY-MM-DD (ISO). Arabic sets right-to-left layout. Applies to history tables, chart axes/cursor, and release dates. Decision rationales, API errors, system-update messages, and assistant heuristic fallbacks follow the selected language when the dashboard sends `X-Solar-Locale` to the backend. Changing language reconnects the live WebSocket and refetches history. Ollama system prompts and heuristic replies are catalog-backed per locale; model output may still vary. History rows stored before the i18n migration may show legacy English skip text until re-fetched; the API normalizes known legacy strings when possible. |
+| **Display preferences** | **Language** (English, العربية, Français) and **date format** for this browser: locale default, DD/MM/YY, or YYYY-MM-DD (ISO). Arabic sets right-to-left layout. Applies to history tables, chart axes/cursor, and release dates. Decision rationales, API errors, and system-update messages follow the selected language when the dashboard sends `X-Solar-Locale` to the backend. Changing language reconnects the live WebSocket and refetches history. History rows stored before the i18n migration may show legacy English skip text until re-fetched; the API normalizes known legacy strings when possible. |
 | **Battery / Reserve / Forecast / Control** | Physical and algorithm parameters |
 | **PV arrays** | Tilt, azimuth, and kWp per array |
 | **Engine** | Rules vs MPC mode; **optimization priority** order (resilience, savings, self-sufficiency) |

@@ -171,15 +171,6 @@ export const api = {
   forceCycle: () => postJSON<Decision>("/api/cycle", {}),
   override: (ov: Override) => postJSON<Record<string, unknown>>("/api/override", ov),
   clearOverride: () => postJSON<{ cleared: boolean }>("/api/override/clear", {}),
-  ask: (question: string, apply = false) =>
-    postJSON<{
-      answer: string;
-      intent: Override | null;
-      applied: unknown;
-      blocked?: boolean;
-      block_reason?: string | null;
-      llm_enabled: boolean;
-    }>("/api/assistant/ask", { question, apply }),
   entities: (domain?: string) =>
     getJSON<{ connected: boolean; entities: EntityInfo[] }>(
       `/api/entities${domain ? `?domain=${encodeURIComponent(domain)}` : ""}`,

@@ -137,15 +137,6 @@ def test_viewer_can_read_status(guarded_client):
     assert res.status_code == 200
 
 
-def test_viewer_cannot_use_assistant(guarded_client):
-    res = guarded_client.post(
-        "/api/assistant/ask",
-        json={"question": "why grid charge?", "apply": False},
-        headers={"X-Remote-User-Id": "viewer-1"},
-    )
-    assert res.status_code == 403
-
-
 def test_viewer_cannot_get_config(guarded_client):
     res = guarded_client.get("/api/config", headers={"X-Remote-User-Id": "viewer-1"})
     assert res.status_code == 403

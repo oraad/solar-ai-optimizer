@@ -37,11 +37,6 @@ export function overrideHelp(key: string): string | undefined {
   return v === `help.overrides.${key}` ? undefined : v;
 }
 
-export function assistantHelp(key: string): string | undefined {
-  const v = t(`help.assistant.${key}`);
-  return v === `help.assistant.${key}` ? undefined : v;
-}
-
 export function statusHelp(key: string): string | undefined {
   const v = t(`help.status.${key}`);
   return v === `help.status.${key}` ? undefined : v;

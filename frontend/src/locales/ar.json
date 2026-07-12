@@ -8,11 +8,9 @@
     "overview": "نظرة عامة",
     "forecast": "التنبؤ",
     "history": "السجل",
-    "assistant": "المساعد",
     "load_shedding": "تخفيف الأحمال",
     "settings": "الإعدادات",
-    "shedding": "تخفيف",
-    "chat": "محادثة"
+    "shedding": "تخفيف"
   },
   "display": {
     "preferences": "تفضيلات العرض",
@@ -265,9 +263,6 @@
       "refresh_forecast": "Pull a fresh solar/load forecast without waiting for the scheduler.",
       "clear_overrides": "Remove pause, reserve pin, force charge, and other temporary overrides.",
       "kill_switch": "Emergency: enable grid charge at max current, pause engine, restore shed switches."
-    },
-    "assistant": {
-      "apply": "When checked, parsed commands (reserve, pause, kill switch, etc.) are applied. Otherwise the assistant only explains."
     },
     "status": {
       "solar": "Current PV production from your mapped sensor.",
@@ -613,19 +608,6 @@
       "sectionOverrides": "Overrides",
       "sectionAdvanced": "Advanced",
       "sectionDanger": "Danger zone"
-    },
-    "assistant": {
-      "title": "المساعد",
-      "emptyHint": "Ask things like \"why did you grid-charge?\", \"force charge now\", or \"set reserve to 60%\".",
-      "roleYou": "you",
-      "roleAssistant": "assistant",
-      "killBlocked": "Kill switch blocked — include a confirmation word in your message (e.g. engage kill switch confirm) with Apply checked.",
-      "placeholder": "Ask or command...",
-      "send": "Send",
-      "applyLabel": "Allow assistant to apply control commands",
-      "hint": "The LLM only writes explanations. Commands are parsed deterministically and applied only with the checkbox above.",
-      "toastAsking": "Asking assistant…",
-      "toastApplied": "Override applied."
     },
     "loadShedding": {
       "title": "تخفيف الأحمال",

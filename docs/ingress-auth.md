@@ -93,7 +93,7 @@ For [hass_ingress](https://github.com/lovelylain/hass_ingress) (HACS), use `work
 When `SUPERVISOR_TOKEN` is set, ingress is trusted automatically (user headers and sidebar iframe framing). Local login is optional and off by default. Open the panel from the HA sidebar.
 
 !!! info "Roles at a glance"
-    **Admin** users see all five dashboard tabs (including Assistant and Settings).
+    **Admin** users see all five dashboard tabs (including Settings).
     **Viewer** users see Overview, Forecast, and History only, with limited overrides on Overview.
     See the [Dashboard user guide → Dashboard roles](frontend-manual.md#dashboard-roles) for screenshots and the full feature matrix.
 
@@ -101,10 +101,10 @@ When `SUPERVISOR_TOKEN` is set, ingress is trusted automatically (user headers a
 
 | Role | How determined | Dashboard |
 |------|----------------|-----------|
-| **Admin** | HA owner or `system-admin` group; or `ADMIN_USER_IDS` allowlist | Full dashboard (Overview, Forecast, History, Assistant, Settings) |
+| **Admin** | HA owner or `system-admin` group; or `ADMIN_USER_IDS` allowlist | Full dashboard (Overview, Forecast, History, Settings) |
 | **Viewer** | Other HA users via ingress | Overview, Forecast, and History only — limited operator controls on Overview |
 
-Viewers can **pause/resume** the engine and each subsystem (shedding, grid charge, optimization), toggle grid charge **Auto / Force on**, and engage the **kill switch** (with confirmation). They cannot pin reserve SOC, run a control cycle, refresh forecast, clear overrides, toggle shadow/live in the UI, use the Assistant, or open Settings.
+Viewers can **pause/resume** the engine and each subsystem (shedding, grid charge, optimization), toggle grid charge **Auto / Force on**, and engage the **kill switch** (with confirmation). They cannot pin reserve SOC, run a control cycle, refresh forecast, clear overrides, toggle shadow/live in the UI, or open Settings.
 
 Mutating API routes enforce the same limits on the backend. Config and model APIs remain admin-only.
 
@@ -156,7 +156,6 @@ Operational reads (`/api/status`, forecasts, history, etc.) require **Session**.
 | `GET /api/model/export` | Admin | Export learned model |
 | `POST /api/model/import` | Admin | Import learned model |
 | `POST /api/model/retrain` | Admin | Retrain ML load model |
-| `POST /api/assistant/ask` | Admin | LLM assistant |
 | `GET /api/debug/trace` | Admin | Decision forensics trace |
 | `POST /api/debug/simulate` | Admin | Dry-run decision simulation |
 | `GET /api/system/update` | Admin | Self-update status |

@@ -62,7 +62,7 @@ environment:
 
 ### المستوى 3 - الطفرة
 
-`solar_trigger_cycle`, `solar_refresh_forecast`, `solar_update_config`, `solar_ask`.
+`solar_trigger_cycle`, `solar_refresh_forecast`, `solar_update_config`.
 
 ## استكشاف أخطاء قواعد اللعبة وإصلاحها
 

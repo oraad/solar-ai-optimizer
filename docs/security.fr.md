@@ -39,7 +39,7 @@ statut, prévisions et historique, et peut POST des remplacements limités uniqu
 Chaque champ `pause_*` est bidirectionnel : `true` met en pause, `false` reprend.
 
 Les téléspectateurs se voient refuser les lectures de configuration (`GET /api/config`), énumération des entités (`GET /api/entities`),
-écritures de configuration, l'Assistant, le code PIN de réserve, les frais de réseau forcés et d'autres itinéraires réservés aux administrateurs.
+écritures de configuration, le code PIN de réserve, les frais de réseau forcés et d'autres itinéraires réservés aux administrateurs.
 L'application se fait en back-end ; le tableau de bord cache les contrôles de défense en profondeur.
 
 Ne pas exposer le port`8000`directement si les téléspectateurs ne doivent pas contourner les en-têtes d’identité d’entrée HA.

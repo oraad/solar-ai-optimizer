@@ -13,7 +13,7 @@ services:
     # Assistant URL/token) from the dashboard Settings panel. It is persisted to
     # the solar-data volume. The variables below are optional defaults; you may
     # override or add any Settings env var here (HA_BASE_URL, HA_TOKEN,
-    # SHADOW_MODE, LOG_LEVEL, SOLCAST_API_KEY, LLM_ENABLED, ...).
+    # SHADOW_MODE, LOG_LEVEL, SOLCAST_API_KEY, ...).
     environment:
       SHADOW_MODE: "true"
       LOG_LEVEL: INFO

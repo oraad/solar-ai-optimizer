@@ -60,7 +60,6 @@ function main() {
   const PRIORITY_EFFECT_HELP = parseStringEntries(extractBlock(help, "PRIORITY_EFFECT_HELP"));
   const PRIORITY_RANK_BLURBS = parseStringEntries(extractBlock(help, "PRIORITY_RANK_BLURBS"));
   const OVERRIDE_HELP = parseStringEntries(extractBlock(help, "OVERRIDE_HELP"));
-  const ASSISTANT_HELP = parseStringEntries(extractBlock(help, "ASSISTANT_HELP"));
   const STATUS_HELP = parseStringEntries(extractBlock(help, "STATUS_HELP"));
   const sectionHelpHints = parseStringEntries(
     help.match(/const hints: Record<string, string> = \{([\s\S]*?)\n  \};/)?.[1] ?? "",
@@ -76,11 +75,9 @@ function main() {
       overview: "Overview",
       forecast: "Forecast",
       history: "History",
-      assistant: "Assistant",
       load_shedding: "Load shedding",
       settings: "Settings",
       shedding: "Shedding",
-      chat: "Chat",
     },
     display: {
       preferences: "Display preferences",
@@ -105,7 +102,6 @@ function main() {
       priorities: PRIORITY_EFFECT_HELP,
       priorityBlurbs: PRIORITY_RANK_BLURBS,
       overrides: OVERRIDE_HELP,
-      assistant: ASSISTANT_HELP,
       status: STATUS_HELP,
       sections: sectionHelpHints,
       sectionFallback: "Settings for {section}.",

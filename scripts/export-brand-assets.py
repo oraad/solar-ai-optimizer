@@ -1,7 +1,7 @@
 """Export HA brand icons and upscaled logos from canonical sources.
 
-Icons are generated from the square mark PNG. Logos are upscaled from the
-hand-designed landscape wordmark — never rendered programmatically.
+Icons are generated from the square mark PNG under brand/. Logos are
+upscaled from brand/logo_source.png (composed from the same mark).
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from pathlib import Path
 from PIL import Image
 
 REPO = Path(__file__).resolve().parents[1]
-BRAND = REPO / "custom_components" / "solar_ai_optimizer" / "brand"
+BRAND = REPO / "brand"
 ADDON = REPO / "solar_ai_optimizer"
 FRONTEND_PUBLIC = REPO / "frontend" / "public"
 

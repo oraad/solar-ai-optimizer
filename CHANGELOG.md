@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- HA Apps Supervisor update UI shows release notes via `solar_ai_optimizer/CHANGELOG.md` (synced from root)
+
+### Changed
+
+- HA Apps / brand landscape logo now uses the same sun/gear mark as the app icon
+- Brand sources live in repo-root `brand/` (obsolete `custom_components/` removed from the solar server repo; HACS integration is [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration))
+
 ### Fixed
 
 - HA Apps store refresh skipped Solar AI Optimizer because `prerelease_updates` used invalid nested `name`/`description` in the addon schema; option labels moved to `translations/`

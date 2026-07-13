@@ -104,15 +104,6 @@ export function buildSetupChecklist(
       labelKey: "ui.settings.checklist.pvArrays",
       navId: "setup_site",
     },
-    {
-      id: "failsafe",
-      done: Boolean(
-        String((d?.fail_safe as Record<string, unknown> | undefined)?.heartbeat_entity ?? "").trim(),
-      ),
-      optional: true,
-      labelKey: "ui.settings.checklist.failSafe",
-      navId: "safety",
-    },
   ];
 
   if (shedPrimary) {

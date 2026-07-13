@@ -40,10 +40,7 @@ def client(tmp_path, monkeypatch):
         paused=False,
         last_updated=utcnow(),
     )
-    fs = MagicMock()
-    fs.heartbeat_enabled = True
-    fs.heartbeat_entity = "input_datetime.test"
-    orch.cfg.fail_safe = fs
+    orch.cfg.fail_safe = MagicMock(shutdown_failsafe_enabled=True)
     orch.heartbeat.last_pulse_at = datetime(2026, 7, 8, 5, 27, tzinfo=timezone.utc)
     app = FastAPI()
     app.state.orchestrator = orch

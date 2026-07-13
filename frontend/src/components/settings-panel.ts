@@ -33,7 +33,6 @@ import {
   validateConfigDraft,
   type ValidationIssue,
 } from "../settings-utils.js";
-import { hasEntitiesForDomains, INPUT_DATETIME_DOMAINS } from "../entity-datalists.js";
 import {
   readSettingsMobileNavHeightPx,
   releaseAfterProgrammaticScroll,
@@ -3063,7 +3062,17 @@ export class SettingsPanel extends LitElement {
         <p class="label">${t("ui.settings.temperatureIntro")}</p>
         <div class="fields">
           ${bool("enabled")}
-          ${this.entityInput("forecast", "temperature", "ha_entity", "sensor")}
+          <div class="field">
+            <label>${this.lbl("temperature", "ha_entity")}</label>
+            <solar-entity-input
+              .entityId=${(temp.ha_entity ?? "") as string}
+              .entities=${this.entities}
+              .domains=${["sensor"]}
+              placeholder="sensor.…"
+              @entity-id-change=${(e: CustomEvent<string | null>) =>
+                this.setNested("forecast", "temperature", "ha_entity", e.detail)}
+            />
+          </div>
           ${num("hdd_base_c")}
           ${num("cdd_base_c")}
           ${bool("use_month_fallback")}
@@ -3361,37 +3370,12 @@ export class SettingsPanel extends LitElement {
   private renderSafetySection() {
     const d = this.draft as unknown as Record<string, any>;
     const fs = (d.fail_safe ?? {}) as Record<string, unknown>;
-    const heartbeatEntity = (fs.heartbeat_entity ?? "") as string;
-    const hasDatetimeHelpers = hasEntitiesForDomains(this.entities, INPUT_DATETIME_DOMAINS);
     return this.renderSectionPanel(
       t("ui.settings.nav.safety"),
       sectionHelp("fail_safe"),
       html`
-        <p class="label">
-          ${this.entitiesConnected
-            ? t("ui.settings.inverterConnectedHint")
-            : html`Home Assistant not connected —
-                <button class="link" @click=${() => this.requestEntityReload()}>${t("ui.settings.reloadEntities")}</button>`}
-        </p>
         <p class="label">${t("ui.settings.failSafeIntro")}</p>
         <div class="fields">
-          ${typeof fs.heartbeat_enabled === "boolean"
-            ? this.renderField("fail_safe", "heartbeat_enabled", fs.heartbeat_enabled)
-            : null}
-          <div class="field">
-            <label>${this.lbl("fail_safe", "heartbeat_entity")}</label>
-            <solar-entity-input
-              .entityId=${heartbeatEntity}
-              .entities=${this.entities}
-              .domains=${INPUT_DATETIME_DOMAINS}
-              placeholder="input_datetime.solar_optimizer_heartbeat"
-              @entity-id-change=${(e: CustomEvent<string | null>) =>
-                this.setField("fail_safe", "heartbeat_entity", e.detail ?? "")}
-            />
-            ${this.entitiesConnected && !hasDatetimeHelpers
-              ? html`<p class="label">${t("ui.settings.failSafeNoDatetimeHelpers")}</p>`
-              : null}
-          </div>
           ${typeof fs.shutdown_failsafe_enabled === "boolean"
             ? this.renderField(
                 "fail_safe",

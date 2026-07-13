@@ -338,8 +338,7 @@
     "dataBackups": "Data backups ({count})",
     "backupsIntro": "Automatic backups created before each install.",
     "updateAvailableBadge": "v{version} available",
-    "failSafeIntro": "Import the HA fail-safe package to create input_datetime.solar_optimizer_heartbeat, or pick an existing helper.",
-    "failSafeNoDatetimeHelpers": "No input_datetime helpers found. Import the fail-safe package, reload entities, or confirm your HA token can see helpers.",
+    "failSafeIntro": "On graceful shutdown, Solar can enable grid charge at max current. For crash/hang protection, install the HACS Solar AI Optimizer integration and configure its fail-safe options in Home Assistant.",
     "pvArraysTitle": "PV arrays",
     "pvArraysIntro": "Each array is forecast separately (tilt/azimuth/kWp). Set site latitude/longitude in Site & PV.",
     "addArray": "Add array",
@@ -426,7 +425,6 @@
       "inverterMapped": "Inverter sensors mapped (PV, load, SOC)",
       "siteLocation": "Site location configured",
       "pvArrays": "PV arrays defined",
-      "failSafe": "Fail-safe heartbeat configured (optional)",
       "goTo": "Go"
     },
     "validation": {

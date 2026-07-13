@@ -111,8 +111,6 @@ def demo_config_overrides() -> dict:
             ],
         },
         "fail_safe": {
-            "heartbeat_entity": "input_datetime.solar_optimizer_heartbeat",
-            "heartbeat_enabled": True,
             "shutdown_failsafe_enabled": True,
         },
     }

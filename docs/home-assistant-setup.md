@@ -19,8 +19,8 @@ Choose your deployment path:
 | [HA custom integration](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) | Fail-safe + Updates in HA (pairs with any of the above) |
 
 After connecting, complete [entity mapping](#inverter-entity-discovery). For fail-safe,
-use the [custom integration](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) (or optionally the
-[legacy package](#home-assistant-packages)).
+use the [HACS custom integration](https://oraad.github.io/solar-ai-integration/home-assistant-integration/)
+(do not run the [legacy YAML package](#home-assistant-packages) alongside it).
 
 ---
 
@@ -192,34 +192,16 @@ homeassistant:
 
 Restart Home Assistant or reload core configuration after adding this block.
 
-### Fail-safe heartbeat package
+### Fail-safe package (legacy — do not use with HACS)
 
-Copy the example package into your HA config:
+Prefer the [HACS integration fail-safe](https://oraad.github.io/solar-ai-integration/home-assistant-integration/).
+Solar no longer writes an HA heartbeat helper; liveness for the integration is
+`heartbeat_last_pulse` on `GET /api/health`.
 
-```
-config/packages/solar-optimizer-failsafe.yaml
-```
-
-Source file in the repository:
+The example YAML package under
 [`examples/home-assistant/packages/solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml)
-
-The package creates:
-
-| Entity | Purpose |
-|--------|---------|
-| `input_datetime.solar_optimizer_heartbeat` | Heartbeat timestamp (site-local wall clock, pulsed by optimizer) |
-| `input_number.solar_optimizer_heartbeat_stale_s` | Stale threshold (seconds) for healthy sensor |
-| `input_number.solar_optimizer_max_grid_charge_a` | Max grid charge current for fail-safe automation |
-| `binary_sensor.solar_optimizer_healthy` | Template sensor (`as_datetime \| as_local` age check) |
-
-Before reloading, edit placeholders:
-
-- `switch.YOUR_GRID_CHARGE_ENTITY` — same as Settings → Inverter → Grid charge enable
-- `number.YOUR_MAX_GRID_CHARGE_CURRENT` — same as Settings → Inverter → Max grid charge current
-- `input_number.solar_optimizer_max_grid_charge_a` **initial** — match Settings → Grid charge → Max grid charge current (A)
-
-Reload **helpers**, **templates**, and **automations**. Then configure the optimizer side:
-[Home Assistant fail-safe](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/).
+is **deprecated**. If you still run it, disable it when using HACS so grid charge is not applied twice.
+It will not receive Solar heartbeat entity updates on current Solar builds.
 
 ---
 
@@ -292,7 +274,7 @@ Settings → Forecast → Temperature → **Outdoor sensor entity** — any `sen
 2. Overview status cards show live SOC, PV, and load values.
 3. Forecast tab shows a 48-hour chart (requires latitude/longitude in Settings).
 4. Settings entity fields autocomplete when typing (requires valid token).
-5. Fail-safe: `input_datetime.solar_optimizer_heartbeat` updates in HA Developer tools (if package imported).
+5. Fail-safe (HACS): Healthy binary sensor stays on while Solar is cycling; see [integration docs](https://oraad.github.io/solar-ai-integration/home-assistant-integration/).
 
 ## Troubleshooting
 

@@ -1,6 +1,13 @@
 # إعداد مساعد المنزل
 
-يتكامل Solar AI Optimizer مع Home Assistant كـ **تطبيق خارجي**. لتفعيل fail-safe والتحديثات من HA، ثبّت **[تكامل HACS](https://oraad.github.io/solar-ai-integration/home-assistant-integration/)** من [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration) (Home Assistant **2026.7+**).
+Solar AI Optimizer هو **تطبيق خارجي** يتصل بـ Home Assistant عبر REST
+وWebSocket. لتفعيل fail-safe والتحديثات البرمجية من HA نفسه، ثبّت
+**[تكامل HACS المخصص](https://oraad.github.io/solar-ai-integration/home-assistant-integration/)** (Home Assistant **2026.7+**).
+
+ثبّت من [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration) — **وليس** هذا المستودع (هذا المستودع هو تطبيق Solar / إضافة HA Apps فقط).
+
+لا تزال [حزمة YAML الآمنة من الفشل القديمة](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) موجودة للإعدادات الأقدم؛
+فضّل التكامل وعطّل الحزمة إذا كان الاثنان سيعملان معاً.
 
 اختر مسار النشر الخاص بك:
 
@@ -9,9 +16,11 @@
 | [تطبيق المشرف](#supervisor-add-on)| HAOS أو خاضع للإشراف — موصى به لمعظم مستخدمي HA |
 | [عامل الميناء + hass_ingress](#docker-with-hass_ingress)| حاوية مستقلة على نفس الشبكة مثل HA |
 | [عامل ميناء مستقل](#standalone-docker)| مباشر`:8000`وصول؛ تسجيل دخول المشرف المحلي الاختياري |
+| [تكامل HA المخصص](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) | Fail-safe + التحديثات في HA (يتوافق مع أي من المسارات أعلاه) |
 
-بعد الاتصال، أكمل[رسم خرائط الكيان](#inverter-entity-discovery)واختياريا
-[قم باستيراد الحزمة الآمنة من الفشل](#home-assistant-packages).
+بعد الاتصال، أكمل [رسم خرائط الكيان](#inverter-entity-discovery). لـ fail-safe،
+استخدم [تكامل HACS المخصص](https://oraad.github.io/solar-ai-integration/home-assistant-integration/)
+(لا تشغّل [حزمة YAML القديمة](#home-assistant-packages) جنباً إلى جنب معه).
 
 ---
 
@@ -159,33 +168,16 @@ homeassistant:
 
 أعد تشغيل Home Assistant أو أعد تحميل التكوين الأساسي بعد إضافة هذه الكتلة.
 
-### حزمة نبضات القلب الآمنة من الفشل
+### حزمة آمنة من الفشل (قديمة — لا تستخدم مع HACS)
 
-انسخ حزمة المثال إلى تكوين HA الخاص بك:
+فضّل [fail-safe تكامل HACS](https://oraad.github.io/solar-ai-integration/home-assistant-integration/).
+لم يعد Solar يكتب مساعد نبضات قلب في HA؛ حيوية التكامل هي
+`heartbeat_last_pulse` على `GET /api/health`.
 
-```
-config/packages/solar-optimizer-failsafe.yaml
-```
-
-الملف المصدر في المستودع:
+حزمة YAML المثال تحت
 [`examples/home-assistant/packages/solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml)
-
-تقوم الحزمة بإنشاء:
-
-| الكيان | الغرض |
-|--------|---------|
-| `input_datetime.solar_optimizer_heartbeat`| الطابع الزمني لنبضات القلب (النبض بواسطة المُحسِّن) |
-| `input_number.solar_optimizer_max_grid_charge_a`| أقصى تيار شحن للشبكة من أجل أتمتة آمنة من الفشل |
-| `binary_sensor.solar_optimizer_healthy`| مستشعر القالب (لا معنى له في حالة نبضات القلب> 120 ثانية) |
-
-قبل إعادة التحميل، قم بتحرير العناصر النائبة:
-
-- `switch.YOUR_GRID_CHARGE_ENTITY`- مثل الإعدادات ← العاكس ← تمكين شحن الشبكة
-- `number.YOUR_MAX_GRID_CHARGE_CURRENT`- نفس الإعدادات ← العاكس ← الحد الأقصى لتيار شحن الشبكة
-- `input_number.solar_optimizer_max_grid_charge_a`**الأولي** — مطابقة الإعدادات ← شحن الشبكة ← الحد الأقصى لتيار شحن الشبكة (A)
-
-أعد تحميل **المساعدين**، و**النماذج**، و**الأتمتة**. ثم قم بتكوين الجانب المحسن:
-[مساعد المنزل آمن من الفشل](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/).
+**مهملة**. إذا كنت ما زلت تشغّلها، عطّلها عند استخدام HACS حتى لا يُطبَّق شحن الشبكة مرتين.
+لن تتلقى تحديثات كيان نبضات القلب من Solar على إصدارات Solar الحالية.
 
 ---
 
@@ -258,7 +250,7 @@ config/packages/solar-optimizer-failsafe.yaml
 2. تعرض بطاقات الحالة العامة قيم SOC وPV وتحميل حية.
 3. تعرض علامة التبويب "التوقعات" مخططًا مدته 48 ساعة (يتطلب خط العرض/خط الطول في الإعدادات).
 4. الإكمال التلقائي لحقول كيان الإعدادات عند الكتابة (يتطلب رمزًا مميزًا صالحًا).
-5. الفشل الآمن:`input_datetime.solar_optimizer_heartbeat`التحديثات في أدوات مطور HA (إذا تم استيراد الحزمة).
+5. Fail-safe (HACS): يبقى مستشعر Healthy الثنائي قيد التشغيل أثناء دورة Solar؛ راجع [وثائق التكامل](https://oraad.github.io/solar-ai-integration/home-assistant-integration/).
 
 ## استكشاف الأخطاء وإصلاحها
 

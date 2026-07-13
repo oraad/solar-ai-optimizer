@@ -37,10 +37,7 @@ def _orch_with_decision(decision: Decision | None = None) -> MagicMock:
     orch.ha.is_reachable.return_value = True
     orch.shadow_mode = True
     orch.paused = False
-    fs = MagicMock()
-    fs.heartbeat_enabled = False
-    fs.heartbeat_entity = ""
-    orch.cfg.fail_safe = fs
+    orch.cfg.fail_safe = MagicMock(shutdown_failsafe_enabled=True)
     orch.heartbeat.last_pulse_at = None
     return orch
 

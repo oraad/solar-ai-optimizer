@@ -62,7 +62,6 @@ async def health(request: Request) -> dict:
     settings = get_settings()
     status = orch.build_status()
     forecast = orch.forecast.current
-    fs = orch.cfg.fail_safe
     hb = orch.heartbeat.last_pulse_at
     mcp_path = settings.mcp_http_path.rstrip("/") or "/mcp"
     # Live mount truth (not settings inference — static "/" used to swallow /mcp).
@@ -93,9 +92,7 @@ async def health(request: Request) -> dict:
             "forecast_degraded": status.forecast_degraded,
             "engine_mode": status.engine_mode,
             "engine_active": status.engine_active,
-            "heartbeat_configured": bool(
-                fs.heartbeat_enabled and fs.heartbeat_entity
-            ),
+            "heartbeat_configured": True,
             "heartbeat_last_pulse": hb.isoformat() if hb else None,
             "metrics": metrics.as_dict(),
             "time": utcnow().isoformat(),

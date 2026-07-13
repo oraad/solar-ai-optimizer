@@ -3,7 +3,10 @@
 # Disable this package before enabling the integration watchdog to avoid
 # double grid-charge actions.
 #
-# Heartbeat helper — optimizer pulses this each control cycle (Settings → Fail-safe).
+# Current Solar builds no longer write input_datetime.solar_optimizer_heartbeat;
+# HACS uses GET /api/health heartbeat_last_pulse instead. This package will not
+# receive heartbeat updates from current Solar.
+#
 input_datetime:
   solar_optimizer_heartbeat:
     name: Solar Optimizer Heartbeat

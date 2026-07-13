@@ -10,7 +10,7 @@ import yaml
 
 log = logging.getLogger("config_migration")
 
-CURRENT_SCHEMA_VERSION = 7
+CURRENT_SCHEMA_VERSION = 8
 SCHEMA_VERSION_KEY = "schema_version"
 OVERRIDES_KEY = "overrides"
 
@@ -188,6 +188,24 @@ def migrate_v6_to_v7(overrides: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def migrate_v7_to_v8(overrides: dict[str, Any]) -> dict[str, Any]:
+    """Drop obsolete fail_safe.heartbeat_* (liveness is in-process for HACS)."""
+    out = dict(overrides)
+    fs = out.get("fail_safe")
+    if not isinstance(fs, dict):
+        return out
+    fs = dict(fs)
+    removed = False
+    for key in ("heartbeat_entity", "heartbeat_enabled"):
+        if key in fs:
+            del fs[key]
+            removed = True
+    if removed:
+        log.info("Removed obsolete fail_safe.heartbeat_* from overrides")
+        out["fail_safe"] = fs
+    return out
+
+
 def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
     """Apply structural migrations to base YAML / merged config dicts."""
     if not data:
@@ -195,7 +213,8 @@ def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
     data = migrate_v3_to_v4(dict(data))
     data = migrate_v4_to_v5(data)
     data = migrate_v5_to_v6(data)
-    return migrate_v6_to_v7(data)
+    data = migrate_v6_to_v7(data)
+    return migrate_v7_to_v8(data)
 
 
 MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = [
@@ -206,6 +225,7 @@ MIGRATIONS: list[tuple[int, int, Callable[[dict[str, Any]], dict[str, Any]]]] = 
     (4, 5, migrate_v4_to_v5),
     (5, 6, migrate_v5_to_v6),
     (6, 7, migrate_v6_to_v7),
+    (7, 8, migrate_v7_to_v8),
 ]
 
 

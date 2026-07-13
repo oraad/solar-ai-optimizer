@@ -183,7 +183,7 @@ Major sections:
 |---------|-------------------|
 | **Home Assistant connection** | URL, token, SSL verification |
 | **Site** | **Timezone** — searchable IANA list or **Auto** (Open-Meteo at site location). **Latitude / longitude** for solar and weather APIs. Applies to forecast daily totals, history/chart timestamps, and backend load/temperature bucketing. |
-| **Fail-safe** | Heartbeat entity, shutdown grid-charge-at-max |
+| **Fail-safe** | Shutdown grid-charge-at-max; HA crash watchdog via HACS integration |
 | **API security** | Browser-stored API token when `API_TOKEN` is set on the server |
 | **Agent access (MCP)** | Read-only status for the optional MCP sidecar; HTTP endpoint URL and local agent (stdio) setup snippets. Configured via environment or HA app options — not saved with **Save changes**. See [MCP](mcp.md). |
 | **Display preferences** | **Language** (English, العربية, Français) and **date format** for this browser: locale default, DD/MM/YY, or YYYY-MM-DD (ISO). Arabic sets right-to-left layout. Applies to history tables, chart axes/cursor, and release dates. Decision rationales, API errors, and system-update messages follow the selected language when the dashboard sends `X-Solar-Locale` to the backend. Changing language reconnects the live WebSocket and refetches history. History rows stored before the i18n migration may show legacy English skip text until re-fetched; the API normalizes known legacy strings when possible. |

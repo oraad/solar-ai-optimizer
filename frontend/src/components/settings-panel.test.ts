@@ -1,6 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { INPUT_DATETIME_DOMAINS } from "../entity-datalists.js";
 import type { SettingsPanel } from "./settings-panel.js";
 
 beforeAll(async () => {
@@ -148,22 +147,64 @@ describe("SettingsPanel MCP section", () => {
   });
 });
 
-describe("SettingsPanel Safety heartbeat entity", () => {
+describe("SettingsPanel Temperature section", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
     vi.restoreAllMocks();
   });
 
-  it("uses solar-entity-input with input_datetime and shows friendly name", async () => {
+  it("labels the outdoor temperature entity as Site outdoor temperature", async () => {
     const el = mountPanel({
       entitiesConnected: true,
       entities: [
         {
-          entity_id: "input_datetime.solar_optimizer_heartbeat",
-          name: "Solar optimizer heartbeat",
-          domain: "input_datetime",
+          entity_id: "sensor.outdoor_temp",
+          name: "Outdoor",
+          domain: "sensor",
         },
       ],
+      config: {
+        site: { latitude: 0, longitude: 0 },
+        battery: {},
+        reserve: {},
+        forecast: {
+          temperature: {
+            enabled: true,
+            ha_entity: "sensor.outdoor_temp",
+          },
+        },
+        control: {},
+        engine: {},
+        inverter: { read: {}, write: {} },
+        ha: { base_url: "http://ha.local", has_token: false },
+        fail_safe: {},
+        grid_charge: {},
+      } as SettingsPanel["config"],
+    });
+    (el as unknown as { layoutWide: boolean }).layoutWide = true;
+    (el as unknown as { activeNav: string }).activeNav = "forecast_temp";
+    el.requestUpdate();
+    await el.updateComplete;
+
+    const section = el.shadowRoot!.querySelector("#settings-section-forecast_temp");
+    expect(section).not.toBeNull();
+    expect(section!.textContent).toContain("Site outdoor temperature");
+    expect(section!.textContent).not.toContain("Ha Entity");
+    expect(section!.querySelector("solar-entity-input")).not.toBeNull();
+    el.remove();
+  });
+});
+
+describe("SettingsPanel Safety section", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    vi.restoreAllMocks();
+  });
+
+  it("shows shutdown fail-safe without heartbeat entity picker", async () => {
+    const el = mountPanel({
+      entitiesConnected: true,
+      entities: [],
       config: {
         site: { latitude: 0, longitude: 0 },
         battery: {},
@@ -174,8 +215,7 @@ describe("SettingsPanel Safety heartbeat entity", () => {
         inverter: { read: {}, write: {} },
         ha: { base_url: "http://ha.local", has_token: false },
         fail_safe: {
-          heartbeat_enabled: true,
-          heartbeat_entity: "input_datetime.solar_optimizer_heartbeat",
+          shutdown_failsafe_enabled: true,
         },
         grid_charge: {},
       } as SettingsPanel["config"],
@@ -185,21 +225,11 @@ describe("SettingsPanel Safety heartbeat entity", () => {
     el.requestUpdate();
     await el.updateComplete;
 
-    const input = el.shadowRoot!.querySelector(
-      "#settings-section-safety solar-entity-input",
-    ) as HTMLElement & {
-      domains: string[];
-      entityId: string;
-      updateComplete: Promise<boolean>;
-      shadowRoot: ShadowRoot | null;
-    };
-    expect(input).not.toBeNull();
-    expect(input.domains).toBe(INPUT_DATETIME_DOMAINS);
-    expect(input.entityId).toBe("input_datetime.solar_optimizer_heartbeat");
-    await input.updateComplete;
-    expect(input.shadowRoot!.querySelector("input")!.value).toBe("Solar optimizer heartbeat");
-    const opt = input.shadowRoot!.querySelector("option");
-    expect(opt?.value).toBe("Solar optimizer heartbeat");
+    const section = el.shadowRoot!.querySelector("#settings-section-safety");
+    expect(section).not.toBeNull();
+    expect(section!.querySelector("solar-entity-input")).toBeNull();
+    expect(section!.textContent).toContain("Shutdown fail-safe");
+    expect(section!.textContent).toMatch(/HACS/i);
     el.remove();
   });
 });

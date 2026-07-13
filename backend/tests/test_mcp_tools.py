@@ -51,7 +51,7 @@ def _mock_orch():
     orch._telemetry_stale.return_value = False
     orch._telemetry_age_seconds.return_value = None
     orch.simulate_decision.return_value = None
-    orch.cfg.fail_safe.heartbeat_enabled = False
+    orch.cfg.fail_safe = MagicMock(shutdown_failsafe_enabled=True)
     orch.heartbeat.last_pulse_at = None
     orch.settings = MagicMock()
     orch.settings.mcp_enabled = False

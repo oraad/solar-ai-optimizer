@@ -57,7 +57,7 @@ class Orchestrator:
 
         base_url, token, verify_ssl = self._resolve_ha()
         self.ha = HAClient(base_url, token, verify_ssl)
-        self.heartbeat = HAHeartbeat(self.ha)
+        self.heartbeat = HAHeartbeat()
         self.adapter = HAEntityAdapter(self.ha, self.cfg.inverter)
         self.forecast = ForecastService(self.cfg, settings)
         self.collector = Collector(
@@ -218,7 +218,6 @@ class Orchestrator:
         self.ha = HAClient(base_url, token, verify_ssl)
         if self._admin_resolver is not None:
             self._admin_resolver.set_ha(self.ha)
-        self.heartbeat.set_ha(self.ha)
         self.adapter.set_ha(self.ha)
         self.collector.set_ha(self.ha)
         self._build_engine_components()  # executor picks up the new client
@@ -389,14 +388,8 @@ class Orchestrator:
         return bool(w.grid_charge_enable or w.max_grid_charge_current)
 
     async def _pulse_heartbeat(self) -> None:
-        fs = self.cfg.fail_safe
-        if not fs.heartbeat_enabled:
-            return
         with contextlib.suppress(Exception):
-            await self.heartbeat.pulse(
-                fs.heartbeat_entity,
-                site_tz=self.forecast.site_tz(),
-            )
+            self.heartbeat.pulse()
 
     async def shutdown(self) -> None:
         if self.cfg.fail_safe.shutdown_failsafe_enabled and self._grid_charge_mapped():

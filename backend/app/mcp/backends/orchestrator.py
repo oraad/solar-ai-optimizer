@@ -36,8 +36,6 @@ class OrchestratorBackend:
         self._check_read_limit()
         status = self._ops.get_status()
         forecast = self._ops.get_forecast()
-        fs = self._ops.orch.cfg.fail_safe
-        hb = self._ops.orch.heartbeat.last_pulse_at
         from ..config import get_settings
 
         settings = get_settings()

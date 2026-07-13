@@ -171,7 +171,7 @@ Principales rubriques :
 |---------|-------------------|
 | **Connexion Home Assistant** | URL, jeton, vérification SSL |
 | **Site** | **Fuseau horaire** — liste IANA consultable ou **Auto** (Open-Meteo à l'emplacement du site). **Latitude/longitude** pour les API solaires et météorologiques. S’applique aux totaux quotidiens prévus, aux horodatages de l’historique/des graphiques et au regroupement de charge/température du back-end. |
-| **Sécurité** | Entité Heartbeat, arrêt de la charge du réseau au maximum |
+| **Sécurité** | Arrêt de la charge réseau au maximum ; chien de garde HA via l'intégration HACS |
 | **Sécurité des API** | Jeton API stocké dans le navigateur lorsque`API_TOKEN`est défini sur le serveur |
 | **Préférences d'affichage** | **Langue** (English, العربية, Français) et **format de date** pour ce navigateur : paramètres régionaux par défaut, JJ/MM/AA ou AAAA-MM-JJ (ISO). L'arabe définit la disposition de droite à gauche. S'applique aux tables d'historique, aux axes/curseurs des graphiques et aux dates de sortie. Les justifications de décision, les erreurs d'API et les messages de mise à jour du système suivent la langue sélectionnée lors de l'envoi du tableau de bord.`X-Solar-Locale`au back-end. Changer de langue reconnecte le WebSocket en direct et récupère l'historique. Les lignes de l'historique stockées avant la migration i18n peuvent afficher le texte ignoré en anglais jusqu'à ce qu'elles soient récupérées à nouveau ; l'API normalise les chaînes héritées connues lorsque cela est possible. |
 | **Batterie / Réserve / Prévisions / Contrôle** | Paramètres physiques et algorithmiques |

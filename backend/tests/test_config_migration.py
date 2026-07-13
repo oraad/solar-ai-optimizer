@@ -176,3 +176,22 @@ def test_migrate_v6_to_v7_strips_ha_token():
     assert overrides["ha"]["base_url"] == "http://ha.local:8123"
     assert overrides["ha"]["verify_ssl"] is True
     assert "token" not in overrides["ha"]
+
+
+def test_migrate_v7_to_v8_strips_heartbeat_fields():
+    overrides, version = migrate_overrides(
+        {
+            "schema_version": 7,
+            "overrides": {
+                "fail_safe": {
+                    "heartbeat_entity": "input_datetime.solar_optimizer_heartbeat",
+                    "heartbeat_enabled": True,
+                    "shutdown_failsafe_enabled": True,
+                },
+            },
+        }
+    )
+    assert version == CURRENT_SCHEMA_VERSION
+    assert overrides["fail_safe"]["shutdown_failsafe_enabled"] is True
+    assert "heartbeat_entity" not in overrides["fail_safe"]
+    assert "heartbeat_enabled" not in overrides["fail_safe"]

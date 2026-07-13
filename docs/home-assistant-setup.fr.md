@@ -1,9 +1,13 @@
 # Configuration de l'assistant à domicile
 
-Solar AI Optimizer s'intègre à Home Assistant en tant qu'**application externe** — c'est
-**pas** une intégration personnalisée HACS ou`custom_components/`plate-forme. L'optimiseur se connecte
-sur REST et WebSocket, mappe les entités de l'onduleur à partir des paramètres et utilise éventuellement un petit
-HA **Package YAML** pour une automatisation sécurisée des pulsations.
+Solar AI Optimizer est une **application externe** qui se connecte à Home Assistant via REST
+et WebSocket. Pour la sécurité intégrée et les mises à jour logicielles depuis HA, installez
+l'**[intégration HACS personnalisée](https://oraad.github.io/solar-ai-integration/home-assistant-integration/)** (Home Assistant **2026.7+**).
+
+Installez depuis [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration) — **pas** ce dépôt (celui-ci est uniquement l'application Solar / module complémentaire HA Apps).
+
+Un [package YAML de sécurité héritée](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/) existe encore pour les anciennes installations ;
+préférez l'intégration et désactivez le package si les deux tourneraient en parallèle.
 
 Choisissez votre chemin de déploiement :
 
@@ -12,9 +16,11 @@ Choisissez votre chemin de déploiement :
 | [Application Superviseur](#supervisor-add-on)| HAOS ou Supervisé — recommandé pour la plupart des utilisateurs HA |
 | [Docker + hass_ingress](#docker-with-hass_ingress)| Conteneur autonome sur le même réseau que HA |
 | [Docker autonome](#standalone-docker)| Direct`:8000`accéder; connexion facultative de l'administrateur local |
+| [Intégration HA personnalisée](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) | Sécurité intégrée + mises à jour dans HA (se couple à l'un des chemins ci-dessus) |
 
-Après la connexion, complétez[mappage d'entité](#inverter-entity-discovery)et éventuellement
-[importer le package de sécurité](#home-assistant-packages).
+Après la connexion, complétez le [mappage d'entité](#inverter-entity-discovery). Pour la sécurité intégrée,
+utilisez l'[intégration HACS personnalisée](https://oraad.github.io/solar-ai-integration/home-assistant-integration/)
+(ne faites pas tourner le [package YAML hérité](#home-assistant-packages) en parallèle).
 
 ---
 
@@ -162,33 +168,16 @@ homeassistant:
 
 Redémarrez Home Assistant ou rechargez la configuration de base après avoir ajouté ce bloc.
 
-### Package de battement de coeur sécurisé
+### Package de sécurité (hérité — ne pas utiliser avec HACS)
 
-Copiez l'exemple de package dans votre configuration HA :
+Préférez la [sécurité intégrée de l'intégration HACS](https://oraad.github.io/solar-ai-integration/home-assistant-integration/).
+Solar n'écrit plus d'assistant HA de battement de cœur ; la vivacité pour l'intégration est
+`heartbeat_last_pulse` sur `GET /api/health`.
 
-```
-config/packages/solar-optimizer-failsafe.yaml
-```
-
-Fichier source dans le référentiel :
+Le package YAML d'exemple sous
 [`examples/home-assistant/packages/solar-optimizer-failsafe.yaml`](https://github.com/oraad/solar-ai-optimizer/blob/main/examples/home-assistant/packages/solar-optimizer-failsafe.yaml)
-
-Le package crée :
-
-| Entité | Objectif |
-|--------|---------|
-| `input_datetime.solar_optimizer_heartbeat`| Horodatage du battement de coeur (pulsé par l'optimiseur) |
-| `input_number.solar_optimizer_max_grid_charge_a`| Courant de charge maximum du réseau pour une automatisation de sécurité |
-| `binary_sensor.solar_optimizer_healthy`| Capteur de modèle (périmé si battement de coeur > 120 s) |
-
-Avant de recharger, modifiez les espaces réservés :
-
-- `switch.YOUR_GRID_CHARGE_ENTITY`— identique à Paramètres → Onduleur → Activation de la charge du réseau
-- `number.YOUR_MAX_GRID_CHARGE_CURRENT`— identique à Paramètres → Onduleur → Courant de charge maximum du réseau
-- `input_number.solar_optimizer_max_grid_charge_a`**initial** — correspond à Paramètres → Charge du réseau → Courant de charge maximum du réseau (A)
-
-Rechargez les **helpers**, les **modèles** et les **automatisations**. Configurez ensuite le côté optimiseur :
-[Sécurité intégrée de Home Assistant](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/).
+est **déprécié**. Si vous l'utilisez encore, désactivez-le avec HACS pour éviter d'appliquer deux fois la charge réseau.
+Il ne recevra plus les mises à jour d'entité heartbeat de Solar sur les builds actuels.
 
 ---
 
@@ -262,7 +251,7 @@ Paramètres → Prévisions → Température → **Entité de capteur extérieur
 2. Les cartes d'état de présentation affichent les valeurs SOC, PV et de charge en direct.
 3. L'onglet Prévisions affiche un graphique sur 48 heures (nécessite latitude/longitude dans Paramètres).
 4. Paramètres des champs d'entité à saisie semi-automatique lors de la saisie (nécessite un jeton valide).
-5. Sécurité intégrée :`input_datetime.solar_optimizer_heartbeat`mises à jour dans les outils HA Developer (si le package est importé).
+5. Sécurité intégrée (HACS) : le capteur binaire Healthy reste allumé tant que Solar cycle ; voir la [doc d'intégration](https://oraad.github.io/solar-ai-integration/home-assistant-integration/).
 
 ## Dépannage
 

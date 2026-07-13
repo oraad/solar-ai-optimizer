@@ -22,7 +22,7 @@ from .i18n import t
 
 ForecastProvider = Literal["open-meteo", "solcast"]
 
-DEFAULT_HEARTBEAT_ENTITY = "input_datetime.solar_optimizer_heartbeat"
+
 class Settings(BaseSettings):
     """Process settings sourced from environment variables / .env."""
 
@@ -273,10 +273,12 @@ class ControlConfig(BaseModel):
 
 
 class FailSafeConfig(BaseModel):
-    """Heartbeat + shutdown fail-safe (grid charge at max when optimizer stops)."""
+    """Shutdown fail-safe (grid charge at max when optimizer stops).
 
-    heartbeat_entity: str | None = DEFAULT_HEARTBEAT_ENTITY
-    heartbeat_enabled: bool = True
+    HA-side staleness watchdog uses in-process liveness via /api/health
+    heartbeat_last_pulse (HACS integration); no HA helper write.
+    """
+
     shutdown_failsafe_enabled: bool = True
 
 

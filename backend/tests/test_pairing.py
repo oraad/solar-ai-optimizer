@@ -120,9 +120,7 @@ def test_pair_redeem_http(tmp_path: Path, monkeypatch):
         last_updated=utcnow(),
     )
     wire_orchestrator_site_tz(orch)
-    fs = MagicMock()
-    fs.heartbeat_enabled = True
-    fs.heartbeat_entity = "input_datetime.x"
+    fs = MagicMock(shutdown_failsafe_enabled=True)
     orch.cfg.fail_safe = fs
     orch.heartbeat.last_pulse_at = None
 

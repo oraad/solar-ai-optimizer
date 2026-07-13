@@ -16,13 +16,13 @@ the dashboard is the primary interface for operators.
 Key sections (all editable in Settings):
 
 - Home Assistant connection
-- **Site** — IANA timezone or **Auto** (from Open-Meteo at site latitude/longitude); site coordinates; drives forecast day boundaries, load/temperature learning buckets, dashboard display, API/WebSocket timestamps, and HA heartbeat pulse wall clock (should match Home Assistant's configured timezone)
+- **Site** — IANA timezone or **Auto** (from Open-Meteo at site latitude/longitude); site coordinates; drives forecast day boundaries, load/temperature learning buckets, dashboard display, and API/WebSocket timestamps (should match Home Assistant's configured timezone)
 - Inverter entity map (read sensors + write controls)
 - Battery specs and reserve policy
 - Forecast provider, PV arrays, temperature model
 - Control timing and engine mode (`rules` or `mpc`)
 - **Subsystem enables** — `engine.enabled` (reserve/MPC/forecast), `grid_charge.enabled` (inverter grid-charge writes), `load_shedding.enabled` (tier switches); each can be toggled independently in Settings or the Load shedding tab
-- Fail-safe heartbeat
+- Fail-safe — shutdown grid-charge-at-max (HA crash watchdog is the HACS integration)
 
 **Load shedding** is configured in the dedicated **Load shedding** tab (not Settings).
 See [Dashboard user guide → Load-shedding tiers](frontend-manual.md#load-shedding-tiers).

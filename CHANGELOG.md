@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11-beta.14] - 2026-07-13
+
+### Removed
+
+- HA `input_datetime` heartbeat helper write and Settings fields (`fail_safe.heartbeat_entity` / `heartbeat_enabled`); liveness for the HACS watchdog is in-process `heartbeat_last_pulse` on `/api/health`
+- Setup checklist item for fail-safe heartbeat entity
+
+### Changed
+
+- Settings → Safety is shutdown grid-charge-at-max only; crash/hang protection is documented as the HACS integration
+- Runtime config schema v8 strips obsolete `fail_safe.heartbeat_*` keys
+
 ## [0.6.11-beta.13] - 2026-07-12
 
 ### Fixed

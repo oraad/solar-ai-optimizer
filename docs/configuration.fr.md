@@ -16,13 +16,13 @@ le tableau de bord est la principale interface pour les opérateurs.
 Sections clés (toutes modifiables dans Paramètres) :
 
 - Connexion Home Assistant
-- **Site** — Fuseau horaire IANA ou **Auto** (depuis Open-Meteo à la latitude/longitude du site) ; coordonnées du site ; détermine les limites des jours de prévision, les périodes d'apprentissage de charge/température et les horodatages du tableau de bord
+- **Site** — Fuseau horaire IANA ou **Auto** (depuis Open-Meteo à la latitude/longitude du site) ; coordonnées du site ; détermine les limites des jours de prévision, les périodes d'apprentissage de charge/température, l'affichage du tableau de bord et les horodatages API/WebSocket (doit correspondre au fuseau configuré dans Home Assistant)
 - Carte des entités de l'onduleur (lecture des capteurs + écriture des commandes)
 - Spécifications de la batterie et politique de réserve
 - Fournisseur de prévisions, panneaux photovoltaïques, modèle de température
 - Contrôle du timing et du mode moteur (`rules`ou`mpc`)
 - **Le sous-système active** —`engine.enabled`(réserve/MPC/prévision),`grid_charge.enabled`(écritures de charge du réseau de l'onduleur),`load_shedding.enabled`(changements de niveaux) ; chacun peut être basculé indépendamment dans Paramètres ou dans l'onglet Délestage
-- Battement cardiaque sécurisé
+- Sécurité intégrée — arrêt charge réseau au maximum (le chien de garde HA en cas de crash est l'intégration HACS)
 
 Le **Délestage** se configure dans l'onglet dédié **Délestage** (et non dans Paramètres).
 Voir[Guide utilisateur du tableau de bord → Niveaux de délestage](frontend-manual.md#load-shedding-tiers).

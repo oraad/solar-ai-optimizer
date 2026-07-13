@@ -203,7 +203,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/oraad/solar-ai-optimizer
 3. قم بتعيين **خط العرض / خط الطول للموقع** و **المصفوفات الكهروضوئية** (مطلوبة للتنبؤات الشمسية)
 4. قم بتعيين **كيانات القراءة/الكتابة للعاكس** في الإعدادات → خريطة كيان العاكس
 5. اترك **وضع الظل** قيد التشغيل؛ تأكيد القرارات العامة تبدو معقولة
-6. قم باستيراد الملف بشكل اختياري[حزمة HA آمنة من الفشل](https://oraad.github.io/solar-ai-integration/home-assistant-failsafe/)وقم بتمكين نبضات القلب في الإعدادات → Fail-safe
+6. ثبّت اختياريًا [تكامل HACS لـ Solar AI Optimizer](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) لـ fail-safe والتحديثات من جانب HA؛ وفعّل إيقاف التشغيل الآمن في الإعدادات → السلامة إن رغبت
 7. قم بالتبديل إلى التحكم **المباشر** فقط عندما تثق في المُحسِّن
 
 الخطوات التالية:

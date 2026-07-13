@@ -70,9 +70,7 @@
         "ha_stale_after_seconds": "HA stale timeout (s)"
       },
       "fail_safe": {
-        "heartbeat_entity": "Heartbeat entity",
-        "heartbeat_enabled": "Heartbeat enabled",
-        "shutdown_failsafe_enabled": "Shutdown fail-safe enabled"
+        "shutdown_failsafe_enabled": "Fail-safe à l'arrêt activé"
       },
       "load_shedding": {
         "enabled": "Load shedding enabled",
@@ -189,8 +187,6 @@
         "ha_stale_after_seconds": "Treat telemetry as stale after this many seconds without fresh HA updates."
       },
       "fail_safe": {
-        "heartbeat_entity": "input_datetime helper pulsed each control cycle (default: input_datetime.solar_optimizer_heartbeat from the HA fail-safe package).",
-        "heartbeat_enabled": "When enabled and an entity is set, pulse the heartbeat each control cycle.",
         "shutdown_failsafe_enabled": "On graceful shutdown, enable grid charge at max current before exiting."
       },
       "load_shedding": {
@@ -297,7 +293,7 @@
       "reserve": "How much energy to hold back for outages and critical loads.",
       "forecast": "Location, provider, and training settings for solar and load prediction.",
       "control": "Timing and safety limits for the control loop and HA writes.",
-      "fail_safe": "Heartbeat for HA watchdog automation and grid-charge-at-max on shutdown.",
+      "fail_safe": "Grid-charge-at-max on graceful shutdown. HA crash/hang watchdog is the HACS Solar AI Optimizer integration (API heartbeat).",
       "load_shedding": "Optional tiers of switches to shed when SOC is low.",
       "grid_charge": "Cap-chain factors that limit grid charge current each cycle (engine uses the lowest ceiling).",
       "engine": "Rules vs MPC mode, plus reorderable optimization priorities (resilience, savings, self-sufficiency).",
@@ -833,8 +829,7 @@
       "dataBackups": "Data backups ({count})",
       "backupsIntro": "Automatic backups created before each install.",
       "updateAvailableBadge": "v{version} available",
-      "failSafeIntro": "Importez le package HA fail-safe pour créer input_datetime.solar_optimizer_heartbeat, ou choisissez un helper existant.",
-      "failSafeNoDatetimeHelpers": "Aucun helper input_datetime trouvé. Importez le package fail-safe, rechargez les entités, ou vérifiez que le jeton HA voit les helpers.",
+      "failSafeIntro": "À l'arrêt gracieux, Solar peut activer la charge réseau au courant max. Pour la protection crash/blocage, installez l'intégration HACS Solar AI Optimizer et configurez ses options fail-safe dans Home Assistant.",
       "pvArraysTitle": "PV arrays",
       "pvArraysIntro": "Each array is forecast separately (tilt/azimuth/kWp). Set site latitude/longitude in Site & PV.",
       "addArray": "Add array",
@@ -921,7 +916,6 @@
         "inverterMapped": "Inverter sensors mapped (PV, load, SOC)",
         "siteLocation": "Site location configured",
         "pvArrays": "PV arrays defined",
-        "failSafe": "Fail-safe heartbeat configured (optional)",
         "shedTiers": "Load shedding tiers configured",
         "gridChargeWrites": "Grid charge write entities mapped (optional)",
         "gridChargeWrites": "Grid charge write entities mapped (optional)",

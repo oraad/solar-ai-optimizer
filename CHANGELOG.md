@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-07-13
+
+### Added
+
+- Adaptive reserve (smoothed house load / discharge proxy), grid present opportunity windows, and site import ceiling (`max_grid_import_w` / entity)
+- Structured decide-time explanations with `cycle_id`, Overview **Intended vs Applied**, History join, and MCP/forensics `causality`
+- HA `unit_of_measurement` normalization for power, temperature, SOC, and charge-current telemetry
+- Load shedding **Auto / Force OFF**; pairing codes, IndieAuth (Solar→HA), and stable `install_id` for HA device identity
+- Optional MCP control plane (Settings-driven enable/token, Docker/add-on `/mcp`, Agent access UI)
+- Supervisor discovery + Zeroconf for HA auto-setup; HA connection diagnostics and **Retry HA connection**
+- HA app option **Pre-release updates**; HA Apps store version tracks stable releases only
+
+### Changed
+
+- HACS integration lives in [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration); app releases ship Docker only
+- Solar→HA auth: Supervisor → IndieAuth → env `HA_TOKEN` only (no LLAT paste / YAML token persistence)
+- Crash/hang protection is the HACS watchdog via in-process `heartbeat_last_pulse` on `/api/health` (no HA `input_datetime` helper)
+- Operational API/WebSocket reads require auth; ingress viewers retain access; timestamps are site-local ISO
+- Settings entity pickers prefer friendly names; Software updates progress and semver sorting improved
+
+### Removed
+
+- Full LLM Assistant stack (dashboard tab, `/api/assistant/ask`, MCP `solar_ask`, Ollama settings)
+- `POST /api/ha/bootstrap`, Settings LLAT paste, and YAML `ha.token` persistence
+- HA `input_datetime` heartbeat helper write and Settings heartbeat fields
+
+### Fixed
+
+- Load-shed snapshot/restore episode handling (`was_on`, companions, history skip noise)
+- IndieAuth callback/retry rebuilds live HA client; clearer IP-ban / SSL / unreachable errors
+- MPC reserve pin, update progress UX, and ingress History access after MCP hardening
+
 ## [0.6.11-beta.14] - 2026-07-13
 
 ### Removed

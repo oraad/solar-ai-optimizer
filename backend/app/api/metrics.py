@@ -2,20 +2,47 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, Response
+import hmac
 
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse, Response
+
+from ..config import Settings, get_settings
+from ..i18n import t
 from ..observability.metrics import metrics
-from .session import SessionUser, require_authenticated
 
 metrics_router = APIRouter()
 
-RequireSession = Depends(require_authenticated)
+
+def _metrics_tokens(settings: Settings) -> list[str]:
+    """Bearer tokens accepted for /metrics: dedicated METRICS_TOKEN or API_TOKEN."""
+    return [tok for tok in (settings.metrics_token, settings.api_token) if tok]
+
+
+def _metrics_auth_ok(request: Request, settings: Settings) -> bool:
+    """Dedicated Bearer check for /metrics (independent of session auth).
+
+    Open when neither METRICS_TOKEN nor API_TOKEN is configured (dev mode);
+    the general AuthGateMiddleware still applies its own session-based gate
+    when local auth or paired clients are configured.
+    """
+    tokens = _metrics_tokens(settings)
+    if not tokens:
+        return True
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return False
+    provided = auth[7:].strip()
+    return any(hmac.compare_digest(provided, tok) for tok in tokens)
 
 
 def _prometheus_body(request: Request) -> str:
     m = metrics.as_dict()
     orch = getattr(request.app.state, "orchestrator", None)
     lines = [
+        "# HELP process_start_time_seconds Start time of the process since unix epoch.",
+        "# TYPE process_start_time_seconds gauge",
+        f"process_start_time_seconds {metrics.process_start_time}",
         "# HELP solar_control_cycles_total Control evaluation cycles completed.",
         "# TYPE solar_control_cycles_total counter",
         f"solar_control_cycles_total {m['control_cycles']}",
@@ -60,8 +87,8 @@ def _prometheus_body(request: Request) -> str:
 
 
 @metrics_router.get("/metrics")
-async def prometheus_metrics(
-    request: Request,
-    _session: SessionUser = RequireSession,
-) -> Response:
+async def prometheus_metrics(request: Request) -> Response:
+    settings = get_settings()
+    if not _metrics_auth_ok(request, settings):
+        return JSONResponse({"detail": t("api.auth.unauthorized")}, status_code=401)
     return Response(content=_prometheus_body(request), media_type="text/plain; version=0.0.4")

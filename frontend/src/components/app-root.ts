@@ -1,13 +1,16 @@
 import { LitElement, css, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 
-import { api, AuthRequiredError, live } from "../api.js";
+import { api, AuthRequiredError, live, type LiveSocketState } from "../api.js";
+import { confirmDialog } from "../confirm.js";
 import { setSiteTimezone } from "../date-format.js";
 import { LOCALE_CHANGE_EVENT, t } from "../i18n.js";
 import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
 import type {
   AppConfigView,
+  Decision,
+  DecisionHistoryRow,
   EntityInfo,
   ExecutionResult,
   ForecastBundle,
@@ -32,6 +35,7 @@ import "./load-shedding-panel.js";
 import "./settings-panel.js";
 import "./login-page.js";
 import "./toast-host.js";
+import "./confirm-dialog-host.js";
 
 type Tab = "overview" | "forecast" | "history" | "settings" | "load_shedding";
 
@@ -269,7 +273,15 @@ export class SolarApp extends LitElement {
         border: 1px solid var(--border);
         background: color-mix(in srgb, var(--bad) 12%, var(--panel-2));
         color: var(--bad);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 12px;
       }
+      .api-error .banner .err-item { display: flex; gap: 4px; }
+      .api-error .banner .err-key { font-weight: 700; text-transform: uppercase; font-size: 0.72em; }
+      @keyframes status-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+      .pill.pulse { animation: status-pulse 1.4s ease-in-out infinite; }
+      @media (prefers-reduced-motion: reduce) { .pill.pulse { animation: none; } }
     `,
   ];
 
@@ -290,7 +302,8 @@ export class SolarApp extends LitElement {
   @state() private theme: "dark" | "light" = "dark";
   @state() private lastUpdate = 0;
   @state() private now = Date.now();
-  @state() private apiError = "";
+  @state() private apiErrors: Partial<Record<"forecast" | "plan" | "gridStats" | "bootstrap" | "config", string>> = {};
+  @state() private liveState: LiveSocketState = "disconnected";
   @state() private updateInfo: UpdateInfo | null = null;
   @state() private compactTopbar = false;
   @state() private navNarrow = false;
@@ -298,8 +311,13 @@ export class SolarApp extends LitElement {
   @state() private forecastLastUpdate = 0;
   @state() private historyNavHint: HistoryNavHint | null = null;
   @state() private viewAsViewer = false;
+  @state() private deepLinkPinned = false;
+  @state() private deepLinkDecision: Decision | null = null;
+  @state() private deepLinkNotFound = false;
 
   private unsub?: () => void;
+  private unsubState?: () => void;
+  private pendingDeepLinkId?: string;
   private pollTimer?: number;
   private clockTimer?: number;
   private gridStatsFetching = false;
@@ -379,6 +397,8 @@ export class SolarApp extends LitElement {
     document.removeEventListener("click", this.onDocClick, true);
     live.disconnect();
     this.unsub?.();
+    this.unsubState?.();
+    this.unsubState = undefined;
     window.removeEventListener("solar-plan-refresh", this.onPlanRefresh);
     window.removeEventListener("solar-forecast-refresh", this.onForecastRefresh as EventListener);
     window.removeEventListener("solar-load-shedding-dirty", this.onLoadSheddingDirty as EventListener);
@@ -403,7 +423,7 @@ export class SolarApp extends LitElement {
     if (bundle) {
       this.forecast = bundle;
       this.forecastLastUpdate = Date.now();
-      this.apiError = "";
+      this.clearApiError("forecast");
     } else {
       void this.refreshForecastOnly();
     }
@@ -436,6 +456,73 @@ export class SolarApp extends LitElement {
       }
       this.historyNavHint = Object.keys(hint).length ? hint : null;
     }
+    if (main === "overview" && parts[1] === "decision" && parts[2]) {
+      this.pinDeepLink(parts[2]);
+    } else {
+      this.clearDeepLink();
+    }
+  }
+
+  private pinDeepLink(cycleId: string): void {
+    this.deepLinkPinned = true;
+    this.deepLinkNotFound = false;
+    this.planCycleId = cycleId;
+    if (this.authReady && !this.needsLogin) {
+      void this.fetchDeepLinkDecision(cycleId);
+    } else {
+      // Session isn't resolved yet (e.g. hash present on first load) —
+      // defer the fetch until initAuth() completes.
+      this.pendingDeepLinkId = cycleId;
+    }
+  }
+
+  private clearDeepLink(): void {
+    this.pendingDeepLinkId = undefined;
+    if (!this.deepLinkPinned && !this.deepLinkDecision && !this.deepLinkNotFound) return;
+    this.deepLinkPinned = false;
+    this.deepLinkDecision = null;
+    this.deepLinkNotFound = false;
+  }
+
+  private historyRowToDecision(row: DecisionHistoryRow): Decision {
+    return {
+      ts: row.ts,
+      cycle_id: row.cycle_id ?? undefined,
+      reserve: {
+        target_soc: row.target_soc,
+        solar_bridge_soc: row.target_soc,
+        autonomy_floor_soc: row.target_soc,
+        rationale: row.reserve_rationale ?? "",
+      },
+      actions: row.actions,
+      shed_actions: row.shed_actions,
+      blackout_risk: row.blackout_risk,
+      blackout_risk_score: row.blackout_risk_score,
+      summary: row.summary,
+      shadow_mode: row.shadow_mode,
+      grid_charge: row.grid_charge ?? null,
+      explanation: row.explanation ?? null,
+      slim: row.slim,
+    };
+  }
+
+  private async fetchDeepLinkDecision(cycleId: string): Promise<void> {
+    try {
+      const rows = await api.historyDecisions(1, cycleId);
+      // The hash (and thus the pin) may have moved on while this was in flight.
+      if (!this.deepLinkPinned || this.planCycleId !== cycleId) return;
+      if (rows.length > 0) {
+        this.deepLinkDecision = this.historyRowToDecision(rows[0]);
+        this.deepLinkNotFound = false;
+      } else {
+        this.deepLinkDecision = null;
+        this.deepLinkNotFound = true;
+      }
+    } catch {
+      if (!this.deepLinkPinned || this.planCycleId !== cycleId) return;
+      this.deepLinkDecision = null;
+      this.deepLinkNotFound = true;
+    }
   }
 
   private updateHash(): void {
@@ -445,6 +532,9 @@ export class SolarApp extends LitElement {
       if (this.historyNavHint.view === "activity" && this.historyNavHint.activity) {
         hash += `/${this.historyNavHint.activity}`;
       }
+    }
+    if (this.tab === "overview" && this.planCycleId) {
+      hash += `/decision/${this.planCycleId}`;
     }
     const next = `#${hash}`;
     if (window.location.hash !== next) {
@@ -456,9 +546,9 @@ export class SolarApp extends LitElement {
     try {
       this.forecast = await api.forecast();
       this.forecastLastUpdate = Date.now();
-      this.apiError = "";
+      this.clearApiError("forecast");
     } catch (e) {
-      this.noteApiError(e);
+      this.noteApiError(e, "forecast");
     }
   }
 
@@ -477,6 +567,8 @@ export class SolarApp extends LitElement {
     live.disconnect();
     this.unsub?.();
     this.unsub = undefined;
+    this.unsubState?.();
+    this.unsubState = undefined;
     this.viewAsViewer = false;
     this.session = null;
     this.authReady = true;
@@ -559,6 +651,11 @@ export class SolarApp extends LitElement {
       this.authReady = true;
       this.dismissBootSplash();
       this.startDashboard();
+      if (this.pendingDeepLinkId) {
+        const id = this.pendingDeepLinkId;
+        this.pendingDeepLinkId = undefined;
+        void this.fetchDeepLinkDecision(id);
+      }
     } catch (e) {
       if (e instanceof AuthRequiredError) {
         this.needsLogin = true;
@@ -569,7 +666,7 @@ export class SolarApp extends LitElement {
       }
       this.authReady = true;
       this.dismissBootSplash();
-      this.noteApiError(e);
+      this.noteApiError(e, "bootstrap");
     }
   }
 
@@ -579,6 +676,9 @@ export class SolarApp extends LitElement {
       this.unsub = live.onStatus((s) => {
         this.applyStatus(s);
       });
+    }
+    if (!this.unsubState) {
+      this.unsubState = live.onState((s) => { this.liveState = s; });
     }
     if (!this.pollTimer) {
       void this.bootstrap();
@@ -704,9 +804,16 @@ export class SolarApp extends LitElement {
     return this.showingViewerUi ? VIEWER_TAB_IDS : TAB_IDS;
   }
 
-  private noteApiError(e: unknown): void {
+  private noteApiError(e: unknown, key: "forecast" | "plan" | "gridStats" | "bootstrap" | "config" = "bootstrap"): void {
     const msg = e instanceof Error ? e.message : String(e);
-    this.apiError = msg;
+    this.apiErrors = { ...this.apiErrors, [key]: msg };
+  }
+
+  private clearApiError(key: "forecast" | "plan" | "gridStats" | "bootstrap" | "config"): void {
+    if (!this.apiErrors[key]) return;
+    const next = { ...this.apiErrors };
+    delete next[key];
+    this.apiErrors = next;
   }
 
   private async refreshPlan(): Promise<void> {
@@ -715,13 +822,18 @@ export class SolarApp extends LitElement {
       const plan = await api.plan();
       this.execResults = plan.results ?? [];
       this.shedResults = plan.shed_results ?? [];
-      this.planCycleId = plan.cycle_id ?? plan.decision?.cycle_id ?? null;
+      if (!this.deepLinkPinned) {
+        this.planCycleId = plan.cycle_id ?? plan.decision?.cycle_id ?? null;
+      }
       if (plan.execution_summary && this.status) {
         this.status = { ...this.status, execution_summary: plan.execution_summary };
       }
-      this.apiError = "";
+      this.clearApiError("plan");
+      if (this.tab === "overview") {
+        this.updateHash();
+      }
     } catch (e) {
-      this.noteApiError(e);
+      this.noteApiError(e, "plan");
     } finally {
       this.planLoading = false;
     }
@@ -731,9 +843,9 @@ export class SolarApp extends LitElement {
     this.removeAttribute("data-dashboard-ready");
     try {
       this.applyStatus(await api.status());
-      this.apiError = "";
+      this.clearApiError("bootstrap");
     } catch (e) {
-      this.noteApiError(e);
+      this.noteApiError(e, "bootstrap");
     }
     await this.refreshSlow();
     if (this.status) {
@@ -745,16 +857,18 @@ export class SolarApp extends LitElement {
     try {
       this.forecast = await api.forecast();
       this.forecastLastUpdate = Date.now();
+      this.clearApiError("forecast");
     } catch (e) {
-      this.noteApiError(e);
+      this.noteApiError(e, "forecast");
     }
     await this.refreshPlan();
     await this.refreshGridStats();
     if (this.isAdmin) {
       try {
         this.config = await api.config();
+        this.clearApiError("config");
       } catch (e) {
-        this.noteApiError(e);
+        this.noteApiError(e, "config");
       }
       await this.loadEntities();
       const now = Date.now();
@@ -771,8 +885,9 @@ export class SolarApp extends LitElement {
         this.config = { load_shedding: res.load_shedding } as AppConfigView;
         this.entities = res.entities ?? [];
         this.entitiesConnected = res.connected ?? false;
+        this.clearApiError("config");
       } catch (e) {
-        this.noteApiError(e);
+        this.noteApiError(e, "config");
       }
     }
   }
@@ -789,10 +904,17 @@ export class SolarApp extends LitElement {
     }
   }
 
-  private setTab(nextTab: Tab): void {
+  private async setTab(nextTab: Tab): Promise<void> {
     if (this.loadSheddingDirty && this.tab === "load_shedding" && nextTab !== "load_shedding") {
-      if (!confirm(t("ui.loadShedding.unsavedWarning"))) return;
+      const ok = await confirmDialog({
+        title: t("ui.loadShedding.unsavedTitle"),
+        message: t("ui.loadShedding.unsavedWarning"),
+      });
+      if (!ok) return;
       this.loadSheddingDirty = false;
+    }
+    if (nextTab !== this.tab) {
+      this.clearDeepLink();
     }
     this.tab = nextTab;
     localStorage.setItem("solar-tab", nextTab);
@@ -978,6 +1100,8 @@ export class SolarApp extends LitElement {
               .planCycleId=${this.planCycleId}
               .planLoading=${this.planLoading}
               .role=${this.dashboardRole}
+              .deepLinkDecision=${this.deepLinkDecision}
+              .deepLinkNotFound=${this.deepLinkNotFound}
             ></solar-decision-panel>
             <solar-overrides-panel
               class="span-4"
@@ -991,14 +1115,15 @@ export class SolarApp extends LitElement {
 
   render() {
     if (!this.authReady) {
-      return html`<solar-toast-host></solar-toast-host>`;
+      return html`<solar-toast-host></solar-toast-host><solar-confirm-dialog-host></solar-confirm-dialog-host>`;
     }
     if (this.needsLogin) {
-      return html`<solar-toast-host></solar-toast-host><solar-login-page></solar-login-page>`;
+      return html`<solar-toast-host></solar-toast-host><solar-confirm-dialog-host></solar-confirm-dialog-host><solar-login-page></solar-login-page>`;
     }
 
     return html`
       <solar-toast-host></solar-toast-host>
+      <solar-confirm-dialog-host></solar-confirm-dialog-host>
       <div class="topbar">
         <div class="topbar-inner">
           <div class="brand">
@@ -1040,6 +1165,11 @@ export class SolarApp extends LitElement {
               <span class="pill-long">${this.haConnected ? t("ui.app.haConnected") : t("ui.app.haOffline")}</span>
               <span class="pill-short">${this.haConnected ? t("ui.app.haShort") : t("ui.app.offlineShort")}</span>
             </span>
+            ${this.liveState === "connecting"
+              ? html`<span class="pill warn pulse status-secondary">${t("ui.app.liveReconnecting")}</span>`
+              : this.liveState === "disconnected" && this.lastUpdate > 0
+                ? html`<span class="pill bad status-secondary">${t("ui.app.liveDisconnected")}</span>`
+                : null}
             <span class="pill ${this.shadow ? "warn" : "good"}">
               ${this.shadow ? t("ui.app.shadow") : t("ui.app.liveMode")}
             </span>
@@ -1070,20 +1200,25 @@ export class SolarApp extends LitElement {
                 aria-selected=${this.tab === id}
                 @click=${() => this.setTab(id)}
               >
-                <span class="ic">${TAB_ICONS[id]}</span><span class="tab-label">${this.tabDisplayLabel(id)}</span>
+                <span class="ic" aria-hidden="true">${TAB_ICONS[id]}</span><span class="tab-label">${this.tabDisplayLabel(id)}</span>
               </button>
             `,
           )}
         </nav>
       </div>
 
-      ${this.apiError
-        ? html`<div class="api-error"><div class="banner">${this.apiError}</div></div>`
+      ${Object.entries(this.apiErrors).some(([, v]) => v)
+        ? html`<div class="api-error" role="alert"><div class="banner">${
+            Object.entries(this.apiErrors)
+              .filter(([, v]) => v)
+              .map(([k, v]) => html`<span class="err-item"><span class="err-key">${k}:</span> ${v}</span>`)
+          }</div></div>`
         : null}
 
       <main>
         <div
           role="tabpanel"
+          tabindex="0"
           id=${this.tabPanelId(this.tab)}
           aria-labelledby=${this.tabId(this.tab)}
         >

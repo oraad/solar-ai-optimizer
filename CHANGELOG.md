@@ -7,18 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.12-beta.1] - 2026-07-13
+
 ### Added
 
 - HA Apps Supervisor update UI shows release notes via `solar_ai_optimizer/CHANGELOG.md` (synced from root)
+- Confirm dialogs for dangerous overrides; short-lived WS tickets; login rate limiting
+- `/api/v1` alias + `/api/v1/ping`; history pagination (`items` / `next_cursor`) for decisions, executions, and sheds
+- Decision deep-link pin (`#decision=…`) with fetch-by-id; history load-more
+- Fail-closed security matrix documented in `docs/security.md`
 
 ### Changed
 
 - HA Apps / brand landscape logo now uses the same sun/gear mark as the app icon
 - Brand sources live in repo-root `brand/` (obsolete `custom_components/` removed from the solar server repo; HACS integration is [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration))
+- MCP bearer is MCP-plane only (REST/WS and ws-ticket reject); soft-deprecate `API_TOKEN`→MCP fallback and WS `?token=`
+- Non-addon ingress requires `TRUSTED_PROXY_IPS` (fail closed when empty)
+- Auth hot path runs paired-client matching off the event loop (`asyncio.to_thread`)
 
 ### Fixed
 
 - HA Apps store refresh skipped Solar AI Optimizer because `prerelease_updates` used invalid nested `name`/`description` in the addon schema; option labels moved to `translations/`
+- Logout cookie mirrors `Secure`; WS tickets bind session JTI and drop on logout
+- Login page light DOM + injected styles so browser autofill works
+- LiveSocket generation guards; overlapping confirm resolves prior as false
+- V1 alias rejects `..` path escapes; SSRF blocks `fe80::/10` and fails closed on DNS when private disallowed
+- OAuth finish re-validates HA URL from pending store
+- Test image includes root `CHANGELOG.md` (`.dockerignore` exception) so `sync-version.py --check` passes in Docker
 
 ## [0.6.11] - 2026-07-13
 

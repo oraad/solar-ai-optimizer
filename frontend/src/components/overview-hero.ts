@@ -73,27 +73,44 @@ export class OverviewHero extends LitElement {
 
   @property({ attribute: false }) status: SystemStatus | null = null;
 
+  private batteryDirLabel(power: number | null): string {
+    if (power == null) return "";
+    if (power > 20) return " ↑";  // charging
+    if (power < -20) return " ↓"; // discharging
+    return "";
+  }
+
   render() {
     const telemetry = this.status?.telemetry ?? null;
     const d = this.status?.decision ?? null;
     const engineOn = this.status?.engine_enabled !== false;
     const soc = telemetry?.battery_soc ?? null;
+    const battPower = telemetry?.battery_power ?? null;
     const minSoc = this.status?.battery_summary?.min_soc_floor ?? 20;
     const maxSoc = this.status?.battery_summary?.max_soc_ceiling ?? 100;
     const reserve = engineOn ? (d?.reserve.target_soc ?? null) : null;
     const riskScore = engineOn ? (d?.blackout_risk_score ?? null) : null;
     const risk = riskScore != null ? formatRiskFromScore(riskScore) : null;
+    const dirLabel = this.batteryDirLabel(battPower);
+    const battAriaLabel = soc != null
+      ? `${t("ui.status.battery")}: ${soc.toFixed(0)}%${dirLabel ? (battPower! > 0 ? ` ${t("common.charging")}` : ` ${t("common.discharging")}`) : ""}`
+      : t("ui.status.battery");
 
     return html`
       <div class="hero">
         <div class="battery-block">
-          <div class="soc-main">${soc != null ? `${soc.toFixed(0)}%` : "--"}</div>
+          <div class="soc-main" aria-label=${battAriaLabel}>${soc != null ? `${soc.toFixed(0)}%${dirLabel}` : "--"}</div>
           <div class="soc-bar-wrap">
             <div class="label">${t("ui.status.battery")}</div>
             <div class="soc-bar">
               <div class="soc-fill" style=${socFillStyle(soc, minSoc, maxSoc)}></div>
               ${reserve != null
-                ? html`<div class="reserve-mark" style="left:${reserve}%"></div>`
+                ? html`<div
+                    class="reserve-mark"
+                    style="left:${reserve}%"
+                    role="img"
+                    aria-label=${t("ui.status.reserveMarkTitle")}
+                  ></div>`
                 : null}
             </div>
             ${reserve != null

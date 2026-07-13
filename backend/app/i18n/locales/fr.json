@@ -3,7 +3,9 @@
     "auth": {
       "local_login_disabled": "La connexion locale n'est pas activée",
       "invalid_credentials": "Identifiants invalides",
-      "unauthorized": "Non autorisé"
+      "unauthorized": "Non autorisé",
+      "rate_limited": "Trop de tentatives de connexion ; réessayez dans {retry_after}s.",
+      "mcp_not_allowed": "Les jetons d'agent MCP ne peuvent pas accéder à ce point de terminaison"
     },
     "session": {
       "admin_required": "Accès administrateur requis",

@@ -66,6 +66,9 @@ async def init_db(database_url: str) -> None:
     _engine = create_async_engine(database_url, future=True, echo=False)
     _sessionmaker = async_sessionmaker(_engine, expire_on_commit=False)
     async with _engine.begin() as conn:
+        if database_url.startswith("sqlite"):
+            await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+            await conn.exec_driver_sql("PRAGMA busy_timeout=5000")
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_table(conn, "telemetry", _TELEMETRY_MIGRATIONS)
         await _migrate_table(conn, "decisions", _DECISION_MIGRATIONS)

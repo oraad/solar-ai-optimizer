@@ -62,9 +62,12 @@ LOCAL_ADMIN_USERNAME=admin
 LOCAL_ADMIN_PASSWORD_HASH=...
 SESSION_SECRET=...
 TRUST_INGRESS_HEADERS=true
+TRUSTED_PROXY_IPS=127.0.0.1
 ```
 
 Do not publish port `8000` publicly when using ingress-only access.
+
+`TRUSTED_PROXY_IPS` (comma-separated IPs/CIDRs) is **required** whenever `TRUST_INGRESS_HEADERS=true` outside the HA add-on: with no allowlist configured, ingress identity headers (`X-Remote-User-*`) are rejected (fail closed) rather than trusted from any source, since trusting them unconditionally would let any caller on the network spoof another user's identity. The HA Supervisor add-on network is always trusted regardless of this setting.
 
 When ingress is trusted — native add-on (`SUPERVISOR_TOKEN`) or `TRUST_INGRESS_HEADERS=true` — the backend sets `X-Frame-Options: SAMEORIGIN` so the HA sidebar iframe can embed the panel, and trusts proxied user identity headers. Standalone direct access (neither flag) keeps `DENY` and does not trust ingress headers.
 

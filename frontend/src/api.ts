@@ -153,22 +153,59 @@ export const api = {
     }>("/api/config/load-shedding"),
   historyTelemetry: (hours = 24) =>
     getJSON<Telemetry[]>(`/api/history/telemetry?hours=${hours}`),
-  historyDecisions: (limit = 100, cycleId?: string) =>
-    getJSON<import("./types.js").DecisionHistoryRow[]>(
+  historyDecisions: async (limit = 100, cycleId?: string) => {
+    const body = await getJSON<
+      | import("./types.js").DecisionHistoryRow[]
+      | { items: import("./types.js").DecisionHistoryRow[]; next_cursor?: string | null }
+    >(
       `/api/history/decisions?limit=${limit}${cycleId ? `&cycle_id=${encodeURIComponent(cycleId)}` : ""}`,
-    ),
+    );
+    return Array.isArray(body) ? body : body.items ?? [];
+  },
   historyGridEvents: (days = 7) =>
     getJSON<import("./types.js").GridEventRow[]>(
       `/api/history/grid-events?days=${days}`,
     ),
-  historyExecutions: (limit = 100, cycleId?: string) =>
-    getJSON<import("./types.js").ExecutionHistoryRow[]>(
-      `/api/history/executions?limit=${limit}${cycleId ? `&cycle_id=${encodeURIComponent(cycleId)}` : ""}`,
-    ),
-  historyShedExecutions: (limit = 100, cycleId?: string) =>
-    getJSON<import("./types.js").ShedExecutionRow[]>(
-      `/api/history/shed-executions?limit=${limit}${cycleId ? `&cycle_id=${encodeURIComponent(cycleId)}` : ""}`,
-    ),
+  historyExecutions: async (
+    limit = 100,
+    cycleId?: string,
+    cursor?: string | null,
+  ): Promise<{ items: import("./types.js").ExecutionHistoryRow[]; next_cursor: string | null }> => {
+    const qs = [
+      `limit=${limit}`,
+      cycleId ? `cycle_id=${encodeURIComponent(cycleId)}` : "",
+      cursor ? `cursor=${encodeURIComponent(cursor)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+    const body = await getJSON<
+      | import("./types.js").ExecutionHistoryRow[]
+      | { items: import("./types.js").ExecutionHistoryRow[]; next_cursor?: string | null }
+    >(`/api/history/executions?${qs}`);
+    return Array.isArray(body)
+      ? { items: body, next_cursor: null }
+      : { items: body.items ?? [], next_cursor: body.next_cursor ?? null };
+  },
+  historyShedExecutions: async (
+    limit = 100,
+    cycleId?: string,
+    cursor?: string | null,
+  ): Promise<{ items: import("./types.js").ShedExecutionRow[]; next_cursor: string | null }> => {
+    const qs = [
+      `limit=${limit}`,
+      cycleId ? `cycle_id=${encodeURIComponent(cycleId)}` : "",
+      cursor ? `cursor=${encodeURIComponent(cursor)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+    const body = await getJSON<
+      | import("./types.js").ShedExecutionRow[]
+      | { items: import("./types.js").ShedExecutionRow[]; next_cursor?: string | null }
+    >(`/api/history/shed-executions?${qs}`);
+    return Array.isArray(body)
+      ? { items: body, next_cursor: null }
+      : { items: body.items ?? [], next_cursor: body.next_cursor ?? null };
+  },
   debugTrace: (sections?: string) =>
     getJSON<Record<string, unknown>>(
       `/api/debug/trace${sections ? `?sections=${encodeURIComponent(sections)}` : ""}`,
@@ -351,14 +388,39 @@ export interface HealthInfo {
   metrics?: Record<string, unknown>;
 }
 
+export type LiveSocketState = "connected" | "connecting" | "disconnected";
+
 export type StatusListener = (status: SystemStatus) => void;
+export type LiveStateListener = (state: LiveSocketState) => void;
 
 export class LiveSocket {
   private ws: WebSocket | null = null;
   private listeners = new Set<StatusListener>();
+  private stateListeners = new Set<LiveStateListener>();
   private reconnectTimer: number | null = null;
   private reconnectAttempt = 0;
   private enabled = false;
+  private _state: LiveSocketState = "disconnected";
+  // Bumped on every disconnect() and every open() attempt so an in-flight
+  // ticket fetch or a superseded socket's late events can detect they no
+  // longer belong to the current connection and no-op instead of racing it.
+  private generation = 0;
+
+  get state(): LiveSocketState {
+    return this._state;
+  }
+
+  private setState(state: LiveSocketState): void {
+    if (this._state === state) return;
+    this._state = state;
+    this.stateListeners.forEach((l) => l(state));
+  }
+
+  onState(listener: LiveStateListener): () => void {
+    this.stateListeners.add(listener);
+    listener(this._state);
+    return () => this.stateListeners.delete(listener);
+  }
 
   connect(): void {
     this.enabled = true;
@@ -367,29 +429,72 @@ export class LiveSocket {
 
   disconnect(): void {
     this.enabled = false;
+    this.generation++;
     if (this.reconnectTimer != null) {
       window.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    this.ws?.close();
-    this.ws = null;
+    this.closeSocket();
+    this.setState("disconnected");
   }
 
-  private open(): void {
+  private closeSocket(): void {
+    if (!this.ws) return;
+    const ws = this.ws;
+    this.ws = null;
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.close();
+  }
+
+  private async fetchTicket(): Promise<string | null> {
+    try {
+      const res = await fetch(
+        `${getBase()}/api/auth/ws-ticket`,
+        fetchInit({ method: "POST" }),
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as { ticket?: string };
+      return data.ticket ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async open(): Promise<void> {
     if (!this.enabled) return;
+    this.generation++;
+    const gen = this.generation;
+    this.setState("connecting");
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    const token = getApiToken();
     const locale = getLocale();
     const params = new URLSearchParams();
-    if (token) params.set("token", token);
     params.set("locale", locale);
+    const ticket = await this.fetchTicket();
+    // enabled/generation may have changed while awaiting the ticket fetch
+    // (e.g. disconnect(), a locale reconnect, or a second open() call) — if
+    // so, this attempt is stale and must not open a socket.
+    if (!this.enabled || gen !== this.generation) return;
+    if (ticket) {
+      params.set("ticket", ticket);
+    } else {
+      // Fallback for token-only clients that cannot mint a ticket via cookie.
+      const token = getApiToken();
+      if (token) params.set("token", token);
+    }
     const qs = `?${params.toString()}`;
     const url = `${proto}://${location.host}${getBase()}/ws${qs}`;
+    this.closeSocket();
     this.ws = new WebSocket(url);
     this.ws.onopen = () => {
+      if (gen !== this.generation) return;
       this.reconnectAttempt = 0;
+      this.setState("connected");
     };
     this.ws.onmessage = (ev) => {
+      if (gen !== this.generation) return;
       try {
         const data = JSON.parse(ev.data);
         if (data?.type === "ping") return;
@@ -398,13 +503,18 @@ export class LiveSocket {
         /* ignore malformed frame */
       }
     };
-    this.ws.onclose = () => this.scheduleReconnect();
+    this.ws.onclose = () => {
+      if (gen !== this.generation) return;
+      this.setState("disconnected");
+      this.scheduleReconnect();
+    };
     this.ws.onerror = () => this.ws?.close();
   }
 
   private scheduleReconnect(): void {
     if (!this.enabled) return;
     if (this.reconnectTimer != null) return;
+    this.setState("connecting");
     const base = 1000;
     const max = 30_000;
     const exp = Math.min(max, base * 2 ** this.reconnectAttempt);
@@ -413,7 +523,7 @@ export class LiveSocket {
     this.reconnectAttempt += 1;
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null;
-      this.open();
+      void this.open();
     }, delay);
   }
 

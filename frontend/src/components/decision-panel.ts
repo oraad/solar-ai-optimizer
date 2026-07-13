@@ -124,6 +124,25 @@ export class DecisionPanel extends LitElement {
         padding: 0; font-size: 0.82rem; font-weight: 600; cursor: pointer;
       }
       .link-row button.link-btn:hover { text-decoration: underline; }
+      .why-more {
+        background: none; border: none; color: var(--muted); font-size: 0.82rem;
+        padding: 0; cursor: pointer; font-weight: 600; margin-bottom: 10px;
+      }
+      .why-more:hover { color: var(--accent); }
+      .skeleton {
+        border-radius: var(--radius-sm);
+        background: linear-gradient(90deg, var(--panel-2) 25%, var(--panel) 50%, var(--panel-2) 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+      }
+      @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+      .skeleton-line { height: 0.85em; border-radius: 4px; margin: 6px 0; }
+      .skeleton-line.w-full { width: 100%; }
+      .skeleton-line.w-3\/4 { width: 75%; }
+      .skeleton-line.w-1\/2 { width: 50%; }
+      @media (prefers-reduced-motion: reduce) {
+        .skeleton { animation: none; background: var(--panel-2); }
+      }
       .forensics {
         margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
         padding: 10px 12px; background: var(--panel-2); font-size: 0.78rem;
@@ -139,10 +158,16 @@ export class DecisionPanel extends LitElement {
   @property({ attribute: false }) planCycleId: string | null = null;
   @property({ type: Boolean }) planLoading = false;
   @property({ type: String }) role: "admin" | "viewer" = "admin";
+  /** Set when the user deep-linked to a specific historical decision (#overview/decision/{id}).
+   * Takes precedence over `decision` while set, so the pinned cycle stays visible. */
+  @property({ attribute: false }) deepLinkDecision: Decision | null = null;
+  /** True when a deep-linked decision id could not be found in history. */
+  @property({ type: Boolean }) deepLinkNotFound = false;
 
   @state() private forensicsOpen = false;
   @state() private forensicsText = "";
   @state() private forensicsLoading = false;
+  @state() private whyExpanded = false;
 
   private riskStatClass(score: number): string {
     const cls = riskPillClassFromScore(score);
@@ -208,13 +233,13 @@ export class DecisionPanel extends LitElement {
       ...preferred.map((id) => steps.find((s) => s.id === id)).filter(Boolean),
       ...steps.filter((s) => !preferred.includes(s.id)),
     ] as ExplanationStep[];
-    const bullets = ordered.slice(0, 3).map((s) => this.stepText(s));
+    const bullets = ordered.map((s) => this.stepText(s));
     if (bullets.length) return bullets;
     const fallback: string[] = [];
     if (d.reserve.rationale) fallback.push(d.reserve.rationale);
     if (d.grid_charge?.rationale) fallback.push(d.grid_charge.rationale);
     if (!fallback.length) fallback.push(t("ui.decision.whyWaiting"));
-    return fallback.slice(0, 3);
+    return fallback;
   }
 
   private modifierPills(d: Decision) {
@@ -420,9 +445,25 @@ export class DecisionPanel extends LitElement {
     `;
   }
 
+  private renderSkeleton() {
+    return html`
+      <div class="card">
+        <h3>${t("ui.decision.title")}</h3>
+        <div class="skeleton skeleton-line w-3/4" style="height:1.1em;margin-bottom:14px"></div>
+        <div class="skeleton skeleton-line w-full"></div>
+        <div class="skeleton skeleton-line w-3/4"></div>
+        <div class="skeleton skeleton-line w-1/2"></div>
+      </div>
+    `;
+  }
+
   render() {
-    const d = this.decision;
+    const d = this.deepLinkDecision ?? this.decision;
     if (!d) {
+      if (this.deepLinkNotFound) {
+        return html`<div class="card"><h3>${t("ui.decision.title")}</h3><div class="banner warn">${t("ui.decision.deepLinkNotFound")}</div></div>`;
+      }
+      if (this.planLoading) return this.renderSkeleton();
       return html`<div class="card"><h3>${t("ui.decision.title")}</h3><p class="label">${t("ui.decision.waiting")}</p></div>`;
     }
     const engineOn = this.status?.engine_enabled !== false;
@@ -436,6 +477,9 @@ export class DecisionPanel extends LitElement {
     return html`
       <div class="card">
         <h3>${t("ui.decision.title")}</h3>
+        ${this.deepLinkDecision
+          ? html`<div class="banner">${t("ui.decision.deepLinkViewing")}</div>`
+          : nothing}
         ${d.shadow_mode
           ? html`<div class="banner warn">${t("ui.decision.shadowMode")}</div>`
           : nothing}
@@ -443,8 +487,17 @@ export class DecisionPanel extends LitElement {
 
         <div class="subhead">${t("ui.decision.why")}</div>
         <ul class="why-list">
-          ${why.map((b) => html`<li>${b}</li>`)}
+          ${(this.whyExpanded ? why : why.slice(0, 3)).map((b) => html`<li>${b}</li>`)}
         </ul>
+        ${why.length > 3
+          ? html`<button
+              type="button"
+              class="why-more"
+              @click=${() => { this.whyExpanded = !this.whyExpanded; }}
+            >${this.whyExpanded
+              ? t("ui.decision.showLess")
+              : t("ui.decision.showMore", { n: String(why.length - 3) })}</button>`
+          : null}
 
         ${mods.length
           ? html`<div class="mods">${mods.map((m) => html`<span class="pill ${m.cls}">${m.label}</span>`)}</div>`
@@ -482,7 +535,7 @@ export class DecisionPanel extends LitElement {
           : null}
 
         <details class="details">
-          <summary>${t("ui.decision.details")}</summary>
+          <summary>${t("ui.decision.detailsRationale")}</summary>
           ${showAutonomy
             ? html`<div class="label" style="margin-top:8px">${labelWithTip(t("ui.decision.autonomyFloor"), statusHelp("reserve"))}: ${d.reserve.autonomy_floor_soc.toFixed(0)}%</div>`
             : null}

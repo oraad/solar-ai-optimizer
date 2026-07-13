@@ -29,8 +29,10 @@ def _write_fixture(
     manifest: str,
     *,
     package: str | None = None,
+    changelog: str = "# Changelog\n",
 ) -> None:
     (root / "VERSION").write_text(f"{version}\n", encoding="utf-8", newline="\n")
+    (root / "CHANGELOG.md").write_text(changelog, encoding="utf-8", newline="\n")
     addon_dir = root / "solar_ai_optimizer"
     addon_dir.mkdir(parents=True, exist_ok=True)
     config = f'name: "Test"\nversion: "{manifest}"\nslug: test\n'
@@ -92,6 +94,76 @@ def test_sync_bumps_manifest_on_stable(tmp_path: Path):
     )
     assert result.returncode == 0, result.stderr or result.stdout
     assert sv.read_config_yaml_version(tmp_path / "solar_ai_optimizer" / "config.yaml") == "0.6.10"
+
+
+def test_sync_copies_addon_changelog(tmp_path: Path):
+    body = "# Changelog\n\n## [0.6.10] - 2026-01-01\n\n- App note\n"
+    _write_fixture(tmp_path, "0.6.10", "0.6.9", changelog=body)
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    addon_changelog = tmp_path / "solar_ai_optimizer" / "CHANGELOG.md"
+    assert addon_changelog.is_file()
+    assert addon_changelog.read_text(encoding="utf-8") == body
+
+
+def test_sync_updates_drifted_addon_changelog(tmp_path: Path):
+    body = "# Changelog\n\n## [0.6.10]\n"
+    _write_fixture(tmp_path, "0.6.10", "0.6.10", changelog=body)
+    addon_changelog = tmp_path / "solar_ai_optimizer" / "CHANGELOG.md"
+    addon_changelog.write_text("# stale\n", encoding="utf-8", newline="\n")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert addon_changelog.read_text(encoding="utf-8") == body
+
+
+def test_check_fails_when_addon_changelog_missing(tmp_path: Path):
+    _write_fixture(tmp_path, "0.6.10", "0.6.10")
+    assert not (tmp_path / "solar_ai_optimizer" / "CHANGELOG.md").is_file()
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--check", "--root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "Missing HA app store changelog" in (result.stderr or "")
+
+
+def test_check_fails_when_addon_changelog_drifted(tmp_path: Path):
+    _write_fixture(tmp_path, "0.6.10", "0.6.10")
+    addon_changelog = tmp_path / "solar_ai_optimizer" / "CHANGELOG.md"
+    addon_changelog.write_text("# drifted\n", encoding="utf-8", newline="\n")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--check", "--root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "changelog drift" in (result.stderr or "")
+
+
+def test_check_passes_when_addon_changelog_matches(tmp_path: Path):
+    body = "# Changelog\n"
+    _write_fixture(tmp_path, "0.6.10", "0.6.10", changelog=body)
+    (tmp_path / "solar_ai_optimizer" / "CHANGELOG.md").write_text(body, encoding="utf-8", newline="\n")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--check", "--root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
 
 
 def test_check_passes_for_repo_state():

@@ -43,6 +43,33 @@ def client(monkeypatch):
         "app.api.routes.repo.get_recent_shed_executions",
         AsyncMock(return_value=[{"tier": 1, "entity": "switch.pool", "applied": True}]),
     )
+    monkeypatch.setattr(
+        "app.api.routes.repo.get_recent_decisions",
+        AsyncMock(
+            return_value=[
+                {
+                    "ts": "2026-07-08T05:27:00",
+                    "cycle_id": "abc123",
+                    "target_soc": 80.0,
+                    "blackout_risk": "low",
+                    "blackout_risk_score": 0.1,
+                    "shadow_mode": True,
+                    "summary": "test",
+                    "reserve_rationale": "",
+                    "actions": [],
+                    "shed_actions": [],
+                    "grid_charge": None,
+                    "explanation": None,
+                    "engine_active": "rules",
+                    "slim": False,
+                }
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.repo.get_decisions_by_cycle_id",
+        AsyncMock(return_value=[]),
+    )
     app = FastAPI()
     app.state.orchestrator = orch
     app.state.admin_resolver = AsyncMock()
@@ -59,9 +86,11 @@ def test_history_executions(client):
     )
     assert res.status_code == 200
     body = res.json()
-    assert isinstance(body, list)
-    assert body[0]["capability"] == "target_soc"
-    assert body[0]["ts"] == "2026-07-08T08:27:00+03:00"
+    assert "items" in body
+    assert "next_cursor" in body
+    assert body["items"][0]["capability"] == "target_soc"
+    assert body["items"][0]["ts"] == "2026-07-08T08:27:00+03:00"
+    assert body["next_cursor"] is None
 
 
 def test_history_shed_executions(client):
@@ -71,5 +100,32 @@ def test_history_shed_executions(client):
     )
     assert res.status_code == 200
     body = res.json()
-    assert isinstance(body, list)
-    assert body[0]["tier"] == 1
+    assert "items" in body
+    assert "next_cursor" in body
+    assert body["items"][0]["tier"] == 1
+    assert body["next_cursor"] is None
+
+
+def test_history_decisions(client):
+    res = client.get(
+        "/api/history/decisions?limit=10",
+        headers={"Authorization": "Bearer history-token"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert "items" in body
+    assert "next_cursor" in body
+    assert body["items"][0]["cycle_id"] == "abc123"
+    assert body["items"][0]["ts"] == "2026-07-08T08:27:00+03:00"
+    assert body["next_cursor"] is None
+
+
+def test_history_decisions_with_cycle_id(client):
+    res = client.get(
+        "/api/history/decisions?limit=10&cycle_id=abc123",
+        headers={"Authorization": "Bearer history-token"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["items"] == []
+    assert body["next_cursor"] is None

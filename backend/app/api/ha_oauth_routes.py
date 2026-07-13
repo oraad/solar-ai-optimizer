@@ -63,6 +63,7 @@ async def oauth_start(
             ha_base_url=ha_url,
             public_base_url=body.public_base_url,
             verify_ssl=verify,
+            allow_private=settings.ha_allow_private_url,
         )
     except ValueError as exc:
         raise api_error("api.ha_oauth.invalid_url", 400) from exc
@@ -87,6 +88,7 @@ async def oauth_callback(
             code=code,
             state=state,
             verify_ssl=settings.ha_verify_ssl,
+            allow_private=settings.ha_allow_private_url,
         )
         await _reload_ha_after_credential_change(request)
         html = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>Solar AI</title></head>

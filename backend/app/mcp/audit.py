@@ -7,7 +7,7 @@ import time
 from contextlib import contextmanager
 from typing import Any, Iterator
 
-from ..logging_setup import request_id_var
+from ..logging_setup import mcp_actor_var, request_id_var
 
 log = logging.getLogger("mcp.audit")
 
@@ -24,16 +24,18 @@ def audit_tool_call(
     started = time.perf_counter()
     result: dict[str, Any] = {"error": False}
     rid = request_id_var.get()
+    actor = mcp_actor_var.get()
     try:
         yield result
     finally:
         duration_ms = int((time.perf_counter() - started) * 1000)
         log.info(
-            "mcp_tool tool=%s transport=%s auth=%s duration_ms=%s request_id=%s "
-            "arg_keys=%s error=%s",
+            "mcp_tool tool=%s transport=%s auth=%s actor=%s duration_ms=%s "
+            "request_id=%s arg_keys=%s error=%s",
             tool,
             transport,
             auth_mode,
+            actor,
             duration_ms,
             rid,
             args_keys or [],

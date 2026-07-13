@@ -270,6 +270,39 @@ async def test_finish_authorize_uses_pending_verify_ssl(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_finish_authorize_revalidates_ssrf_on_pending_url(tmp_path: Path):
+    """The pending ha_base_url is re-checked at /callback time, not just at
+    /start — a blocked address (even if it somehow ended up on disk) must
+    not reach the token exchange."""
+    from datetime import UTC, datetime, timedelta
+
+    state = "revalidate-state"
+    ha_oauth._atomic_write(
+        ha_oauth.pending_path(tmp_path),
+        {
+            "state": state,
+            "code_verifier": "verifier",
+            "ha_base_url": "http://169.254.169.254:8123",
+            "public_base_url": "http://solar.local:8000",
+            "redirect_uri": "http://solar.local:8000/api/ha/oauth/callback",
+            "verify_ssl": True,
+            "expires_at": (datetime.now(UTC) + timedelta(minutes=5)).isoformat().replace("+00:00", "Z"),
+        },
+    )
+
+    with patch("app.ha.oauth.httpx.AsyncClient") as client_cls:
+        with pytest.raises(ha_oauth.OAuthError) as excinfo:
+            await ha_oauth.finish_authorize(
+                tmp_path, code="abc", state=state, allow_private=True
+            )
+        # Blocked before any HTTP call was attempted.
+        client_cls.assert_not_called()
+
+    assert excinfo.value.code == "ha_url_blocked"
+    assert not ha_oauth.pending_path(tmp_path).is_file()
+
+
+@pytest.mark.asyncio
 async def test_retry_ha_connection_reloads_credentials(tmp_path: Path):
     """Retry must rebuild HAClient from disk, not reuse a stale in-memory token."""
     ha_oauth._atomic_write(
@@ -395,6 +428,7 @@ async def test_oauth_disconnect_reloads_ha_credentials(tmp_path: Path, monkeypat
     monkeypatch.delenv("API_TOKEN", raising=False)
     monkeypatch.delenv("LOCAL_ADMIN_PASSWORD", raising=False)
     monkeypatch.delenv("LOCAL_ADMIN_PASSWORD_HASH", raising=False)
+    monkeypatch.setenv("ALLOW_OPEN_ACCESS", "true")
     get_settings.cache_clear()
 
     ha_oauth._atomic_write(

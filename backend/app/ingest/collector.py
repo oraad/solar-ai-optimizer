@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 from collections.abc import Awaitable, Callable
 
 from ..adapters.ha_entity import HAEntityAdapter
@@ -146,18 +147,27 @@ class Collector:
                     self._latest_temp = temp
 
     async def run_stream_safe(self) -> None:
-        """Keep the state stream alive; restart after unexpected exits."""
-        backoff = 5.0
+        """Keep the state stream alive; restart after unexpected exits.
+
+        Uses exponential backoff with jitter (capped at 60s) so a persistently
+        unreachable Home Assistant instance doesn't spin-loop the CPU/log, and
+        so many restarting instances don't thunder back in lockstep.
+        """
+        backoff = 1.0
+        max_backoff = 60.0
         while True:
             try:
                 await self.run_stream()
+                backoff = 1.0
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001
                 from ..observability.metrics import metrics
 
                 metrics.ha_ws_restarts += 1
+                sleep_for = backoff * (0.5 + random.random() * 0.5)
                 log.exception(
-                    "State stream crashed: %s; restarting in %ss", e, backoff
+                    "State stream crashed: %s; restarting in %.1fs", e, sleep_for
                 )
-                await asyncio.sleep(backoff)
+                await asyncio.sleep(sleep_for)
+                backoff = min(backoff * 2, max_backoff)

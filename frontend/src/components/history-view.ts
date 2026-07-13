@@ -139,6 +139,8 @@ export class HistoryView extends LitElement {
         gap: 6px 12px;
       }
       .recent-strip .ev { white-space: nowrap; }
+      .load-more-row { display: flex; justify-content: center; margin-top: 10px; }
+      .load-more-row button:disabled { opacity: 0.5; cursor: not-allowed; }
     `,
   ];
 
@@ -151,6 +153,10 @@ export class HistoryView extends LitElement {
   @state() private gridEvents: GridEventRow[] = [];
   @state() private executions: ExecutionHistoryRow[] = [];
   @state() private shedExecs: ShedExecutionRow[] = [];
+  @state() private executionsCursor: string | null = null;
+  @state() private shedExecsCursor: string | null = null;
+  @state() private executionsLoadingMore = false;
+  @state() private shedExecsLoadingMore = false;
   @state() private loadError = "";
   @state() private expandedDecisionTs = "";
   @state() private expandedActivityKey = "";
@@ -278,14 +284,46 @@ export class HistoryView extends LitElement {
   }
 
   private async loadExecutions(): Promise<void> {
-    const rows = await api.historyExecutions(100, this.cycleFilter ?? undefined);
+    const page = await api.historyExecutions(100, this.cycleFilter ?? undefined);
     // When filtering by cycle, keep every row (no consecutive dedupe).
-    this.executions = this.cycleFilter ? rows : dedupeConsecutiveExecutions(rows);
+    this.executions = this.cycleFilter ? page.items : dedupeConsecutiveExecutions(page.items);
+    this.executionsCursor = page.next_cursor;
+  }
+
+  private async loadMoreExecutions(): Promise<void> {
+    if (!this.executionsCursor || this.executionsLoadingMore) return;
+    this.executionsLoadingMore = true;
+    try {
+      const page = await api.historyExecutions(100, this.cycleFilter ?? undefined, this.executionsCursor);
+      const merged = [...this.executions, ...page.items];
+      this.executions = this.cycleFilter ? merged : dedupeConsecutiveExecutions(merged);
+      this.executionsCursor = page.next_cursor;
+    } catch (e) {
+      this.loadError = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.executionsLoadingMore = false;
+    }
   }
 
   private async loadShedExecutions(): Promise<void> {
-    const rows = await api.historyShedExecutions(100, this.cycleFilter ?? undefined);
-    this.shedExecs = this.cycleFilter ? rows : dedupeConsecutiveShedExecutions(rows);
+    const page = await api.historyShedExecutions(100, this.cycleFilter ?? undefined);
+    this.shedExecs = this.cycleFilter ? page.items : dedupeConsecutiveShedExecutions(page.items);
+    this.shedExecsCursor = page.next_cursor;
+  }
+
+  private async loadMoreShedExecutions(): Promise<void> {
+    if (!this.shedExecsCursor || this.shedExecsLoadingMore) return;
+    this.shedExecsLoadingMore = true;
+    try {
+      const page = await api.historyShedExecutions(100, this.cycleFilter ?? undefined, this.shedExecsCursor);
+      const merged = [...this.shedExecs, ...page.items];
+      this.shedExecs = this.cycleFilter ? merged : dedupeConsecutiveShedExecutions(merged);
+      this.shedExecsCursor = page.next_cursor;
+    } catch (e) {
+      this.loadError = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.shedExecsLoadingMore = false;
+    }
   }
 
   private onHours(e: Event): void {
@@ -609,6 +647,13 @@ export class HistoryView extends LitElement {
           </tbody>
         </table>
       </div>
+      ${this.executionsCursor
+        ? html`<div class="load-more-row">
+            <button type="button" class="link-btn" ?disabled=${this.executionsLoadingMore} @click=${() => this.loadMoreExecutions()}>
+              ${this.executionsLoadingMore ? t("common.loading") : t("ui.history.loadMore")}
+            </button>
+          </div>`
+        : null}
     `;
   }
 
@@ -675,6 +720,13 @@ export class HistoryView extends LitElement {
           </tbody>
         </table>
       </div>
+      ${this.shedExecsCursor
+        ? html`<div class="load-more-row">
+            <button type="button" class="link-btn" ?disabled=${this.shedExecsLoadingMore} @click=${() => this.loadMoreShedExecutions()}>
+              ${this.shedExecsLoadingMore ? t("common.loading") : t("ui.history.loadMore")}
+            </button>
+          </div>`
+        : null}
     `;
   }
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -37,7 +38,8 @@ async def pair_start(
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
     try:
-        return start_pairing(
+        return await asyncio.to_thread(
+            start_pairing,
             settings.data_dir,
             created_by=_admin.user_id or _admin.username,
         )
@@ -52,11 +54,12 @@ async def pair_status(
     _admin: SessionUser = Depends(require_admin),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
-    return {
-        "pending": pending_status(settings.data_dir),
-        "clients": list_clients(settings.data_dir),
-        "install_id": get_or_create_install_id(settings.data_dir),
-    }
+    pending, clients, install_id = await asyncio.gather(
+        asyncio.to_thread(pending_status, settings.data_dir),
+        asyncio.to_thread(list_clients, settings.data_dir),
+        asyncio.to_thread(get_or_create_install_id, settings.data_dir),
+    )
+    return {"pending": pending, "clients": clients, "install_id": install_id}
 
 
 @router.post("/cancel")
@@ -64,7 +67,7 @@ async def pair_cancel(
     _admin: SessionUser = Depends(require_admin),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
-    cancel_pairing(settings.data_dir)
+    await asyncio.to_thread(cancel_pairing, settings.data_dir)
     return {"ok": True}
 
 
@@ -76,7 +79,8 @@ async def pair_redeem(
 ) -> dict[str, Any]:
     client_ip = request.client.host if request.client else ""
     try:
-        minted = redeem_pairing(
+        minted = await asyncio.to_thread(
+            redeem_pairing,
             settings.data_dir,
             code=body.code,
             client_name=body.client_name,
@@ -88,7 +92,9 @@ async def pair_redeem(
         if exc.status == 409:
             raise api_error("api.pair.conflict", 409) from exc
         raise api_error("api.pair.invalid_or_expired", 400) from exc
-    minted["install_id"] = get_or_create_install_id(settings.data_dir)
+    minted["install_id"] = await asyncio.to_thread(
+        get_or_create_install_id, settings.data_dir
+    )
     from .. import __version__
 
     minted["solar_version"] = __version__
@@ -101,5 +107,6 @@ async def pair_revoke(
     _admin: SessionUser = Depends(require_admin),
     settings: Settings = Depends(get_settings),
 ) -> None:
-    if not revoke_client(settings.data_dir, client_id):
+    revoked = await asyncio.to_thread(revoke_client, settings.data_dir, client_id)
+    if not revoked:
         raise api_error("api.pair.client_not_found", 404)

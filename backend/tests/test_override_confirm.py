@@ -53,6 +53,7 @@ def test_kill_switch_with_confirm_accepted(client):
 def viewer_client(monkeypatch):
     clear_auth_env(monkeypatch)
     monkeypatch.setenv("TRUST_INGRESS_HEADERS", "true")
+    monkeypatch.setenv("TRUSTED_PROXY_IPS", "127.0.0.1")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("HA_TOKEN", "")
     monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
@@ -87,7 +88,7 @@ def viewer_client(monkeypatch):
     app.add_middleware(AuthGateMiddleware)
     app.add_middleware(UserContextMiddleware)
     app.include_router(router)
-    return TestClient(app), orch
+    return TestClient(app, client=("127.0.0.1", 12345)), orch
 
 
 def test_viewer_kill_switch_with_confirm(viewer_client):

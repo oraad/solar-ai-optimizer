@@ -3,7 +3,9 @@
     "auth": {
       "local_login_disabled": "تسجيل الدخول المحلي غير مفعّل",
       "invalid_credentials": "بيانات اعتماد غير صالحة",
-      "unauthorized": "غير مصرّح"
+      "unauthorized": "غير مصرّح",
+      "rate_limited": "محاولات تسجيل دخول كثيرة جدًا؛ حاول مرة أخرى بعد {retry_after} ثانية.",
+      "mcp_not_allowed": "لا يمكن لرموز عامل MCP الوصول إلى هذه النقطة"
     },
     "session": {
       "admin_required": "يتطلب صلاحيات المسؤول",

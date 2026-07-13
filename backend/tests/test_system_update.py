@@ -101,6 +101,7 @@ def update_client(monkeypatch, tmp_path):
     )
     wire_orchestrator_site_tz(orch)
     monkeypatch.setenv("TRUST_INGRESS_HEADERS", "true")
+    monkeypatch.setenv("TRUSTED_PROXY_IPS", "127.0.0.1")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("HA_TOKEN", "")
     monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
@@ -119,7 +120,7 @@ def update_client(monkeypatch, tmp_path):
     app.add_middleware(AuthGateMiddleware)
     app.add_middleware(UserContextMiddleware)
     app.include_router(system_update_router)
-    return TestClient(app)
+    return TestClient(app, client=("127.0.0.1", 12345))
 
 
 STABLE_SAMPLE_RELEASES = [r for r in SAMPLE_RELEASES if not r.get("prerelease")]

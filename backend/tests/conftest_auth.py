@@ -30,6 +30,9 @@ def clear_auth_env(monkeypatch) -> None:
     monkeypatch.delenv("LOCAL_ADMIN_PASSWORD", raising=False)
     monkeypatch.delenv("LOCAL_ADMIN_PASSWORD_HASH", raising=False)
     monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    # ALLOW_OPEN_ACCESS now defaults to False (Phase 0/5 hardening); this
+    # helper's whole purpose is to exercise "open-auth dev mode", so opt in.
+    monkeypatch.setenv("ALLOW_OPEN_ACCESS", "true")
     from app.config import get_settings
 
     get_settings.cache_clear()

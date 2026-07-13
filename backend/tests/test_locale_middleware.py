@@ -47,6 +47,7 @@ def client(monkeypatch):
     monkeypatch.delenv("API_TOKEN", raising=False)
     monkeypatch.delenv("LOCAL_ADMIN_PASSWORD", raising=False)
     monkeypatch.delenv("LOCAL_ADMIN_PASSWORD_HASH", raising=False)
+    monkeypatch.setenv("ALLOW_OPEN_ACCESS", "true")
     from app.config import get_settings
 
     get_settings.cache_clear()

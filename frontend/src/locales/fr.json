@@ -303,6 +303,7 @@
       "temperature": "Optional heating/cooling load model from outdoor temperature.",
       "mcp": "Plan de contrôle MCP optionnel pour agents IA — état et guide (configuré via l'environnement, pas ce fichier)."
     },
+    "tipLabel": "Plus d'informations",
     "sectionFallback": "Settings for {section}."
   },
   "update": {
@@ -364,6 +365,11 @@
     "auto": "auto"
   },
   "ui": {
+    "confirm": {
+      "cancel": "Annuler",
+      "confirm": "Confirmer",
+      "typeToConfirm": "Tapez « {text} » pour confirmer :"
+    },
     "app": {
       "brandSubtitle": "Resilience-first energy control",
       "versionAvailable": " · v{version} available",
@@ -397,8 +403,8 @@
       "optOn": "OPT",
       "optOff": "OPT OFF",
       "optPaused": "OPT PAUSED",
-      "themeDark": "Switch to light theme",
-      "themeLight": "Switch to dark theme",
+      "themeDark": "Passer au thème clair",
+      "themeLight": "Passer au thème sombre",
       "alertCount": "{count} alert",
       "alertCountPlural": "{count} alerts",
       "updateInProgressTitle": "Software update in progress — open Settings",
@@ -408,7 +414,9 @@
       "forecastDegraded": "FORECAST DEGRADED",
       "solcastMisconfigured": "SOLCAST MISCONFIGURED",
       "staleData": "STALE DATA",
-      "engineMpcFallback": " (rules)"
+      "engineMpcFallback": " (rules)",
+      "liveReconnecting": "Reconnexion…",
+      "liveDisconnected": "Déconnecté"
     },
     "status": {
       "liveStatus": "Live status",
@@ -442,6 +450,8 @@
     "decision": {
       "title": "Décision et justification",
       "waiting": "En attente de la première décision…",
+      "deepLinkViewing": "Affichage d'une décision de l'historique — pas nécessairement la décision actuelle en direct.",
+      "deepLinkNotFound": "Cette décision est introuvable dans l'historique (elle a peut-être expiré).",
       "why": "Pourquoi",
       "whyWaiting": "En attente d'une explication structurée…",
       "verification": "Est-ce appliqué ?",
@@ -484,6 +494,9 @@
       "pending": "en attente",
       "shadowMode": "Mode ombre : les actions sont journalisées mais PAS écrites sur l'onduleur.",
       "details": "Détail technique",
+      "detailsRationale": "Raisonnement complet et détail technique",
+      "showMore": "Voir {n} de plus",
+      "showLess": "Voir moins",
       "viewShedHistory": "Voir l'historique de délestage",
       "configureShedding": "Configurer le délestage",
       "viewShedding": "Voir le délestage",
@@ -495,7 +508,8 @@
     "grid": {
       "title": "Grid (reactive — not predicted)",
       "currently": "Currently",
-      "statsUnavailable": "Stats unavailable",
+      "statsUnavailable": "Statistiques indisponibles",
+      "retryStats": "Réessayer",
       "uptime24h": "Uptime (24h)",
       "uptime7d": "Uptime (7d)",
       "avgWindow": "Avg window",
@@ -560,11 +574,12 @@
       "legendBattTemp": "Batt °C",
       "legendOutdoorTemp": "Outdoor °C",
       "legendGridOutage": "Grid outage",
-      "noTelemetry": "No telemetry yet.",
-      "noDecisions": "No decisions recorded yet.",
-      "noExecutions": "No inverter writes recorded yet.",
-      "noShed": "No shed switch writes recorded yet.",
-      "noGrid": "No grid transitions in this window.",
+      "noTelemetry": "Aucune télémétrie pour le moment.",
+      "noDecisions": "Aucune décision enregistrée pour le moment.",
+      "noExecutions": "Aucune écriture onduleur enregistrée pour le moment.",
+      "noShed": "Aucune écriture de délestage enregistrée pour le moment.",
+      "noGrid": "Aucune transition réseau dans cette fenêtre.",
+      "loadMore": "Charger plus",
       "colTime": "Time",
       "colTarget": "Target",
       "colRisk": "Risk",
@@ -623,7 +638,7 @@
       "refreshForecast": "Refresh forecast",
       "clearOverrides": "Clear overrides",
       "killSwitch": "Kill switch",
-      "killConfirm": "Engage KILL SWITCH? This enables grid charge at max current, pauses the engine, and restores shed tiers.",
+      "killConfirm": "Activer l'ARRÊT D'URGENCE ? Cela active la charge réseau au courant maximal, met le moteur en pause et restaure les paliers délestés.",
       "toastModeLoading": "Updating mode…",
       "toastModeSuccess": "Shadow mode toggled.",
       "toastEngineLoading": "Updating engine…",
@@ -701,6 +716,8 @@
       "validationTierName": "Tier {n}: name is required.",
       "validationTierEntities": "Tier \"{name}\": at least one shed entity is required.",
       "unsavedWarning": "You have unsaved load shedding changes.",
+      "unsavedTitle": "Modifications non sauvegardées",
+      "revertTitle": "Annuler les modifications",
       "wizardTitle": "Set up load shedding",
       "wizardStep1": "Enable load shedding above, then add your first tier.",
       "wizardPresets": "SOC presets",
@@ -791,7 +808,7 @@
       "haWsStatusCircuit": "Connection paused to avoid IP bans. Fix credentials or clear the ban, then Retry.",
       "haWsStatusTransient": "Home Assistant unreachable — retrying with backoff.",
       "haWsRetry": "Retry connection",
-      "haWsRetryOk": "Retry requested — Solar will reconnect shortly.",
+      "haWsRetryOk": "Nouvelle tentative demandée — Solar se reconnectera sous peu.",
       "haWsRetryFailed": "Retry request failed.",
       "haAuthMode": "Auth mode: {mode}",
       "pairTitle": "Home Assistant integration pairing",
@@ -872,6 +889,9 @@
       "recreateContainer": "Recréer le conteneur",
       "recreateConfirm": "Recréer le conteneur maintenant ? Cela relit l'environnement hôte (solar.env). Le volume de données est conservé.",
       "recreateHelp": "Utilisez Recréer après avoir modifié solar.env sur l'hôte.",
+      "installUpdateTitle": "Installer la mise à jour",
+      "restoreBackupTitle": "Restaurer la sauvegarde",
+      "restoreBackupConfirm": "Restaurer {name} ? Cela écrase /app/data et redémarre le service.",
       "recreating": "Recréation du conteneur…",
       "recreateComplete": "Conteneur recréé.",
       "recreateFailed": "Échec de la recréation.",

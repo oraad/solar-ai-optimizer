@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 from typing import Callable
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from ..config import Settings, get_settings
+from ..logging_setup import mcp_actor_var
 from ..observability.metrics import metrics
 
 
@@ -39,12 +41,16 @@ class McpBearerAuthMiddleware:
             await self._reject(send, 401, "Bearer token required")
             return
         provided = auth[7:].strip()
-        if provided != token:
+        if not hmac.compare_digest(provided, token):
             metrics.mcp_auth_failures_total += 1
             await self._reject(send, 403, "Invalid bearer token")
             return
 
-        await self.app(scope, receive, send)
+        actor_token = mcp_actor_var.set("mcp-bearer")
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            mcp_actor_var.reset(actor_token)
 
     async def _reject(self, send: Send, status: int, detail: str) -> None:
         body = json.dumps({"error": detail}).encode()

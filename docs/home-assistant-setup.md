@@ -93,7 +93,7 @@ See [Roles and access](ingress-auth.md) for admin vs viewer behavior.
 ### App updates
 
 - The HA **app store manifest** promotes **stable** releases only. Pre-release builds publish to GHCR but do not change the store version until a stable GA release.
-- Update via **Settings → Apps → Solar AI Optimizer → Update** when Supervisor shows an update.
+- Update via **Settings → Apps → Solar AI Optimizer → Update** when Supervisor shows an update. The update dialog shows release notes from the app store `CHANGELOG.md` (kept in sync with the repo root changelog).
 - The in-app **Software updates** section is hidden on HA App installs (updates are managed by Supervisor).
 - Optional **Pre-release updates** (app configuration): when enabled and the app is restarted, the optimizer checks for newer beta/RC builds and logs when one is available. Update manually via **Settings → Apps** when Supervisor offers a matching version. Users already on a beta build stay on it until a stable GA release or manual reinstall.
 

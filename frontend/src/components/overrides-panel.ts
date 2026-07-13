@@ -7,6 +7,7 @@ import { t } from "../i18n.js";
 import { labelWithTip } from "../label-tip.js";
 import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
+import { confirmDialog } from "../confirm.js";
 import { runWithToast } from "../toast.js";
 import "./info-tip.js";
 import type { AppConfigView, SystemStatus } from "../types.js";
@@ -99,34 +100,57 @@ export class OverridesPanel extends LitElement {
 
   @state() private busy = false;
   @state() private reserveInput: number | null = null;
+  @state() private optimistic: Partial<SystemStatus> = {};
 
   private dispatchRefresh(): void {
     window.dispatchEvent(new Event("solar-plan-refresh"));
+  }
+
+  /** Read a boolean status field, preferring any pending optimistic value. */
+  private eff(key: keyof SystemStatus, fallback: boolean): boolean {
+    if (key in this.optimistic) return Boolean(this.optimistic[key]);
+    const val = this.status?.[key];
+    if (typeof val === "boolean") return val;
+    if (val === null || val === undefined) return fallback;
+    return Boolean(val);
   }
 
   private async run(
     fn: () => Promise<unknown>,
     loading: string,
     success: string,
+    optimisticPatch: Partial<SystemStatus> = {},
   ): Promise<void> {
+    // Apply optimistic state immediately.
+    this.optimistic = { ...this.optimistic, ...optimisticPatch };
     this.busy = true;
     const ok = await runWithToast(async () => { await fn(); }, { loading, success });
+    // Clear optimistic keys we set (real status will follow soon if ok).
+    const next = { ...this.optimistic };
+    for (const k of Object.keys(optimisticPatch) as (keyof SystemStatus)[]) {
+      delete next[k];
+    }
+    this.optimistic = next;
     if (ok) this.dispatchRefresh();
     this.busy = false;
   }
 
-  private toggleShadow = () =>
-    this.run(
-      () => api.override({ shadow_mode: !(this.status?.shadow_mode ?? true) }),
+  private toggleShadow = () => {
+    const newVal = !this.eff("shadow_mode", true);
+    return this.run(
+      () => api.override({ shadow_mode: newVal }),
       t("ui.overrides.toastModeLoading"),
       t("ui.overrides.toastModeSuccess"),
+      { shadow_mode: newVal },
     );
+  };
 
   private togglePauseAll = () =>
     this.run(
       () => api.override({ pause_engine: true }),
       t("ui.overrides.toastEngineLoading"),
       t("ui.overrides.toastEnginePaused"),
+      { paused: true },
     );
 
   private resumeAll = () =>
@@ -134,51 +158,75 @@ export class OverridesPanel extends LitElement {
       () => api.override({ pause_engine: false }),
       t("ui.overrides.toastEngineLoading"),
       t("ui.overrides.toastEngineResumed"),
+      { paused: false, paused_shedding: false, paused_grid_charge: false, paused_optimization: false },
     );
+
+  /** Navigate shed tri-state: 'auto' | 'paused' | 'force_off'. */
+  private setShedTriState = (target: "auto" | "paused" | "force_off") => {
+    if (target === "auto") {
+      return this.run(
+        () => api.override({ pause_shedding: false }),
+        t("ui.overrides.toastShedLoading"),
+        t("ui.overrides.toastShedReleased"),
+        { paused_shedding: false, force_shed_off_override: false },
+      );
+    }
+    if (target === "paused") {
+      return this.run(
+        () => api.override({ force_shed_off: false, pause_shedding: true }),
+        t("ui.overrides.toastShedLoading"),
+        t("ui.overrides.toastSubsystemSuccess"),
+        { paused_shedding: true, force_shed_off_override: false },
+      );
+    }
+    // force_off
+    return this.run(
+      () => api.override({ force_shed_off: true, pause_shedding: true }),
+      t("ui.overrides.toastShedLoading"),
+      t("ui.overrides.toastShedForced"),
+      { paused_shedding: true, force_shed_off_override: true },
+    );
+  };
 
   private togglePauseShedding = () => {
-    const paused =
-      (this.status?.paused_shedding ?? false) ||
-      this.status?.force_shed_off_override === true;
+    const paused = this.eff("paused_shedding", false) || this.eff("force_shed_off_override", false);
+    const newVal = !paused;
     return this.run(
-      () => api.override({ pause_shedding: !paused }),
+      () => api.override({ pause_shedding: newVal }),
       t("ui.overrides.toastEngineLoading"),
       t("ui.overrides.toastSubsystemSuccess"),
+      newVal
+        ? { paused_shedding: true }
+        : { paused_shedding: false, force_shed_off_override: false },
     );
   };
 
-  private toggleForceShedOff = () => {
-    const forced = this.status?.force_shed_off_override === true;
-    return this.run(
-      () =>
-        forced
-          ? api.override({ pause_shedding: false })
-          : api.override({ force_shed_off: true, pause_shedding: true }),
-      t("ui.overrides.toastShedLoading"),
-      forced ? t("ui.overrides.toastShedReleased") : t("ui.overrides.toastShedForced"),
-    );
-  };
 
   private togglePauseGridCharge = () => {
-    const paused =
-      (this.status?.paused_grid_charge ?? false) ||
-      this.status?.force_grid_charge_override === true;
+    const paused = this.eff("paused_grid_charge", false) || this.eff("force_grid_charge_override", false);
+    const newVal = !paused;
     return this.run(
-      () => api.override({ pause_grid_charge: !paused }),
+      () => api.override({ pause_grid_charge: newVal }),
       t("ui.overrides.toastEngineLoading"),
       t("ui.overrides.toastSubsystemSuccess"),
+      newVal
+        ? { paused_grid_charge: true }
+        : { paused_grid_charge: false, force_grid_charge_override: false },
     );
   };
 
-  private togglePauseOptimization = () =>
-    this.run(
-      () => api.override({ pause_optimization: !(this.status?.paused_optimization ?? false) }),
+  private togglePauseOptimization = () => {
+    const newVal = !this.eff("paused_optimization", false);
+    return this.run(
+      () => api.override({ pause_optimization: newVal }),
       t("ui.overrides.toastEngineLoading"),
       t("ui.overrides.toastSubsystemSuccess"),
+      { paused_optimization: newVal },
     );
+  };
 
   private toggleForceGridCharge = () => {
-    const forced = this.status?.force_grid_charge_override === true;
+    const forced = this.eff("force_grid_charge_override", false);
     return this.run(
       () =>
         forced
@@ -186,6 +234,9 @@ export class OverridesPanel extends LitElement {
           : api.override({ force_grid_charge: true, pause_grid_charge: true }),
       t("ui.overrides.toastGridLoading"),
       forced ? t("ui.overrides.toastGridReleased") : t("ui.overrides.toastGridForced"),
+      forced
+        ? { paused_grid_charge: false, force_grid_charge_override: false }
+        : { paused_grid_charge: true, force_grid_charge_override: true },
     );
   };
 
@@ -206,8 +257,14 @@ export class OverridesPanel extends LitElement {
       t("ui.overrides.toastClearSuccess"),
     );
 
-  private killSwitch = () => {
-    if (!confirm(t("ui.overrides.killConfirm"))) return;
+  private killSwitch = async () => {
+    const ok = await confirmDialog({
+      title: t("ui.overrides.killSwitch"),
+      message: t("ui.overrides.killConfirm"),
+      danger: true,
+      requireText: "STOP",
+    });
+    if (!ok) return;
     return this.run(
       () => api.override({ kill_switch: true, confirm: true }),
       t("ui.overrides.toastKillLoading"),
@@ -231,32 +288,35 @@ export class OverridesPanel extends LitElement {
     gridChargeEnabled: boolean,
     forcedGrid: boolean,
   ) {
-    const shedPaused = pausedShed || forcedShed;
     const gridPaused = pausedGrid || forcedGrid;
+    // Shed tri-state: 'auto' | 'paused' | 'force_off'
+    const shedTriState: "auto" | "paused" | "force_off" = forcedShed
+      ? "force_off"
+      : pausedShed
+        ? "paused"
+        : "auto";
+
     return html`
       ${sheddingEnabled
         ? html`
             <div class="ctrl">
               <span>${labelWithTip(t("ui.overrides.pauseShedding"), overrideHelp("load_shedding"))}</span>
-              <span class="ctrl-segments">
-                <span class="seg">
-                  <button
-                    class=${forcedShed ? "active warn" : "active good"}
-                    ?disabled=${this.busy}
-                    @click=${this.toggleForceShedOff}
-                  >
-                    ${forcedShed ? t("ui.overrides.forceOff") : t("ui.overrides.auto")}
-                  </button>
-                </span>
-                <span class="seg">
-                  <button
-                    class=${shedPaused ? "active warn" : "active good"}
-                    ?disabled=${this.busy}
-                    @click=${this.togglePauseShedding}
-                  >
-                    ${shedPaused ? t("ui.overrides.paused") : t("ui.overrides.running")}
-                  </button>
-                </span>
+              <span class="seg">
+                <button
+                  class=${shedTriState === "auto" ? "active good" : ""}
+                  ?disabled=${this.busy}
+                  @click=${() => this.setShedTriState("auto")}
+                >${t("ui.overrides.auto")}</button>
+                <button
+                  class=${shedTriState === "paused" ? "active warn" : ""}
+                  ?disabled=${this.busy}
+                  @click=${() => this.setShedTriState("paused")}
+                >${t("ui.overrides.paused")}</button>
+                <button
+                  class=${shedTriState === "force_off" ? "active warn" : ""}
+                  ?disabled=${this.busy}
+                  @click=${() => this.setShedTriState("force_off")}
+                >${t("ui.overrides.forceOff")}</button>
               </span>
             </div>
           `
@@ -317,15 +377,15 @@ export class OverridesPanel extends LitElement {
   }
 
   render() {
-    const shadow = this.status?.shadow_mode ?? true;
-    const pausedAll = this.status?.paused ?? false;
-    const pausedShed = this.status?.paused_shedding ?? false;
-    const pausedGrid = this.status?.paused_grid_charge ?? false;
-    const pausedOpt = this.status?.paused_optimization ?? false;
+    const shadow = this.eff("shadow_mode", true);
+    const pausedAll = this.eff("paused", false);
+    const pausedShed = this.eff("paused_shedding", false);
+    const pausedGrid = this.eff("paused_grid_charge", false);
+    const pausedOpt = this.eff("paused_optimization", false);
     const gridChargeEnabled = this.status?.grid_charge_enabled !== false;
     const sheddingEnabled = this.status?.shedding_enabled === true;
-    const forcedGrid = this.status?.force_grid_charge_override === true;
-    const forcedShed = this.status?.force_shed_off_override === true;
+    const forcedGrid = this.eff("force_grid_charge_override", false);
+    const forcedShed = this.eff("force_shed_off_override", false);
     const viewer = this.role === "viewer";
     const partialPause =
       !pausedAll && (pausedShed || pausedGrid || pausedOpt);

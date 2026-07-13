@@ -11,6 +11,7 @@ from ..i18n import t
 from .session import (
     ANONYMOUS,
     get_session,
+    is_mcp_plane,
     is_public_api_path,
     requires_auth_gate,
     resolve_session,
@@ -34,11 +35,16 @@ class AuthGateMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:  # noqa: ANN001
         settings = get_settings()
         path = request.url.path
-        if not requires_auth_gate(path, settings):
+        if not await requires_auth_gate(path, settings):
             return await call_next(request)
 
         session = get_session(request)
-        if session.authenticated:
-            return await call_next(request)
+        if not session.authenticated:
+            return JSONResponse({"detail": t("api.auth.unauthorized")}, status_code=401)
 
-        return JSONResponse({"detail": t("api.auth.unauthorized")}, status_code=401)
+        if is_mcp_plane(session):
+            return JSONResponse(
+                {"detail": t("api.auth.mcp_not_allowed")}, status_code=403
+            )
+
+        return await call_next(request)

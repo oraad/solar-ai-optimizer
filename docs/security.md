@@ -29,6 +29,17 @@ Do not open public issues for undisclosed vulnerabilities.
 
 Full access-control details: [Roles and access](ingress-auth.md).
 
+## Fail-closed behavior
+
+Solar is designed to fail closed rather than leave the inverter, ingress identity, or shed loads in an unsupervised state:
+
+| Scenario | Behavior |
+|---|---|
+| **Solar shutdown** | On graceful shutdown, Solar first **restores any pending load-sheds** (turns shed loads back on), then applies the **grid-charge fail-safe** (max current) if configured. This order avoids a window where shed loads are off *and* the battery is pinned to max charge with nothing supervising — see `Orchestrator.shutdown()`. |
+| **HA watchdog latch** | The Home Assistant integration's fail-safe watchdog is **one-way**: it turns grid charge on and sets max current when Solar's heartbeat goes stale, but it never reverts those entities itself when the latch clears. |
+| **Solar reconnect** | When Solar's heartbeat is healthy again, the HA watchdog latch clears and raises a verify-settings repair issue — it does **not** touch the inverter. Solar's own control cycle **reclaims** the inverter on its next cycle and applies its normal decision, overriding whatever fixed values the fail-safe left behind. |
+| **Ingress identity headers** | `X-Remote-User-*` headers are trusted automatically only inside the HA Supervisor add-on network. Outside the add-on (`TRUST_INGRESS_HEADERS=true` on standalone/Docker), `TRUSTED_PROXY_IPS` **must** be set — with no allowlist configured, ingress headers are rejected (fail closed) instead of trusted from any source. See [Ingress and authorization](ingress-auth.md#b-standalone--hass_ingress-docker). |
+
 Operational API reads require an authenticated session (HA ingress identity, local login cookie, or bearer token). Only `GET /api/health` and `/api/auth/*` bootstrap routes are anonymous.
 
 ## Viewer role (ingress)

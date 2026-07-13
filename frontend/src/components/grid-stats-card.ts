@@ -38,12 +38,28 @@ export class GridStatsCard extends LitElement {
         padding: 8px 0 4px;
         font-style: italic;
       }
+      .stats-unavailable {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 0.82rem;
+        padding: 8px 0 12px;
+        font-style: italic;
+      }
+      .retry-btn {
+        font-size: 0.78rem;
+        padding: 3px 10px;
+        min-height: 28px;
+      }
       .note { color: var(--muted); font-size: 0.78rem; margin-top: 10px; }
     `,
   ];
 
   @property({ attribute: false }) stats: GridStats | null = null;
   @property({ attribute: false }) livePresent: boolean | null = null;
+  @property({ type: Boolean }) allowRetry = false;
 
   private onDateFormat = () => this.requestUpdate();
   private onLocale = () => this.requestUpdate();
@@ -86,6 +102,10 @@ export class GridStatsCard extends LitElement {
     `;
   }
 
+  private dispatchRetry(): void {
+    this.dispatchEvent(new CustomEvent("solar-grid-stats-retry", { bubbles: true, composed: true }));
+  }
+
   render() {
     const s = this.stats;
     const present = this.currentlyPresent();
@@ -101,15 +121,23 @@ export class GridStatsCard extends LitElement {
           </span>
         </div>
         ${hasStats
-          ? null
-          : html`<div class="stats-loading">${t("ui.grid.statsUnavailable")}</div>`}
-        <div class="bars">
-          ${this.bar(t("ui.grid.uptime24h"), hasStats ? s.uptime_pct_24h : null)}
-          ${this.bar(t("ui.grid.uptime7d"), hasStats ? s.uptime_pct_7d : null)}
-        </div>
-        <div class="stat"><span>${t("ui.grid.avgWindow")}</span><span class="v">${hasStats ? t("ui.grid.minutes", { n: s.avg_window_minutes.toFixed(0) }) : "--"}</span></div>
-        <div class="stat"><span>${t("ui.grid.transitions24h")}</span><span class="v">${hasStats ? s.transitions_24h : "--"}</span></div>
-        <div class="stat"><span>${t("ui.grid.lastSeen")}</span><span class="v">${this.fmtLastSeen()}</span></div>
+          ? html`
+              <div class="bars">
+                ${this.bar(t("ui.grid.uptime24h"), s.uptime_pct_24h)}
+                ${this.bar(t("ui.grid.uptime7d"), s.uptime_pct_7d)}
+              </div>
+              <div class="stat"><span>${t("ui.grid.avgWindow")}</span><span class="v">${t("ui.grid.minutes", { n: s.avg_window_minutes.toFixed(0) })}</span></div>
+              <div class="stat"><span>${t("ui.grid.transitions24h")}</span><span class="v">${s.transitions_24h}</span></div>
+              <div class="stat"><span>${t("ui.grid.lastSeen")}</span><span class="v">${this.fmtLastSeen()}</span></div>
+            `
+          : html`
+              <div class="stats-unavailable">
+                <span>${t("ui.grid.statsUnavailable")}</span>
+                ${this.allowRetry
+                  ? html`<button type="button" class="retry-btn" @click=${this.dispatchRetry}>${t("ui.grid.retryStats")}</button>`
+                  : null}
+              </div>
+            `}
         <div class="note">${t("ui.grid.note")}</div>
       </div>
     `;

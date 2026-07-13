@@ -15,6 +15,7 @@ import logging
 from pathlib import Path
 
 from .adapters.ha_entity import HAEntityAdapter
+from .broadcast import StatusBroadcaster
 from .config import AppConfig, Settings
 from .config_store import ConfigStore
 from .control.executor import Executor
@@ -42,7 +43,8 @@ from .models import (
 )
 from .demo import synthetic_telemetry
 from .shed_snapshots import ShedSnapshotStore
-from .subsystems import deployment_profile, plan_grid_charge, plan_optimization, plan_shedding
+from .status_builder import build_system_status
+from .subsystems import plan_grid_charge, plan_optimization, plan_shedding
 from .storage import repo
 from .storage.db import close_db, init_db
 
@@ -92,7 +94,7 @@ class Orchestrator:
         self.latest_grid_stats: GridStats | None = None
         self._last_grid_charge_amps: float | None = None
 
-        self._subscribers: set[asyncio.Queue] = set()
+        self._broadcaster = StatusBroadcaster(self._broadcast_payload)
         self._stream_task: asyncio.Task | None = None
         self._cycle_lock = asyncio.Lock()
         self._scheduler = None
@@ -326,6 +328,12 @@ class Orchestrator:
                 telemetry.grid_present if telemetry else None
             )
             self._stream_task = asyncio.create_task(self.collector.run_stream_safe())
+            if not self.shadow_mode:
+                # Reclaim active control immediately rather than waiting for the
+                # first scheduled tick (which can be minutes away) — a restart
+                # should not leave grid charge/shedding unsupervised in the interim.
+                with contextlib.suppress(Exception):
+                    await self.control_cycle()
         await self._pulse_heartbeat()
         log.info("Orchestrator ready (shadow_mode=%s).", self.shadow_mode)
 
@@ -391,15 +399,38 @@ class Orchestrator:
         with contextlib.suppress(Exception):
             self.heartbeat.pulse()
 
+    @property
+    def shed_restore_needed(self) -> bool:
+        return bool(self.snapshot_store.list_all())
+
     async def shutdown(self) -> None:
-        if self.cfg.fail_safe.shutdown_failsafe_enabled and self._grid_charge_mapped():
+        """Graceful shutdown: restore any pending sheds first, then the grid fail-safe.
+
+        Order matters — sheds must come back on before we hand the inverter over
+        to a fixed max grid-charge current, otherwise we'd briefly leave shed
+        loads off *and* the battery pinned to max charge with nothing supervising.
+        """
+        needs_shed_restore = self.shed_restore_needed
+        needs_grid_failsafe = (
+            self.cfg.fail_safe.shutdown_failsafe_enabled and self._grid_charge_mapped()
+        )
+        if needs_shed_restore or needs_grid_failsafe:
             async with self._cycle_lock:
                 prev_shadow = self.shadow_mode
                 self.shadow_mode = False
                 try:
-                    await self.executor.apply_grid_charge_at_max()
-                except Exception as e:  # noqa: BLE001
-                    log.warning("Shutdown fail-safe failed: %s", e)
+                    if needs_shed_restore:
+                        try:
+                            self.latest_shed_results = await self.executor.restore_all_sheds(
+                                self.cfg.load_shedding.tiers, bypass_shadow=True
+                            )
+                        except Exception as e:  # noqa: BLE001
+                            log.warning("Shutdown shed restore failed: %s", e)
+                    if needs_grid_failsafe:
+                        try:
+                            await self.executor.apply_grid_charge_at_max()
+                        except Exception as e:  # noqa: BLE001
+                            log.warning("Shutdown fail-safe failed: %s", e)
                 finally:
                     self.shadow_mode = prev_shadow
         if self._stream_task:
@@ -1033,74 +1064,17 @@ class Orchestrator:
 
     # --------------------------------------------------------------- status --
     def build_status(self) -> SystemStatus:
-        telemetry = self.collector.latest
-        stale = self._telemetry_stale(telemetry) if telemetry else True
-        from .observability.capabilities import ml_available, mpc_available
-
-        forecast = self.forecast.current
-        bat = self.cfg.battery
-        return SystemStatus(
-            telemetry=telemetry,
-            decision=self.latest_decision,
-            execution_summary=(
-                self.latest_execution_summary
-                if isinstance(self.latest_execution_summary, ExecutionSummary)
-                else None
-            ),
-            grid_stats=self.latest_grid_stats,
-            battery_summary=BatterySummary(
-                capacity_kwh=bat.capacity_kwh,
-                round_trip_efficiency=bat.round_trip_efficiency,
-                max_soc_ceiling=bat.max_soc_ceiling,
-                min_soc_floor=bat.min_soc_floor,
-            ),
-            ha_connected=(
-                True
-                if self.settings.demo_mode
-                else self.ha.is_reachable(self.cfg.control.ha_stale_after_seconds)
-            ),
-            telemetry_stale=stale,
-            telemetry_age_seconds=self._telemetry_age_seconds(),
-            forecast_misconfigured=(
-            not self.cfg.site.location_configured and self.cfg.engine.enabled
-        ),
-            forecast_degraded=forecast.degraded if forecast else False,
-            forecast_provider=self.forecast.forecast_provider(),
-            solcast_configured=self.forecast.solcast_configured(),
-            engine_mode=self.cfg.engine.mode,
-            engine_active="mpc" if self._mpc is not None else "rules",
-            mpc_available=mpc_available(),
-            ml_available=ml_available(),
-            ml_load_enabled=self.settings.ml_load_enabled,
-            mpc_unavailable=self.cfg.engine.mode == "mpc" and self._mpc is None,
-            reserve_soc_override=self.override.reserve_soc,
-            force_grid_charge_override=self.override.force_grid_charge,
-            force_shed_off_override=self.override.force_shed_off,
-            shadow_mode=self.shadow_mode,
-            paused=self.paused,
-            shedding_enabled=self.cfg.load_shedding.enabled,
-            grid_charge_enabled=self.cfg.grid_charge.enabled,
-            engine_enabled=self.cfg.engine.enabled,
-            paused_shedding=self.paused_shedding,
-            paused_grid_charge=self.paused_grid_charge,
-            paused_optimization=self.paused_optimization,
-            grid_charge_writes_available=self._grid_charge_writes_available(),
-            deployment_profile=deployment_profile(self.cfg),
-            timezone_config=self.cfg.site.timezone,
-            timezone_resolved=self.forecast.resolved_timezone,
-            last_updated=utcnow(),
-        )
+        """Facade: delegates to the standalone status_builder for testability."""
+        return build_system_status(self)
 
     # ------------------------------------------------------------ broadcast --
     def subscribe(self) -> asyncio.Queue:
-        q: asyncio.Queue = asyncio.Queue(maxsize=8)
-        self._subscribers.add(q)
-        return q
+        return self._broadcaster.subscribe()
 
     def unsubscribe(self, q: asyncio.Queue) -> None:
-        self._subscribers.discard(q)
+        self._broadcaster.unsubscribe(q)
 
-    async def _broadcast(self) -> None:
+    def _broadcast_payload(self) -> dict:
         status = self.build_status()
         payload = status.model_dump(mode="json")
         # Optional lean WS: strip fat explanation while keeping summary fields.
@@ -1109,10 +1083,7 @@ class Orchestrator:
             and isinstance(payload.get("decision"), dict)
         ):
             payload["decision"] = {**payload["decision"], "explanation": None}
-        for q in list(self._subscribers):
-            try:
-                if q.full():
-                    _ = q.get_nowait()
-                q.put_nowait(payload)
-            except Exception:  # noqa: BLE001
-                self._subscribers.discard(q)
+        return payload
+
+    async def _broadcast(self) -> None:
+        await self._broadcaster.broadcast()

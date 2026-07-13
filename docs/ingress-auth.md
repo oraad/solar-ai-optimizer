@@ -51,7 +51,7 @@ Options: `--password PASS`, `--username USER`, `--keep-sessions`, `--no-restart`
 
 The script prints the new username and password once and restarts the container by default.
 
-### B. Standalone + hass_ingress (Docker)
+### B. Standalone + hass_ingress (Docker) {#b-standalone-hass-ingress-docker}
 
 HA users access the app through the HA sidebar; they do not use the local login page. Keep local login for direct `:8000` access if the port is published.
 

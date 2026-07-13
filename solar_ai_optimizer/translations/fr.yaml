@@ -1,0 +1,8 @@
+configuration:
+  prerelease_updates:
+    name: Mises à jour préliminaires
+    description: >-
+      Lorsqu'elle est activée, l'application recherche les versions préliminaires
+      (bêta, RC) et journalise lorsqu'une build plus récente est disponible.
+      Mettez à jour via Paramètres → Applications → Solar AI Optimizer lorsque
+      le Superviseur la propose. Redémarrez l'application après modification.

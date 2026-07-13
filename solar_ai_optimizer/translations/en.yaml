@@ -1,0 +1,7 @@
+configuration:
+  prerelease_updates:
+    name: Pre-release updates
+    description: >-
+      When enabled, the app checks for pre-release versions (beta, RC) and logs
+      when a newer build is available. Update via Settings → Apps → Solar AI
+      Optimizer when Supervisor offers it. Restart the app after changing.

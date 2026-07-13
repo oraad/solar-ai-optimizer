@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- HA Apps store refresh skipped Solar AI Optimizer because `prerelease_updates` used invalid nested `name`/`description` in the addon schema; option labels moved to `translations/`
+
 ## [0.6.11] - 2026-07-13
 
 ### Added

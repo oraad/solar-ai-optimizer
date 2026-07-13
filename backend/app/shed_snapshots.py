@@ -52,7 +52,13 @@ class ShedSnapshotStore:
             payload = {
                 k: v.model_dump(mode="json") for k, v in self._snapshots.items()
             }
-            self._path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            tmp = self._path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            tmp.replace(self._path)
+            try:
+                self._path.chmod(0o600)
+            except OSError:
+                pass
         except Exception as e:  # noqa: BLE001
             log.warning("Failed to save shed snapshots: %s", e)
 

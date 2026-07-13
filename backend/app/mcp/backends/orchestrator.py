@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ...config import get_settings
 from ...i18n import api_error
 from ...i18n.serialize import localize_model, localize_payload
 from ...models import Override, utcnow
@@ -21,10 +22,14 @@ class OrchestratorBackend:
         self._rate_key = rate_limit_key
 
     def _check_write_limit(self) -> None:
+        if not get_settings().mcp_rate_limit_enabled:
+            return
         if not rate_limiter.allow(self._rate_key, "write"):
             raise api_error("api.debug.rate_limit", 429)
 
     def _check_read_limit(self) -> None:
+        if not get_settings().mcp_rate_limit_enabled:
+            return
         if not rate_limiter.allow(self._rate_key, "read"):
             raise api_error("api.debug.rate_limit", 429)
 
@@ -36,8 +41,6 @@ class OrchestratorBackend:
         self._check_read_limit()
         status = self._ops.get_status()
         forecast = self._ops.get_forecast()
-        from ..config import get_settings
-
         settings = get_settings()
         return {
             "status": "ok",
@@ -59,7 +62,9 @@ class OrchestratorBackend:
         return localize_payload(self._ops.decision_trace(sections=sections))
 
     async def simulate_decision(self) -> dict[str, Any]:
-        if not rate_limiter.allow(self._rate_key, "simulate"):
+        if get_settings().mcp_rate_limit_enabled and not rate_limiter.allow(
+            self._rate_key, "simulate"
+        ):
             raise api_error("api.debug.rate_limit", 429)
         metrics.mcp_simulate_calls_total += 1
         return localize_payload(self._ops.simulate_decision())

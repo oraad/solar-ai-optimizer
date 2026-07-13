@@ -220,28 +220,34 @@ def _parse_json_obj(raw: str | None, default: object) -> object:
         return default
 
 
-async def get_recent_decisions(limit: int = 100) -> list[dict]:
+async def get_recent_decisions(
+    limit: int = 100,
+    *,
+    before: datetime | None = None,
+) -> list[dict]:
     sm = get_sessionmaker()
     async with sm() as s:
-        rows = (
-            await s.execute(
-                select(DecisionRow).order_by(DecisionRow.ts.desc()).limit(limit)
-            )
-        ).scalars().all()
+        stmt = select(DecisionRow)
+        if before is not None:
+            stmt = stmt.where(DecisionRow.ts < before)
+        stmt = stmt.order_by(DecisionRow.ts.desc()).limit(limit)
+        rows = (await s.execute(stmt)).scalars().all()
     return [_decision_row_to_dict(r) for r in rows]
 
 
-async def get_decisions_by_cycle_id(cycle_id: str, limit: int = 20) -> list[dict]:
+async def get_decisions_by_cycle_id(
+    cycle_id: str,
+    limit: int = 20,
+    *,
+    before: datetime | None = None,
+) -> list[dict]:
     sm = get_sessionmaker()
     async with sm() as s:
-        rows = (
-            await s.execute(
-                select(DecisionRow)
-                .where(DecisionRow.cycle_id == cycle_id)
-                .order_by(DecisionRow.ts.desc())
-                .limit(limit)
-            )
-        ).scalars().all()
+        stmt = select(DecisionRow).where(DecisionRow.cycle_id == cycle_id)
+        if before is not None:
+            stmt = stmt.where(DecisionRow.ts < before)
+        stmt = stmt.order_by(DecisionRow.ts.desc()).limit(limit)
+        rows = (await s.execute(stmt)).scalars().all()
     return [_decision_row_to_dict(r) for r in rows]
 
 
@@ -329,18 +335,19 @@ async def save_execution(e: ExecutionResult) -> None:
 
 
 async def get_recent_executions(
-    limit: int = 100, *, cycle_id: str | None = None
+    limit: int = 100,
+    *,
+    cycle_id: str | None = None,
+    before: datetime | None = None,
 ) -> list[dict]:
     sm = get_sessionmaker()
     async with sm() as s:
-        stmt = select(ExecutionRow).order_by(ExecutionRow.ts.desc()).limit(limit)
+        stmt = select(ExecutionRow)
         if cycle_id:
-            stmt = (
-                select(ExecutionRow)
-                .where(ExecutionRow.cycle_id == cycle_id)
-                .order_by(ExecutionRow.ts.desc())
-                .limit(limit)
-            )
+            stmt = stmt.where(ExecutionRow.cycle_id == cycle_id)
+        if before is not None:
+            stmt = stmt.where(ExecutionRow.ts < before)
+        stmt = stmt.order_by(ExecutionRow.ts.desc()).limit(limit)
         rows = (await s.execute(stmt)).scalars().all()
     return [
         {
@@ -383,22 +390,19 @@ async def save_shed_execution(r: ShedResult) -> None:
 
 
 async def get_recent_shed_executions(
-    limit: int = 100, *, cycle_id: str | None = None
+    limit: int = 100,
+    *,
+    cycle_id: str | None = None,
+    before: datetime | None = None,
 ) -> list[dict]:
     sm = get_sessionmaker()
     async with sm() as s:
-        stmt = (
-            select(ShedExecutionRow)
-            .order_by(ShedExecutionRow.ts.desc())
-            .limit(limit)
-        )
+        stmt = select(ShedExecutionRow)
         if cycle_id:
-            stmt = (
-                select(ShedExecutionRow)
-                .where(ShedExecutionRow.cycle_id == cycle_id)
-                .order_by(ShedExecutionRow.ts.desc())
-                .limit(limit)
-            )
+            stmt = stmt.where(ShedExecutionRow.cycle_id == cycle_id)
+        if before is not None:
+            stmt = stmt.where(ShedExecutionRow.ts < before)
+        stmt = stmt.order_by(ShedExecutionRow.ts.desc()).limit(limit)
         rows = (await s.execute(stmt)).scalars().all()
     out: list[dict] = []
     for r in rows:

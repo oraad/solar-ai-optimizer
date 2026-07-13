@@ -21,6 +21,9 @@ def login_client(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("HA_TOKEN", "")
     monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
+    # TestClient talks plain http://testserver; a Secure cookie would be
+    # dropped by the client, so opt out like a non-TLS deployment would.
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
 
     from app.config import get_settings
 

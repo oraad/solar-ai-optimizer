@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from .. import __version__
 from ..auth.install_id import get_or_create_install_id
@@ -43,6 +43,38 @@ def _dump(data, site_tz: ZoneInfo):  # noqa: ANN001
     return serialize_api_payload(data, site_tz=site_tz)
 
 
+def _parse_cursor(cursor: str | None) -> datetime | None:
+    """Decode an opaque history cursor (an ISO row timestamp) for keyset paging."""
+    if not cursor:
+        return None
+    try:
+        return datetime.fromisoformat(cursor.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+class HealthResponse(BaseModel):
+    """Contract for GET /api/health. Extra diagnostic fields are passed through."""
+
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    version: str
+    install_id: str
+    ha_connected: bool
+    shadow_mode: bool
+    paused: bool
+    telemetry_stale: bool
+    engine_mode: str
+    engine_active: str
+
+
+@router.get("/ping")
+async def ping() -> dict:
+    """Cheap, unauthenticated liveness probe (load balancers, HA add-on watchdog)."""
+    return {"ok": True}
+
+
 @router.get("/me")
 async def me(
     request: Request,
@@ -69,7 +101,7 @@ async def health(request: Request) -> dict:
     mcp_http_url = None
     if mcp_http_mounted:
         mcp_http_url = f"{str(request.base_url).rstrip('/')}{mcp_path}"
-    return _dump(
+    payload = HealthResponse.model_validate(
         {
             "status": "ok",
             "install_id": get_or_create_install_id(settings.data_dir),
@@ -101,9 +133,9 @@ async def health(request: Request) -> dict:
             "forecast_generated_at": (
                 forecast.generated_at.isoformat() if forecast else None
             ),
-        },
-        site_tz_for(orch),
+        }
     )
+    return _dump(payload.model_dump(mode="json"), site_tz_for(orch))
 
 
 @router.post("/ha/retry-connection")
@@ -223,14 +255,20 @@ async def history_decisions(
     request: Request,
     limit: int = Query(default=100, ge=1, le=1000),
     cycle_id: str | None = Query(default=None),
+    cursor: str | None = Query(default=None),
     _session: SessionUser = RequireSession,
-) -> list[dict]:
+) -> dict:
     orch = _orch(request)
+    before = _parse_cursor(cursor)
     if cycle_id:
-        rows = await repo.get_decisions_by_cycle_id(cycle_id, limit=limit)
+        rows = await repo.get_decisions_by_cycle_id(cycle_id, limit=limit, before=before)
     else:
-        rows = await repo.get_recent_decisions(limit=limit)
-    return localize_payload(rows, site_tz=site_tz_for(orch))  # type: ignore[return-value]
+        rows = await repo.get_recent_decisions(limit=limit, before=before)
+    next_cursor = rows[-1]["ts"] if len(rows) >= limit else None
+    return {
+        "items": localize_payload(rows, site_tz=site_tz_for(orch)),
+        "next_cursor": next_cursor,
+    }
 
 
 @router.get("/history/grid-events")
@@ -412,21 +450,42 @@ async def get_load_shedding_config(
 async def put_config(
     request: Request,
     patch: dict = Body(...),
-    _admin: SessionUser = Depends(require_admin),
+    admin: SessionUser = Depends(require_admin),
 ) -> dict:
     """Apply a partial config update from the UI (deep-merged + persisted)."""
     orch = _orch(request)
+    actor = admin.user_id or admin.username or "unknown"
     try:
         cfg = await orch.reload_config(patch)
     except ValidationError as e:
+        log.warning(
+            "Config update REJECTED by actor=%s mode=%s fields=%s: %s",
+            actor,
+            admin.auth_mode,
+            list(patch.keys()),
+            e,
+        )
         raise HTTPException(
             status_code=422, detail=format_validation_errors(e.errors())
         ) from e
     except Exception as e:  # noqa: BLE001 - surface validation errors to the UI
+        log.warning(
+            "Config update REJECTED by actor=%s mode=%s fields=%s: %s",
+            actor,
+            admin.auth_mode,
+            list(patch.keys()),
+            e,
+        )
         detail = str(e)
         if detail.startswith("api.config."):
             raise HTTPException(status_code=422, detail=t(detail)) from e
         raise HTTPException(status_code=422, detail=detail) from e
+    log.info(
+        "Config update by actor=%s mode=%s fields=%s",
+        actor,
+        admin.auth_mode,
+        list(patch.keys()),
+    )
     return {"ok": True, "config": config_view(cfg)}
 
 
@@ -528,10 +587,17 @@ async def history_executions(
     request: Request,
     limit: int = Query(default=100, ge=1, le=1000),
     cycle_id: str | None = Query(default=None),
+    cursor: str | None = Query(default=None),
     _session: SessionUser = RequireSession,
-) -> list[dict]:
-    rows = await repo.get_recent_executions(limit=limit, cycle_id=cycle_id)
-    return localize_payload(rows, site_tz=site_tz_for(_orch(request)))  # type: ignore[return-value]
+) -> dict:
+    rows = await repo.get_recent_executions(
+        limit=limit, cycle_id=cycle_id, before=_parse_cursor(cursor)
+    )
+    next_cursor = rows[-1]["ts"] if len(rows) >= limit else None
+    return {
+        "items": localize_payload(rows, site_tz=site_tz_for(_orch(request))),
+        "next_cursor": next_cursor,
+    }
 
 
 @router.get("/history/shed-executions")
@@ -539,7 +605,14 @@ async def history_shed_executions(
     request: Request,
     limit: int = Query(default=100, ge=1, le=1000),
     cycle_id: str | None = Query(default=None),
+    cursor: str | None = Query(default=None),
     _session: SessionUser = RequireSession,
-) -> list[dict]:
-    rows = await repo.get_recent_shed_executions(limit=limit, cycle_id=cycle_id)
-    return localize_payload(rows, site_tz=site_tz_for(_orch(request)))  # type: ignore[return-value]
+) -> dict:
+    rows = await repo.get_recent_shed_executions(
+        limit=limit, cycle_id=cycle_id, before=_parse_cursor(cursor)
+    )
+    next_cursor = rows[-1]["ts"] if len(rows) >= limit else None
+    return {
+        "items": localize_payload(rows, site_tz=site_tz_for(_orch(request))),
+        "next_cursor": next_cursor,
+    }

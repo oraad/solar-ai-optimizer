@@ -3,7 +3,9 @@
     "auth": {
       "local_login_disabled": "Local login is not enabled",
       "invalid_credentials": "Invalid credentials",
-      "unauthorized": "Unauthorized"
+      "unauthorized": "Unauthorized",
+      "rate_limited": "Too many login attempts; try again in {retry_after}s.",
+      "mcp_not_allowed": "MCP agent tokens cannot access this endpoint"
     },
     "session": {
       "admin_required": "Admin access required",

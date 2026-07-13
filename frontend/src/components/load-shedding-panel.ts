@@ -11,6 +11,7 @@ import { t } from "../i18n.js";
 import { labelWithTip } from "../label-tip.js";
 import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
+import { confirmDialog } from "../confirm.js";
 import { runWithToast, showToast } from "../toast.js";
 import "./entity-input.js";
 import "./info-tip.js";
@@ -407,8 +408,12 @@ export class LoadSheddingPanel extends LitElement {
     `;
   }
 
-  private reset(): void {
-    if (!confirm(t("ui.loadShedding.revertConfirm"))) return;
+  private async reset(): Promise<void> {
+    const ok = await confirmDialog({
+      title: t("ui.loadShedding.revertTitle"),
+      message: t("ui.loadShedding.revertConfirm"),
+    });
+    if (!ok) return;
     if (this.config) {
       this.draft = structuredClone(this.config.load_shedding ?? {}) as Record<string, unknown>;
       this.savedSnapshot = JSON.stringify(this.draft);

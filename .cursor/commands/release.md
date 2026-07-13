@@ -34,7 +34,7 @@ printf '%s\n' '{VERSION}' > VERSION
 python scripts/sync-version.py
 ```
 
-Update `CHANGELOG.md`: `## [{VERSION}] - YYYY-MM-DD`; leave `## [Unreleased]` empty.
+Update `CHANGELOG.md`: `## [{VERSION}] - YYYY-MM-DD`; leave `## [Unreleased]` empty. `sync-version.py` copies root `CHANGELOG.md` to `solar_ai_optimizer/CHANGELOG.md` for the HA Apps Supervisor update UI.
 
 ## 2. Local checks
 

@@ -32,6 +32,7 @@ def guarded_client(monkeypatch):
     orch.apply_override = AsyncMock(return_value={"ok": True})
     wire_orchestrator_site_tz(orch)
     monkeypatch.setenv("TRUST_INGRESS_HEADERS", "true")
+    monkeypatch.setenv("TRUSTED_PROXY_IPS", "127.0.0.1")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("HA_TOKEN", "")
     monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
@@ -48,7 +49,7 @@ def guarded_client(monkeypatch):
     app.add_middleware(AuthGateMiddleware)
     app.add_middleware(UserContextMiddleware)
     app.include_router(router)
-    return TestClient(app)
+    return TestClient(app, client=("127.0.0.1", 12345))
 
 
 def test_viewer_cannot_pin_reserve(guarded_client):

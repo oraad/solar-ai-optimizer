@@ -10,6 +10,7 @@ import { getLocale, setLocale, t, type AppLocale } from "../i18n.js";
 import { LOCALES } from "../locales/manifest.js";
 import { LocaleController } from "../locale-controller.js";
 import { sharedStyles } from "../styles.js";
+import { confirmDialog } from "../confirm.js";
 import { dismissToast, runWithToast, showToast, updateToast } from "../toast.js";
 import "./azimuth-input.js";
 import "./entity-input.js";
@@ -858,7 +859,11 @@ export class SettingsPanel extends LitElement {
   private async restartService(): Promise<void> {
     if (this.restartBusy || this.updateBusy || this.updateWatchActive) return;
     if (!this.mcpSettings?.can_restart && !this.updateInfo?.can_apply) return;
-    if (!window.confirm(t("ui.settings.restartConfirm"))) return;
+    const okRestart = await confirmDialog({
+      title: t("ui.settings.restartService"),
+      message: t("ui.settings.restartConfirm"),
+    });
+    if (!okRestart) return;
     this.restartBusy = true;
     const toastId = showToast({
       message: t("ui.settings.restarting"),
@@ -908,7 +913,11 @@ export class SettingsPanel extends LitElement {
   private async recreateService(): Promise<void> {
     if (this.restartBusy || this.updateBusy || this.updateWatchActive) return;
     if (!this.mcpSettings?.can_recreate && !this.updateInfo?.can_apply) return;
-    if (!window.confirm(t("ui.settings.recreateConfirm"))) return;
+    const okRecreate = await confirmDialog({
+      title: t("ui.settings.recreateContainer"),
+      message: t("ui.settings.recreateConfirm"),
+    });
+    if (!okRecreate) return;
     this.restartBusy = true;
     const toastId = showToast({
       message: t("ui.settings.recreating"),
@@ -1230,7 +1239,11 @@ export class SettingsPanel extends LitElement {
   }
 
   private async reset(): Promise<void> {
-    if (!confirm(t("ui.settings.revertConfirm"))) return;
+    const okReset = await confirmDialog({
+      title: t("ui.settings.revertToFile"),
+      message: t("ui.settings.revertConfirm"),
+    });
+    if (!okReset) return;
     await this.toastRun(
       async () => {
         await api.resetConfig();
@@ -2366,7 +2379,12 @@ export class SettingsPanel extends LitElement {
     const confirmMsg = isDowngrade
       ? `Install v${target}? This is an older release.\n\n${downgradeWarning}${schemaNote}${betaNote}`
       : `Install v${target} now? The service will restart and this page may disconnect briefly.${betaNote}`;
-    if (!window.confirm(confirmMsg)) return;
+    const okUpdate = await confirmDialog({
+      title: t("ui.settings.installUpdateTitle"),
+      message: confirmMsg,
+      danger: isDowngrade,
+    });
+    if (!okUpdate) return;
 
     const toastId = "update-apply";
     this.updateBusy = true;
@@ -2424,13 +2442,12 @@ export class SettingsPanel extends LitElement {
     if (!info?.can_apply) return;
     const name = backupName ?? info.backups?.[0]?.name;
     if (!name) return;
-    if (
-      !window.confirm(
-        `Restore backup ${name}? This overwrites current /app/data and restarts the service.`,
-      )
-    ) {
-      return;
-    }
+    const okRestore = await confirmDialog({
+      title: t("ui.settings.restoreBackupTitle"),
+      message: t("ui.settings.restoreBackupConfirm", { name }),
+      danger: true,
+    });
+    if (!okRestore) return;
     const toastId = "update-restore";
     this.updateBusy = true;
     this.installRecoveryOffer = false;

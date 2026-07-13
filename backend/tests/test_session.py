@@ -11,6 +11,7 @@ from starlette.requests import Request
 from app.api.session import (
     ANONYMOUS,
     INGRESS_USER_ID,
+    ingress_headers_allowed,
     make_session_cookie,
     open_session,
     parse_ingress_headers,
@@ -56,6 +57,7 @@ def test_parse_ingress_headers():
 async def test_ingress_takes_priority_over_bearer():
     settings = _settings(
         trust_ingress_headers=True,
+        trusted_proxy_ips="127.0.0.1",
         api_token="secret",
         local_admin_password="adminpass",
         session_secret="test-secret",
@@ -109,6 +111,7 @@ def test_verify_local_password_hash():
 async def test_admin_allowlist():
     settings = _settings(
         trust_ingress_headers=True,
+        trusted_proxy_ips="127.0.0.1",
         admin_user_ids="user-1,user-2",
     )
     req = _request({INGRESS_USER_ID: "user-1"})
@@ -125,21 +128,70 @@ async def test_open_session_denied_when_ingress_trusted_without_headers():
     assert session.authenticated is False
 
 
-def test_open_session_still_admin_when_ingress_untrusted():
-    settings = _settings(trust_ingress_headers=False)
-    session = open_session(settings)
+@pytest.mark.asyncio
+async def test_open_session_still_admin_when_ingress_untrusted():
+    settings = _settings(trust_ingress_headers=False, allow_open_access=True)
+    session = await open_session(settings)
     assert session is not None
     assert session.auth_mode == "open"
     assert session.is_admin is True
 
 
 @pytest.mark.asyncio
-async def test_mcp_token_bearer_admin():
+async def test_open_session_denied_without_allow_open_access():
+    settings = _settings(trust_ingress_headers=False, allow_open_access=False)
+    assert await open_session(settings) is None
+
+
+@pytest.mark.asyncio
+async def test_mcp_token_bearer_not_rest_admin():
     settings = _settings(mcp_token="mcp-only", api_token="")
     req = _request({"Authorization": "Bearer mcp-only"})
     session = await resolve_session(req, settings, None)
-    assert session.auth_mode == "token"
+    assert session.auth_mode == "mcp"
+    assert session.is_admin is False
+    assert session.authenticated is True
+
+
+@pytest.mark.asyncio
+async def test_ingress_requires_trusted_proxy_outside_addon():
+    settings = _settings(
+        trust_ingress_headers=True,
+        trusted_proxy_ips="10.0.0.1",
+        admin_user_ids="user-1",
+    )
+    # Client IP in _request is 127.0.0.1 — not trusted.
+    req = _request({INGRESS_USER_ID: "user-1"})
+    session = await resolve_session(req, settings, None)
+    assert session.auth_mode != "ingress"
+
+
+@pytest.mark.asyncio
+async def test_ingress_allowed_from_trusted_proxy():
+    settings = _settings(
+        trust_ingress_headers=True,
+        trusted_proxy_ips="127.0.0.1",
+        admin_user_ids="user-1",
+    )
+    req = _request({INGRESS_USER_ID: "user-1"})
+    session = await resolve_session(req, settings, None)
+    assert session.auth_mode == "ingress"
     assert session.is_admin is True
+
+
+def test_ingress_headers_denied_when_no_trusted_proxies_configured():
+    """Fail closed outside the add-on when TRUSTED_PROXY_IPS is unset."""
+    settings = _settings(trust_ingress_headers=True)
+    req = _request({INGRESS_USER_ID: "user-1"})
+    assert ingress_headers_allowed(req, settings) is False
+
+
+def test_ingress_headers_allowed_when_addon_even_without_trusted_proxies():
+    """The HA Supervisor add-on network is always trusted."""
+    settings = _settings(**{"SUPERVISOR_TOKEN": "supervisor-secret"})
+    assert settings.is_addon is True
+    req = _request({INGRESS_USER_ID: "user-1"})
+    assert ingress_headers_allowed(req, settings) is True
 
 
 @pytest.mark.asyncio
@@ -155,11 +207,12 @@ async def test_supervisor_token_bearer_admin_when_addon():
 
 @pytest.mark.asyncio
 async def test_supervisor_token_ignored_when_not_addon():
-    settings = _settings(api_token="")
+    settings = _settings(api_token="", allow_open_access=False)
     # No SUPERVISOR_TOKEN → is_addon false; matching a random bearer fails.
     req = _request({"Authorization": "Bearer supervisor-secret"})
     session = await resolve_session(req, settings, None)
-    assert session.auth_mode == "open"
+    assert session is ANONYMOUS
+    assert session.authenticated is False
 
 
 @pytest.mark.asyncio

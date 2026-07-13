@@ -105,3 +105,14 @@ def test_ws_accepts_valid_query_token(authed_ws_client: TestClient):
         data = ws.receive_json()
         assert data.get("type") != "ping"
         assert "shadow_mode" in data
+
+
+def test_ws_rejects_mcp_query_token(authed_ws_client: TestClient, monkeypatch):
+    """The MCP agent plane authenticates but must never open the operator /ws feed."""
+    monkeypatch.setenv("MCP_TOKEN", "ws-mcp-secret")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    with pytest.raises(Exception):
+        with authed_ws_client.websocket_connect("/ws?token=ws-mcp-secret"):
+            pass

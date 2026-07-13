@@ -233,7 +233,15 @@ export interface SystemStatus {
   last_updated: string;
 }
 
-export type AuthMode = "ingress" | "local" | "token" | "open" | "none";
+export type AuthMode =
+  | "ingress"
+  | "local"
+  | "token"
+  | "mcp"
+  | "client"
+  | "supervisor"
+  | "open"
+  | "none";
 
 export interface SessionInfo {
   authenticated: boolean;

@@ -25,9 +25,20 @@ def load(data_dir: str) -> dict:
 
 
 def save(data_dir: str, state: dict) -> None:
+    """Write runtime state atomically (temp file + rename) and lock it down to 0600.
+
+    Avoids readers ever observing a partially-written file, and avoids leaking
+    operator overrides/paused state to other local users.
+    """
     p = _path(data_dir)
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        tmp.replace(p)
+        try:
+            p.chmod(0o600)
+        except OSError:
+            pass
     except Exception as e:  # noqa: BLE001
         log.warning("Failed to save runtime state: %s", e)

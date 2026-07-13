@@ -47,19 +47,21 @@ def test_pairing_roundtrip(tmp_path: Path):
     assert client.name == "Home Assistant"
 
 
-def test_paired_clients_close_open_mode(tmp_path: Path):
+@pytest.mark.asyncio
+async def test_paired_clients_close_open_mode(tmp_path: Path):
     settings = Settings(
         ha_token="",
         database_url="sqlite+aiosqlite:///:memory:",
         data_dir=str(tmp_path),
+        allow_open_access=True,
     )
-    assert open_session(settings) is not None
-    assert not credentials_configured(settings)
+    assert await open_session(settings) is not None
+    assert not await credentials_configured(settings)
     started = api_clients.start_pairing(tmp_path)
     api_clients.redeem_pairing(tmp_path, code=started["code"], client_name="HA")
-    assert credentials_configured(settings)
-    assert open_session(settings) is None
-    assert requires_auth_gate("/api/status", settings) is True
+    assert await credentials_configured(settings)
+    assert await open_session(settings) is None
+    assert await requires_auth_gate("/api/status", settings) is True
 
 
 def test_second_redeem_same_code_is_conflict(tmp_path: Path):

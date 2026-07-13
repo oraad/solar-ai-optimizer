@@ -1,6 +1,9 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
+import { t } from "../i18n.js";
+import { LocaleController } from "../locale-controller.js";
+
 const POPOVER_STYLE_ID = "solar-info-tip-popover-styles";
 
 function ensurePopoverStyles(): void {
@@ -40,6 +43,11 @@ function ensurePopoverStyles(): void {
 /** Circled “i” with a hover/focus/click tooltip explaining a setting or action. */
 @customElement("solar-info-tip")
 export class InfoTip extends LitElement {
+  constructor() {
+    super();
+    new LocaleController(this);
+  }
+
   static styles = css`
     :host {
       display: inline-flex;
@@ -88,6 +96,8 @@ export class InfoTip extends LitElement {
   `;
 
   @property() text = "";
+  /** Localised accessible label for the info button. Defaults to the i18n "More information" string. */
+  @property({ attribute: "label" }) label = "";
 
   @state() private open = false;
   @state() private touchOnly = false;
@@ -199,7 +209,7 @@ export class InfoTip extends LitElement {
         <button
           type="button"
           class="btn"
-          aria-label="More information"
+          aria-label=${this.label || t("help.tipLabel")}
           aria-expanded=${this.open}
           @click=${this.toggle}
           @mouseenter=${() => {

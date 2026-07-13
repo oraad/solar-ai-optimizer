@@ -47,7 +47,7 @@ def authed_client(monkeypatch):
     app.add_middleware(UserContextMiddleware)
     app.include_router(metrics_router)
     app.include_router(router)
-    return TestClient(app)
+    return TestClient(app, client=("127.0.0.1", 12345))
 
 
 def test_health_public_without_token(authed_client):
@@ -70,6 +70,7 @@ def test_status_with_bearer_token(authed_client):
 
 def test_ingress_bypasses_token(authed_client, monkeypatch):
     monkeypatch.setenv("TRUST_INGRESS_HEADERS", "true")
+    monkeypatch.setenv("TRUSTED_PROXY_IPS", "127.0.0.1")
     from app.config import get_settings
 
     get_settings.cache_clear()
@@ -115,3 +116,29 @@ def test_me_requires_token(authed_client):
 def test_operational_reads_require_token(authed_client, path):
     res = authed_client.get(path)
     assert res.status_code == 401
+
+
+def test_mcp_bearer_rejected_on_status(authed_client, monkeypatch):
+    """The MCP agent plane authenticates but is never allowed onto REST/WS."""
+    monkeypatch.setenv("MCP_TOKEN", "mcp-secret")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    res = authed_client.get(
+        "/api/status",
+        headers={"Authorization": "Bearer mcp-secret"},
+    )
+    assert res.status_code == 403
+
+
+def test_mcp_bearer_rejected_on_override(authed_client, monkeypatch):
+    monkeypatch.setenv("MCP_TOKEN", "mcp-secret")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    res = authed_client.post(
+        "/api/override",
+        json={"pause_engine": True},
+        headers={"Authorization": "Bearer mcp-secret"},
+    )
+    assert res.status_code == 403

@@ -13,7 +13,7 @@ from ..config import get_settings
 from ..i18n import reset_locale, resolve_request_locale, set_locale, t
 from ..i18n.serialize import localize_model, localize_payload
 from ..orchestrator import Orchestrator
-from .session import get_session, resolve_session
+from .session import get_session, is_operator, resolve_session
 from .timezone import site_tz_for
 
 log = logging.getLogger("api.ws")
@@ -30,7 +30,7 @@ async def _ws_authorized(websocket: WebSocket) -> bool:
         session = await resolve_session(websocket, settings, resolver)
         websocket.state.session = session
 
-    return session.authenticated
+    return is_operator(session)
 
 
 @ws_router.websocket("/ws")

@@ -202,7 +202,7 @@ describe("OverridesPanel role", () => {
     el.remove();
   });
 
-  it("shows shed Auto and Running when shedding enabled", async () => {
+  it("shows shed Auto, Paused, and Force OFF tri-state when shedding enabled", async () => {
     const el = mountPanel("viewer");
     el.status = {
       ...el.status!,
@@ -212,9 +212,10 @@ describe("OverridesPanel role", () => {
     const shedRow = [...el.shadowRoot!.querySelectorAll(".ctrl")].find((row) =>
       row.textContent?.includes("Load shedding"),
     );
-    expect(shedRow?.querySelectorAll(".seg").length).toBe(2);
+    expect(shedRow?.querySelectorAll(".seg button").length).toBe(3);
     expect(shedRow?.textContent).toContain("Auto");
-    expect(shedRow?.textContent).toContain("Running");
+    expect(shedRow?.textContent).toContain("Paused");
+    expect(shedRow?.textContent).toContain("Force OFF");
     el.remove();
   });
 
@@ -224,6 +225,7 @@ describe("OverridesPanel role", () => {
       ...el.status!,
       shedding_enabled: true,
       paused_shedding: false,
+      force_shed_off_override: false,
       paused_grid_charge: false,
       paused_optimization: false,
     };
@@ -231,10 +233,10 @@ describe("OverridesPanel role", () => {
     const rows = [...el.shadowRoot!.querySelectorAll(".ctrl")];
     const shedRow = rows.find((row) => row.textContent?.includes("Load shedding"));
     const optRow = rows.find((row) => row.textContent?.includes("Optimization"));
-    const shedRunningBtn = shedRow?.querySelector(".ctrl-segments .seg:last-child button");
+    const shedAutoBtn = shedRow?.querySelector(".seg button");
     const optBtn = optRow?.querySelector("button");
-    expect(shedRunningBtn?.classList.contains("active")).toBe(true);
-    expect(shedRunningBtn?.classList.contains("good")).toBe(true);
+    expect(shedAutoBtn?.classList.contains("active")).toBe(true);
+    expect(shedAutoBtn?.classList.contains("good")).toBe(true);
     expect(optBtn?.classList.contains("active")).toBe(true);
     expect(optBtn?.classList.contains("good")).toBe(true);
     el.remove();

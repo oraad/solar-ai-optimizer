@@ -16,3 +16,5 @@ frontend/node_modules
 frontend/dist
 *.md
 !README.md
+!CHANGELOG.md
+!solar_ai_optimizer/CHANGELOG.md

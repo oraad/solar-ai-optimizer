@@ -303,6 +303,7 @@
       "temperature": "Optional heating/cooling load model from outdoor temperature.",
       "mcp": "Optional MCP sidecar for AI agents — status and setup guidance (configured via environment, not this config file)."
     },
+    "tipLabel": "More information",
     "sectionFallback": "Settings for {section}."
   },
   "update": {
@@ -364,6 +365,11 @@
     "auto": "auto"
   },
   "ui": {
+    "confirm": {
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "typeToConfirm": "Type \"{text}\" to confirm:"
+    },
     "app": {
       "brandSubtitle": "Resilience-first energy control",
       "versionAvailable": " · v{version} available",
@@ -408,7 +414,9 @@
       "forecastDegraded": "FORECAST DEGRADED",
       "solcastMisconfigured": "SOLCAST MISCONFIGURED",
       "staleData": "STALE DATA",
-      "engineMpcFallback": " (rules)"
+      "engineMpcFallback": " (rules)",
+      "liveReconnecting": "Reconnecting…",
+      "liveDisconnected": "Disconnected"
     },
     "status": {
       "liveStatus": "Live status",
@@ -442,6 +450,8 @@
     "decision": {
       "title": "Decision & rationale",
       "waiting": "Waiting for first decision...",
+      "deepLinkViewing": "Viewing a decision from history — not necessarily the current live decision.",
+      "deepLinkNotFound": "That decision could not be found in history (it may have aged out).",
       "why": "Why",
       "whyWaiting": "Waiting for structured explanation…",
       "verification": "Did it stick?",
@@ -484,6 +494,9 @@
       "pending": "pending",
       "shadowMode": "Shadow mode: actions are logged but NOT written to the inverter.",
       "details": "Technical detail",
+      "detailsRationale": "Full rationale & technical detail",
+      "showMore": "Show {n} more",
+      "showLess": "Show less",
       "viewShedHistory": "View shed history",
       "configureShedding": "Configure shedding",
       "viewShedding": "View load shedding",
@@ -496,6 +509,7 @@
       "title": "Grid (reactive — not predicted)",
       "currently": "Currently",
       "statsUnavailable": "Stats unavailable",
+      "retryStats": "Retry",
       "uptime24h": "Uptime (24h)",
       "uptime7d": "Uptime (7d)",
       "avgWindow": "Avg window",
@@ -565,6 +579,7 @@
       "noExecutions": "No inverter writes recorded yet.",
       "noShed": "No shed switch writes recorded yet.",
       "noGrid": "No grid transitions in this window.",
+      "loadMore": "Load more",
       "colTime": "Time",
       "colTarget": "Target",
       "colRisk": "Risk",
@@ -701,6 +716,8 @@
       "validationTierName": "Tier {n}: name is required.",
       "validationTierEntities": "Tier \"{name}\": at least one shed entity is required.",
       "unsavedWarning": "You have unsaved load shedding changes.",
+      "unsavedTitle": "Unsaved changes",
+      "revertTitle": "Revert changes",
       "wizardTitle": "Set up load shedding",
       "wizardStep1": "Enable load shedding above, then add your first tier.",
       "wizardPresets": "SOC presets",
@@ -872,6 +889,9 @@
       "recreateContainer": "Recreate container",
       "recreateConfirm": "Recreate the container now? This re-reads host environment (solar.env) and rebuilds container config. Data volume is kept. Downtime is longer than a restart.",
       "recreateHelp": "Use Recreate after editing host solar.env. Restart alone does not re-read host env files.",
+      "installUpdateTitle": "Install update",
+      "restoreBackupTitle": "Restore backup",
+      "restoreBackupConfirm": "Restore {name}? This overwrites current /app/data and restarts the service.",
       "recreating": "Recreating container…",
       "recreateComplete": "Container recreated.",
       "recreateFailed": "Recreate failed.",

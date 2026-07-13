@@ -278,3 +278,7 @@ def save_runtime_file(path: Path, version: int, overrides: dict[str, Any]) -> No
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {SCHEMA_VERSION_KEY: version, OVERRIDES_KEY: overrides}
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass

@@ -23,6 +23,9 @@ def authed_app(tmp_path, monkeypatch):
     monkeypatch.setenv("SESSION_SECRET", "test-secret")
     monkeypatch.setenv("HA_TOKEN", "")
     monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
+    # TestClient talks plain http://testserver; a Secure cookie would be
+    # dropped by the client, so opt out like a non-TLS deployment would.
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
 
     from app.config import get_settings
 
@@ -34,9 +37,10 @@ def authed_app(tmp_path, monkeypatch):
         yield client
 
 
-def test_openapi_hidden_when_local_auth_set(authed_app):
-    assert authed_app.get("/openapi.json").status_code == 404
-    assert authed_app.get("/docs").status_code == 404
+def test_openapi_protected_when_local_auth_set(authed_app):
+    """OpenAPI schema and docs are now gated (401) rather than hidden (404)."""
+    assert authed_app.get("/openapi.json").status_code == 401
+    assert authed_app.get("/docs").status_code == 401
 
 
 def test_status_requires_login_when_local_auth(authed_app):
@@ -76,6 +80,7 @@ def test_x_frame_options_deny_without_ingress_trust(app_env):
 def test_x_frame_options_sameorigin_when_ingress_trusted(app_env, monkeypatch):
     """TRUST_INGRESS_HEADERS=true → ingress_trusted → SAMEORIGIN."""
     monkeypatch.setenv("TRUST_INGRESS_HEADERS", "true")
+    monkeypatch.setenv("TRUSTED_PROXY_IPS", "127.0.0.1")
     from app.config import get_settings
 
     get_settings.cache_clear()

@@ -32,6 +32,8 @@ def me_client(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("HA_TOKEN", "")
     monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
+    # ALLOW_OPEN_ACCESS defaults to False; these tests exercise open dev mode.
+    monkeypatch.setenv("ALLOW_OPEN_ACCESS", "true")
 
     from app.config import get_settings
 
@@ -45,7 +47,7 @@ def me_client(monkeypatch):
     app.add_middleware(AuthGateMiddleware)
     app.add_middleware(UserContextMiddleware)
     app.include_router(router)
-    return TestClient(app)
+    return TestClient(app, client=("127.0.0.1", 12345))
 
 
 def test_me_open_mode(me_client, monkeypatch):
@@ -64,6 +66,7 @@ def test_me_open_mode(me_client, monkeypatch):
 
 def test_me_ingress_mode(me_client, monkeypatch):
     monkeypatch.setenv("TRUST_INGRESS_HEADERS", "true")
+    monkeypatch.setenv("TRUSTED_PROXY_IPS", "127.0.0.1")
     from app.config import get_settings
 
     get_settings.cache_clear()

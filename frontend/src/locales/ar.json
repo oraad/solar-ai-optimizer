@@ -303,6 +303,7 @@
       "temperature": "Optional heating/cooling load model from outdoor temperature.",
       "mcp": "مستوى تحكم MCP اختياري لوكلاء الذكاء الاصطناعي — الحالة والإرشاد (يُكوَّن عبر البيئة، وليس هذا الملف)."
     },
+    "tipLabel": "مزيد من المعلومات",
     "sectionFallback": "Settings for {section}."
   },
   "update": {
@@ -364,6 +365,11 @@
     "auto": "تلقائي"
   },
   "ui": {
+    "confirm": {
+      "cancel": "إلغاء",
+      "confirm": "تأكيد",
+      "typeToConfirm": "اكتب \"{text}\" للتأكيد:"
+    },
     "app": {
       "brandSubtitle": "Resilience-first energy control",
       "versionAvailable": " · v{version} available",
@@ -397,8 +403,8 @@
       "optOn": "OPT",
       "optOff": "OPT OFF",
       "optPaused": "OPT PAUSED",
-      "themeDark": "Switch to light theme",
-      "themeLight": "Switch to dark theme",
+      "themeDark": "التبديل إلى المظهر الفاتح",
+      "themeLight": "التبديل إلى المظهر الداكن",
       "alertCount": "{count} alert",
       "alertCountPlural": "{count} alerts",
       "updateInProgressTitle": "Software update in progress — open Settings",
@@ -408,7 +414,9 @@
       "forecastDegraded": "FORECAST DEGRADED",
       "solcastMisconfigured": "SOLCAST MISCONFIGURED",
       "staleData": "STALE DATA",
-      "engineMpcFallback": " (rules)"
+      "engineMpcFallback": " (rules)",
+      "liveReconnecting": "جارٍ إعادة الاتصال…",
+      "liveDisconnected": "منقطع"
     },
     "status": {
       "liveStatus": "Live status",
@@ -442,6 +450,8 @@
     "decision": {
       "title": "القرار والمبرر",
       "waiting": "بانتظار أول قرار…",
+      "deepLinkViewing": "عرض قرار من السجل — ليس بالضرورة القرار الحالي المباشر.",
+      "deepLinkNotFound": "تعذر العثور على هذا القرار في السجل (قد يكون قد انتهت مدته).",
       "why": "لماذا",
       "whyWaiting": "بانتظار شرح منظّم…",
       "verification": "هل طُبّق؟",
@@ -484,6 +494,9 @@
       "pending": "قيد الانتظار",
       "shadowMode": "وضع الظل: تُسجَّل الإجراءات دون كتابتها على العاكس.",
       "details": "تفاصيل تقنية",
+      "detailsRationale": "المنطق الكامل والتفاصيل التقنية",
+      "showMore": "عرض {n} أكثر",
+      "showLess": "عرض أقل",
       "viewShedHistory": "عرض سجل التخفيف",
       "configureShedding": "إعداد التخفيف",
       "viewShedding": "عرض تخفيف الأحمال",
@@ -495,7 +508,8 @@
     "grid": {
       "title": "Grid (reactive — not predicted)",
       "currently": "Currently",
-      "statsUnavailable": "Stats unavailable",
+      "statsUnavailable": "الإحصائيات غير متوفرة",
+      "retryStats": "إعادة المحاولة",
       "uptime24h": "Uptime (24h)",
       "uptime7d": "Uptime (7d)",
       "avgWindow": "Avg window",
@@ -560,11 +574,12 @@
       "legendBattTemp": "Batt °C",
       "legendOutdoorTemp": "Outdoor °C",
       "legendGridOutage": "Grid outage",
-      "noTelemetry": "No telemetry yet.",
-      "noDecisions": "No decisions recorded yet.",
-      "noExecutions": "No inverter writes recorded yet.",
-      "noShed": "No shed switch writes recorded yet.",
-      "noGrid": "No grid transitions in this window.",
+      "noTelemetry": "لا توجد بيانات قياس عن بُعد حتى الآن.",
+      "noDecisions": "لا توجد قرارات مسجلة حتى الآن.",
+      "noExecutions": "لا توجد عمليات كتابة للعاكس مسجلة حتى الآن.",
+      "noShed": "لا توجد عمليات كتابة لتبديل الفصل مسجلة حتى الآن.",
+      "noGrid": "لا توجد تحولات شبكة في هذه النافذة.",
+      "loadMore": "تحميل المزيد",
       "colTime": "Time",
       "colTarget": "Target",
       "colRisk": "Risk",
@@ -623,7 +638,7 @@
       "refreshForecast": "Refresh forecast",
       "clearOverrides": "Clear overrides",
       "killSwitch": "Kill switch",
-      "killConfirm": "Engage KILL SWITCH? This enables grid charge at max current, pauses the engine, and restores shed tiers.",
+      "killConfirm": "تفعيل مفتاح الإيقاف الطارئ؟ سيؤدي هذا إلى تمكين الشحن من الشبكة بأقصى تيار، وإيقاف المحرك مؤقتًا، واستعادة مستويات الفصل.",
       "toastModeLoading": "Updating mode…",
       "toastModeSuccess": "Shadow mode toggled.",
       "toastEngineLoading": "Updating engine…",
@@ -701,6 +716,8 @@
       "validationTierName": "Tier {n}: name is required.",
       "validationTierEntities": "Tier \"{name}\": at least one shed entity is required.",
       "unsavedWarning": "You have unsaved load shedding changes.",
+      "unsavedTitle": "تغييرات غير محفوظة",
+      "revertTitle": "التراجع عن التغييرات",
       "wizardTitle": "Set up load shedding",
       "wizardStep1": "Enable load shedding above, then add your first tier.",
       "wizardPresets": "SOC presets",
@@ -791,7 +808,7 @@
       "haWsStatusCircuit": "Connection paused to avoid IP bans. Fix credentials or clear the ban, then Retry.",
       "haWsStatusTransient": "Home Assistant unreachable — retrying with backoff.",
       "haWsRetry": "Retry connection",
-      "haWsRetryOk": "Retry requested — Solar will reconnect shortly.",
+      "haWsRetryOk": "تم طلب إعادة المحاولة — سيتم إعادة اتصال Solar قريبًا.",
       "haWsRetryFailed": "Retry request failed.",
       "haAuthMode": "Auth mode: {mode}",
       "pairTitle": "Home Assistant integration pairing",
@@ -872,6 +889,9 @@
       "recreateContainer": "إعادة إنشاء الحاوية",
       "recreateConfirm": "إعادة إنشاء الحاوية الآن؟ سيعاد قراءة بيئة المضيف (solar.env). يبقى حجم البيانات.",
       "recreateHelp": "استخدم إعادة الإنشاء بعد تعديل solar.env على المضيف.",
+      "installUpdateTitle": "تثبيت التحديث",
+      "restoreBackupTitle": "استعادة النسخة الاحتياطية",
+      "restoreBackupConfirm": "استعادة {name}؟ سيُستبدل /app/data الحالي ويُعاد تشغيل الخدمة.",
       "recreating": "جارٍ إعادة إنشاء الحاوية…",
       "recreateComplete": "أُعيد إنشاء الحاوية.",
       "recreateFailed": "فشلت إعادة الإنشاء.",

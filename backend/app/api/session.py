@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
+import re
 import secrets
+import threading
 import time
+import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 import bcrypt
@@ -24,7 +30,9 @@ from ..models import Override
 
 log = logging.getLogger("api.session")
 
-AuthMode = Literal["ingress", "local", "token", "client", "supervisor", "open", "none"]
+AuthMode = Literal[
+    "ingress", "local", "token", "client", "supervisor", "mcp", "open", "none"
+]
 
 SESSION_COOKIE = "solar_session"
 
@@ -35,12 +43,18 @@ INGRESS_DISPLAY_NAME = "X-Remote-User-Display-Name"
 # Exact-path match via is_public_api_path(); not a prefix.
 PUBLIC_API_PREFIXES = (
     "/api/health",
+    "/api/ping",
     "/api/auth/login",
     "/api/auth/logout",
     "/api/auth/status",
     "/api/pair/redeem",
     "/api/ha/oauth/callback",
 )
+
+# Gated like /api/* when credentials are configured, but not "public API" routes.
+_DOC_PATHS = ("/docs", "/openapi.json", "/redoc")
+
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 
 
 @dataclass(frozen=True)
@@ -77,6 +91,59 @@ ANONYMOUS = SessionUser(
     is_admin=False,
     auth_mode="none",
 )
+
+
+def sanitize_request_id(raw: str | None) -> str:
+    """Validate an inbound X-Request-ID; fall back to a fresh UUID4 if unsafe.
+
+    Client-supplied request IDs are echoed back and logged, so they must be
+    constrained to a safe charset/length to avoid header/log injection.
+    """
+    if raw and _REQUEST_ID_RE.match(raw):
+        return raw
+    return str(uuid.uuid4())
+
+
+def ensure_persisted_session_secret(settings: Settings) -> str:
+    """Ensure a durable SESSION_SECRET exists on disk; generate one if missing.
+
+    Without this, an unset SESSION_SECRET falls back to an ephemeral,
+    process-local key (see `_session_secret`), invalidating all sessions on
+    every restart. Local admin logins persist the secret to
+    `<data_dir>/local_auth.env` (same file used by reset-local-password) so
+    cookies remain valid across restarts. Never overwrites an existing
+    on-disk secret or an existing password hash.
+    """
+    if settings.session_secret.strip():
+        return settings.session_secret
+
+    from ..auth.local_credentials import (
+        generate_session_secret,
+        local_auth_env_path,
+        read_env_value,
+        write_local_auth_env,
+    )
+
+    path = local_auth_env_path(Path(settings.data_dir))
+    existing = read_env_value(path, "SESSION_SECRET")
+    if existing:
+        settings.session_secret = existing
+        return existing
+
+    secret = generate_session_secret()
+    username = read_env_value(path, "LOCAL_ADMIN_USERNAME") or settings.local_admin_username
+    password_hash = (
+        read_env_value(path, "LOCAL_ADMIN_PASSWORD_HASH")
+        or settings.local_admin_password_hash
+    )
+    write_local_auth_env(
+        path,
+        username=username,
+        password_hash=password_hash,
+        session_secret=secret,
+    )
+    settings.session_secret = secret
+    return secret
 
 
 def _session_secret(settings: Settings) -> bytes:
@@ -120,7 +187,40 @@ def _decode_cookie(value: str, settings: Settings) -> dict[str, Any] | None:
     exp = payload.get("exp")
     if not isinstance(exp, (int, float)) or exp < time.time():
         return None
+    jti = payload.get("jti")
+    if isinstance(jti, str) and _is_jti_revoked(jti):
+        return None
     return payload
+
+
+# ---------------------------------------------------------------------------
+# JTI revocation (logout / forced session invalidation)
+# ---------------------------------------------------------------------------
+
+_jti_lock = threading.Lock()
+# jti -> expires_at (epoch seconds); purged lazily on writes/reads.
+_REVOKED_JTIS: dict[str, float] = {}
+
+
+def _purge_revoked_jtis_locked(now: float) -> None:
+    expired = [jti for jti, exp in _REVOKED_JTIS.items() if exp <= now]
+    for jti in expired:
+        del _REVOKED_JTIS[jti]
+
+
+def revoke_jti(jti: str, exp: float) -> None:
+    """Revoke a session token id until its own expiry, then let it be pruned."""
+    now = time.time()
+    with _jti_lock:
+        _purge_revoked_jtis_locked(now)
+        _REVOKED_JTIS[jti] = float(exp)
+
+
+def _is_jti_revoked(jti: str) -> bool:
+    now = time.time()
+    with _jti_lock:
+        _purge_revoked_jtis_locked(now)
+        return jti in _REVOKED_JTIS
 
 
 def make_session_cookie(username: str, settings: Settings) -> str:
@@ -131,6 +231,7 @@ def make_session_cookie(username: str, settings: Settings) -> str:
         "username": username,
         "iat": now,
         "exp": now + ttl,
+        "jti": secrets.token_urlsafe(16),
     }
     return _encode_cookie(payload, settings)
 
@@ -149,8 +250,12 @@ def cookie_header_value(token: str, settings: Settings) -> str:
     return "; ".join(parts)
 
 
-def clear_cookie_header_value() -> str:
-    return f"{SESSION_COOKIE}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0"
+def clear_cookie_header_value(settings: Settings | None = None) -> str:
+    parts = [f"{SESSION_COOKIE}=", "HttpOnly", "Path=/", "SameSite=Lax"]
+    if settings is not None and settings.session_cookie_secure:
+        parts.append("Secure")
+    parts.append("Max-Age=0")
+    return "; ".join(parts)
 
 
 def verify_local_password(password: str, settings: Settings) -> bool:
@@ -174,6 +279,37 @@ def parse_ingress_headers(conn: HTTPConnection) -> tuple[str, str | None, str | 
     username = conn.headers.get(INGRESS_USER_NAME, "").strip() or None
     display = conn.headers.get(INGRESS_DISPLAY_NAME, "").strip() or None
     return user_id, username, display
+
+
+def ingress_headers_allowed(conn: HTTPConnection, settings: Settings) -> bool:
+    """Gate ingress-header trust to configured proxy IPs/CIDRs.
+
+    The HA Supervisor add-on network is always trusted. Outside the add-on,
+    `trusted_proxy_ips` MUST be configured — fail closed with no configured
+    allowlist, since trusting ingress headers from an arbitrary source would
+    let any caller spoof `X-Remote-User-*` identity. Once configured, only
+    matching source IPs are trusted.
+    """
+    if settings.is_addon:
+        return True
+    allowed = settings.trusted_proxy_ip_set
+    if not allowed:
+        return False
+    client_ip = conn.client.host if conn.client else None
+    if not client_ip:
+        return False
+    try:
+        addr = ipaddress.ip_address(client_ip)
+    except ValueError:
+        return False
+    for cidr in allowed:
+        try:
+            network = ipaddress.ip_network(cidr, strict=False)
+        except ValueError:
+            continue
+        if addr in network:
+            return True
+    return False
 
 
 def _token_session() -> SessionUser:
@@ -206,57 +342,91 @@ def _client_session(client_id: str, name: str) -> SessionUser:
     )
 
 
+def _mcp_session() -> SessionUser:
+    """MCP agents authenticate with their own token and are never REST-admin."""
+    return SessionUser(
+        user_id="mcp",
+        username="mcp",
+        display_name="MCP Agent",
+        is_admin=False,
+        auth_mode="mcp",
+    )
+
+
 def _secret_matches(provided: str, secret: str) -> bool:
     if not secret:
         return False
     return hmac.compare_digest(provided, secret)
 
 
-def _match_provided_token(provided: str, settings: Settings) -> SessionUser | None:
+async def _match_provided_token(provided: str, settings: Settings) -> SessionUser | None:
     if (
         settings.is_addon
         and settings.supervisor_token
         and _secret_matches(provided, settings.supervisor_token)
     ):
         return _supervisor_session()
-    for secret in (settings.api_token, settings.mcp_token):
-        if _secret_matches(provided, secret):
-            return _token_session()
+    if _secret_matches(provided, settings.api_token):
+        return _token_session()
+    if _secret_matches(provided, settings.mcp_token):
+        return _mcp_session()
     from ..auth.api_clients import match_client_token
 
-    client = match_client_token(settings.data_dir, provided)
+    # match_client_token holds a lock and does file I/O; keep it off the
+    # event loop since this runs on every authenticated request.
+    client = await asyncio.to_thread(match_client_token, settings.data_dir, provided)
     if client is not None and client.id:
         return _client_session(client.id, client.name)
     return None
 
 
-def parse_bearer_token(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
+async def parse_bearer_token(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
     auth = conn.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
-    return _match_provided_token(auth[7:], settings)
+    return await _match_provided_token(auth[7:], settings)
 
 
-def parse_query_token(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
-    """WebSocket clients pass ?token= when browsers cannot send Authorization."""
+async def parse_query_token(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
+    """WebSocket clients pass ?ticket= (preferred) or legacy ?token=.
+
+    Browsers cannot send an Authorization header on WS upgrades, and a
+    long-lived bearer token in the URL would leak via logs/history — so the
+    dashboard mints a short-lived, single-use ?ticket= instead. ?token=
+    remains for backward compatibility with existing integrations.
+    """
+    ticket = conn.query_params.get("ticket", "").strip()
+    if ticket:
+        from .ws_tickets import consume_ws_ticket
+
+        user = consume_ws_ticket(ticket)
+        if user is not None:
+            return user
+
     token = conn.query_params.get("token", "").strip()
     if not token:
         return None
-    return _match_provided_token(token, settings)
+    log.warning(
+        "WebSocket client used legacy ?token= query param — this is "
+        "soft-deprecated in favor of the short-lived ?ticket= flow."
+    )
+    return await _match_provided_token(token, settings)
 
 
-def credentials_configured(settings: Settings) -> bool:
+async def credentials_configured(settings: Settings) -> bool:
     """Local password, env tokens, or minted paired clients lock the API."""
     if settings.local_auth_enabled or settings.api_token or settings.mcp_token:
         return True
     from ..auth.api_clients import has_paired_clients
 
-    return has_paired_clients(settings.data_dir)
+    # has_paired_clients reads the clients store from disk; keep it off the
+    # event loop since this is checked on every gated request.
+    return await asyncio.to_thread(has_paired_clients, settings.data_dir)
 
 
-def has_auth_lock(settings: Settings) -> bool:
+async def has_auth_lock(settings: Settings) -> bool:
     """True when anonymous LAN-open must be disabled."""
-    return bool(settings.ingress_trusted or credentials_configured(settings))
+    return bool(settings.ingress_trusted or await credentials_configured(settings))
 
 
 def parse_local_cookie(conn: HTTPConnection, settings: Settings) -> SessionUser | None:
@@ -280,8 +450,11 @@ def parse_local_cookie(conn: HTTPConnection, settings: Settings) -> SessionUser 
     )
 
 
-def open_session(settings: Settings) -> SessionUser | None:
-    if has_auth_lock(settings):
+async def open_session(settings: Settings) -> SessionUser | None:
+    """Anonymous admin session for local dev — opt-in only, and never when locked."""
+    if not settings.allow_open_access:
+        return None
+    if await has_auth_lock(settings):
         return None
     return SessionUser(
         user_id=None,
@@ -302,7 +475,7 @@ async def resolve_session(
 
     if settings.ingress_trusted:
         ingress = parse_ingress_headers(conn)
-        if ingress:
+        if ingress and ingress_headers_allowed(conn, settings):
             user_id, username, display = ingress
             is_admin = False
             if user_id in settings.admin_user_id_set:
@@ -325,16 +498,16 @@ async def resolve_session(
     if local:
         return local
 
-    bearer = parse_bearer_token(conn, settings)
+    bearer = await parse_bearer_token(conn, settings)
     if bearer:
         return bearer
 
     if conn.scope.get("type") == "websocket":
-        query_token = parse_query_token(conn, settings)
+        query_token = await parse_query_token(conn, settings)
         if query_token:
             return query_token
 
-    open_ = open_session(settings)
+    open_ = await open_session(settings)
     if open_:
         return open_
 
@@ -348,15 +521,27 @@ def get_session(conn: HTTPConnection) -> SessionUser:
     return ANONYMOUS
 
 
+def is_mcp_plane(session: SessionUser) -> bool:
+    """True when the caller authenticated via the MCP (agent) bearer token."""
+    return session.auth_mode == "mcp"
+
+
+def is_operator(session: SessionUser) -> bool:
+    """True for authenticated human/system callers, excluding the MCP agent plane."""
+    return session.authenticated and not is_mcp_plane(session)
+
+
 def is_public_api_path(path: str) -> bool:
     return path in PUBLIC_API_PREFIXES
 
 
-def requires_auth_gate(path: str, settings: Settings) -> bool:
-    if not credentials_configured(settings):
+async def requires_auth_gate(path: str, settings: Settings) -> bool:
+    if not await credentials_configured(settings):
         return False
     if is_public_api_path(path):
         return False
+    if path in _DOC_PATHS:
+        return True
     if path.startswith("/api") or path == "/metrics" or path == "/ws":
         return True
     return False
@@ -366,6 +551,8 @@ def require_authenticated(request: Request) -> SessionUser:
     session = get_session(request)
     if not session.authenticated:
         raise api_error("api.auth.unauthorized", 401)
+    if is_mcp_plane(session):
+        raise api_error("api.auth.mcp_not_allowed", 403)
     return session
 
 

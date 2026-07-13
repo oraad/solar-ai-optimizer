@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     ha_base_url: str = Field(default="http://homeassistant.local:8123")
     ha_token: str = Field(default="")
     ha_verify_ssl: bool = Field(default=True)
+    # SSRF guard for outbound HA URLs (oauth start, etc). Default True since most
+    # installs point at a LAN address (192.168.x.x, homeassistant.local, ...).
+    ha_allow_private_url: bool = Field(default=True)
 
     config_path: str = Field(default="config/config.yaml")
     # Writable directory for runtime state (config overrides, learned model).
@@ -68,14 +71,24 @@ class Settings(BaseSettings):
     trust_ingress_headers: bool = Field(default=False)
     admin_user_ids: str = Field(default="")
     admin_cache_ttl_seconds: int = Field(default=300)
+    # Comma-separated IPs/CIDRs allowed to present ingress identity headers
+    # (unset = no restriction beyond trust_ingress_headers; addon is always ok).
+    trusted_proxy_ips: str = Field(default="")
 
     local_admin_username: str = Field(default="admin")
     local_admin_password: str = Field(default="")
     local_admin_password_hash: str = Field(default="")
 
     session_secret: str = Field(default="")
-    session_ttl_hours: int = Field(default=24)
-    session_cookie_secure: bool = Field(default=False)
+    session_ttl_hours: int = Field(default=12)
+    session_cookie_secure: bool = Field(default=True)
+
+    # Anonymous LAN-open admin access when no credentials/ingress lock is
+    # configured. Defaults to closed; opt in explicitly for local dev.
+    allow_open_access: bool = Field(default=False)
+
+    # Dedicated bearer token for /metrics scraping (falls back to api_token).
+    metrics_token: str = Field(default="")
 
     # Documentation / screenshot mode only — injects synthetic telemetry.
     demo_mode: bool = Field(default=False)
@@ -126,6 +139,12 @@ class Settings(BaseSettings):
     def admin_user_id_set(self) -> frozenset[str]:
         return frozenset(
             u.strip() for u in self.admin_user_ids.split(",") if u.strip()
+        )
+
+    @property
+    def trusted_proxy_ip_set(self) -> frozenset[str]:
+        return frozenset(
+            u.strip() for u in self.trusted_proxy_ips.split(",") if u.strip()
         )
 
     @model_validator(mode="after")

@@ -31,6 +31,8 @@ def paths_for_root(root: Path) -> dict[str, Path]:
         "config": root / "solar_ai_optimizer" / "config.yaml",
         "icon": root / "solar_ai_optimizer" / "icon.png",
         "logo": root / "solar_ai_optimizer" / "logo.png",
+        "changelog": root / "CHANGELOG.md",
+        "addon_changelog": root / "solar_ai_optimizer" / "CHANGELOG.md",
         "package": root / "frontend" / "package.json",
     }
 
@@ -157,6 +159,40 @@ def check_addon_store_assets(icon: Path, logo: Path) -> bool:
     return ok
 
 
+def check_addon_changelog(root_changelog: Path, addon_changelog: Path) -> bool:
+    if not root_changelog.is_file():
+        print(f"Missing root changelog: {root_changelog}", file=sys.stderr)
+        return False
+    if not addon_changelog.is_file():
+        print(
+            f"Missing HA app store changelog: {addon_changelog}; run sync-version.py",
+            file=sys.stderr,
+        )
+        return False
+    root_bytes = root_changelog.read_bytes()
+    addon_bytes = addon_changelog.read_bytes()
+    if root_bytes != addon_bytes:
+        print(
+            f"HA app store changelog drift: {addon_changelog} differs from {root_changelog}; "
+            "run sync-version.py",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
+def sync_addon_changelog(root_changelog: Path, addon_changelog: Path) -> bool:
+    if not root_changelog.is_file():
+        raise SystemExit(f"Missing {root_changelog}")
+    root_bytes = root_changelog.read_bytes()
+    if addon_changelog.is_file() and addon_changelog.read_bytes() == root_bytes:
+        return False
+    addon_changelog.parent.mkdir(parents=True, exist_ok=True)
+    addon_changelog.write_bytes(root_bytes)
+    print(f"Updated {addon_changelog}")
+    return True
+
+
 def sync_app_versions(paths: dict[str, Path], expected: str) -> bool:
     version_file = paths["version"]
     config_yaml = paths["config"]
@@ -185,6 +221,9 @@ def sync_app_versions(paths: dict[str, Path], expected: str) -> bool:
     elif read_config_yaml_version(config_yaml) != expected:
         write_config_yaml_version(config_yaml, expected)
         print(f"Updated {config_yaml} -> {expected}")
+        changed = True
+
+    if sync_addon_changelog(paths["changelog"], paths["addon_changelog"]):
         changed = True
 
     return changed
@@ -219,6 +258,7 @@ def main() -> int:
             "frontend/package.json", package_json, read_package_json_version(package_json), expected
         )
         ok &= check_addon_store_assets(paths["icon"], paths["logo"])
+        ok &= check_addon_changelog(paths["changelog"], paths["addon_changelog"])
         if not ok:
             return 1
         print(f"App version {expected}")

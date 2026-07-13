@@ -16,6 +16,8 @@ from urllib.parse import urlencode
 
 import httpx
 
+from .ssrf import validate_ha_url
+
 log = logging.getLogger("ha.oauth")
 
 OAUTH_FILENAME = "ha_oauth.json"
@@ -132,6 +134,10 @@ class OAuthError(Exception):
                 "TLS verification failed talking to Home Assistant. "
                 "Disable Verify SSL in Settings if you use a self-signed certificate."
             ),
+            "ha_url_blocked": (
+                "The Home Assistant URL from this authorization attempt is no "
+                "longer considered safe (SSRF check). Start again from Settings."
+            ),
             "token_exchange_failed": (
                 "Home Assistant rejected the token exchange. "
                 "Check Solar logs and that the HA URL is reachable from Solar."
@@ -175,9 +181,11 @@ def start_authorize(
     ha_base_url: str,
     public_base_url: str,
     verify_ssl: bool = True,
+    allow_private: bool = True,
 ) -> AuthorizeStart:
     public = normalize_public_base_url(public_base_url)
     ha = ha_base_url.strip().rstrip("/")
+    validate_ha_url(ha, allow_private=allow_private)
     state = secrets.token_urlsafe(24)
     verifier = _b64url(secrets.token_bytes(32))
     challenge = _b64url(hashlib.sha256(verifier.encode("ascii")).digest())
@@ -218,6 +226,7 @@ async def finish_authorize(
     code: str,
     state: str,
     verify_ssl: bool | None = None,
+    allow_private: bool = True,
 ) -> dict[str, Any]:
     pending_file = pending_path(data_dir)
     if not pending_file.is_file():
@@ -247,6 +256,14 @@ async def finish_authorize(
         use_verify = True
 
     ha = str(pending["ha_base_url"]).rstrip("/")
+    # Re-validate here too: the pending file is read back from disk (and the
+    # callback can be delayed by up to the 10-minute authorize window), so
+    # re-check SSRF safety rather than trusting the value validated at /start.
+    try:
+        validate_ha_url(ha, allow_private=allow_private)
+    except ValueError as exc:
+        pending_file.unlink(missing_ok=True)
+        raise OAuthError("ha_url_blocked", str(exc)) from exc
     token_url = f"{ha}/auth/token"
     form = {
         "grant_type": "authorization_code",

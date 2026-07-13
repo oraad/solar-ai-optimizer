@@ -12,6 +12,7 @@ from typing import Literal
 LogFormat = Literal["text", "json"]
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
+mcp_actor_var: ContextVar[str | None] = ContextVar("mcp_actor", default=None)
 
 _RESERVED = frozenset(
     logging.LogRecord(

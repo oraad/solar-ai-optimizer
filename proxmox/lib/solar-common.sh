@@ -182,6 +182,7 @@ LOG_LEVEL=INFO
 DATA_DIR=/app/data
 DATABASE_URL=sqlite+aiosqlite:////app/data/solar.db
 TRUST_INGRESS_HEADERS=true
+SESSION_COOKIE_SECURE=false
 EOF
 }
 
@@ -240,7 +241,7 @@ solar_write_admin_credentials_file() {
 }
 
 solar_ensure_env_auth() {
-  local trust_val has_hash has_plain session
+  local trust_val has_hash has_plain session cookie_secure
 
   SOLAR_ENV_PATCHED=0
   SOLAR_ADMIN_CREDENTIALS_GENERATED=0
@@ -251,6 +252,13 @@ solar_ensure_env_auth() {
   trust_val="$(solar_env_get TRUST_INGRESS_HEADERS 2>/dev/null || true)"
   if [[ "$trust_val" != "true" ]]; then
     solar_env_set TRUST_INGRESS_HEADERS true
+    SOLAR_ENV_PATCHED=1
+  fi
+
+  # HTTP CT installs: Secure cookies break browser login on :8000.
+  cookie_secure="$(solar_env_get SESSION_COOKIE_SECURE 2>/dev/null || true)"
+  if [[ -z "$cookie_secure" ]]; then
+    solar_env_set SESSION_COOKIE_SECURE false
     SOLAR_ENV_PATCHED=1
   fi
 

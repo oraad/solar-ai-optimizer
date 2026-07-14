@@ -35,9 +35,12 @@ def test_write_local_auth_env_creates_file(tmp_path: Path):
         session_secret="abc123",
     )
     text = path.read_text(encoding="utf-8")
-    assert "LOCAL_ADMIN_USERNAME=admin" in text
-    assert "LOCAL_ADMIN_PASSWORD_HASH=$2b$12$test" in text
-    assert "SESSION_SECRET=abc123" in text
+    assert "LOCAL_ADMIN_USERNAME=" in text
+    assert read_env_value(path, "LOCAL_ADMIN_USERNAME") == "admin"
+    # Quoting protects `$2b$…` from shell expansion when env loaders source the file.
+    assert "LOCAL_ADMIN_PASSWORD_HASH=" in text
+    assert read_env_value(path, "LOCAL_ADMIN_PASSWORD_HASH") == "$2b$12$test"
+    assert read_env_value(path, "SESSION_SECRET") == "abc123"
     assert "LOCAL_ADMIN_PASSWORD=" not in text
     if os.name != "nt":
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
@@ -60,8 +63,8 @@ def test_write_local_auth_env_upserts_and_strips_plain_password(tmp_path: Path):
     )
     text = path.read_text(encoding="utf-8")
     assert "LOCAL_ADMIN_PASSWORD=plain" not in text
-    assert "LOCAL_ADMIN_PASSWORD_HASH=$2b$12$new" in text
-    assert "SESSION_SECRET=newsecret" in text
+    assert read_env_value(path, "LOCAL_ADMIN_PASSWORD_HASH") == "$2b$12$new"
+    assert read_env_value(path, "SESSION_SECRET") == "newsecret"
     assert read_env_value(path, "LOCAL_ADMIN_USERNAME") == "admin"
 
 

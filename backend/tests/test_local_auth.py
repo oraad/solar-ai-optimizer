@@ -40,7 +40,18 @@ def login_client(monkeypatch):
 def test_login_success_sets_cookie(login_client):
     res = login_client.post("/api/auth/login", json={"username": "admin", "password": "secret"})
     assert res.status_code == 200
-    assert "solar_session=" in res.headers.get("set-cookie", "")
+    cookie = res.headers.get("set-cookie", "")
+    assert "solar_session=" in cookie
+    assert "Secure" not in cookie
+
+
+def test_default_session_cookie_secure_is_false(monkeypatch):
+    """HTTP Proxmox/LAN must not emit Secure cookies unless explicitly enabled."""
+    monkeypatch.delenv("SESSION_COOKIE_SECURE", raising=False)
+    from app.config import Settings, get_settings
+
+    get_settings.cache_clear()
+    assert Settings().session_cookie_secure is False
 
 
 def test_login_bad_password(login_client):

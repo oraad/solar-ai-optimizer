@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.12-beta.2] - 2026-07-14
+
+### Fixed
+
+- Session cookies default to non-Secure again so Proxmox/LAN HTTP login works (`SESSION_COOKIE_SECURE` was flipped true in beta.1)
+- Proxmox install writes `SESSION_COOKIE_SECURE=false` and migrates existing `solar.env` on update
+- `run.sh` loads `local_auth.env` / `mcp.env` without shell-expanding bcrypt `$2b$…` hashes; values are shell-quoted on write
+
+### Changed
+
+- Docs: editing `solar.env` requires container **recreate** (`update` / stop+rm+`docker run --env-file`), not `docker restart`
+
 ## [0.6.12-beta.1] - 2026-07-13
 
 ### Added

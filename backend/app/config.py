@@ -81,7 +81,8 @@ class Settings(BaseSettings):
 
     session_secret: str = Field(default="")
     session_ttl_hours: int = Field(default=12)
-    session_cookie_secure: bool = Field(default=True)
+    # Default false: Proxmox/LAN deploys serve plain HTTP. Set true behind HTTPS.
+    session_cookie_secure: bool = Field(default=False)
 
     # Anonymous LAN-open admin access when no credentials/ingress lock is
     # configured. Defaults to closed; opt in explicitly for local dev.

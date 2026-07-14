@@ -138,6 +138,38 @@ def _network_mode_is_container(host_config: dict[str, Any]) -> bool:
     return isinstance(mode, str) and mode.startswith("container:")
 
 
+def _parse_env_file(path: str) -> dict[str, str]:
+    """Parse KEY=VAL lines from an env file (Docker --env-file subset)."""
+    result: dict[str, str] = {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for raw in fh:
+                line = raw.strip().lstrip("\ufeff")
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                if line.startswith("export "):
+                    line = line[len("export ") :].strip()
+                key, _, val = line.partition("=")
+                key = key.strip()
+                if not key:
+                    continue
+                # Strip CR (Windows editors) and one layer of quotes.
+                val = val.strip().rstrip("\r")
+                if len(val) >= 2 and val[0] == val[-1] and val[0] in "'\"":
+                    val = val[1:-1]
+                result[key] = val
+    except OSError:
+        return {}
+    return result
+
+
+def _env_file_from_list(env: list[str] | None) -> str:
+    for entry in env or []:
+        if entry.startswith("SELF_UPDATE_ENV_FILE="):
+            return entry.split("=", 1)[1].strip()
+    return ""
+
+
 def _patch_env(env: list[str] | None, updates: dict[str, str]) -> list[str]:
     current = list(env or [])
     keys = set(updates)
@@ -197,13 +229,17 @@ def build_create_config(
     config["ExposedPorts"] = exposed
 
     config["Image"] = target_image
-    config["Env"] = _patch_env(
-        config.get("Env"),
-        {
-            "SELF_UPDATE_ENABLED": "true",
-            "SELF_UPDATE_IMAGE": target_image,
-        },
-    )
+    # Prefer host solar.env (mounted via SELF_UPDATE_ENV_FILE) over stale inspect Env
+    # so edits like SESSION_COOKIE_SECURE=false survive dashboard self-update.
+    env_updates: dict[str, str] = {
+        "SELF_UPDATE_ENABLED": "true",
+        "SELF_UPDATE_IMAGE": target_image,
+    }
+    env_file = _env_file_from_list(config.get("Env"))
+    if env_file:
+        env_updates.update(_parse_env_file(env_file))
+        env_updates["SELF_UPDATE_ENV_FILE"] = env_file
+    config["Env"] = _patch_env(config.get("Env"), env_updates)
 
     return config
 

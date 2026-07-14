@@ -170,11 +170,18 @@ Operational reads (`/api/status`, forecasts, history, etc.) require **Session**.
 
 - Use `LOCAL_ADMIN_PASSWORD_HASH`, not plain `LOCAL_ADMIN_PASSWORD`, in production.
 - Set `SESSION_SECRET` to a long random value when local auth is enabled.
-- Set `SESSION_COOKIE_SECURE=true` when served over HTTPS.
+- Default is HTTP-friendly (`SESSION_COOKIE_SECURE=false`). Set `SESSION_COOKIE_SECURE=true` when served over HTTPS.
 - Keep `API_TOKEN` for CI/scripts; it grants admin access without the login page.
 - Block direct LAN access to port `8000` when all users should come through HA ingress.
 
 ## Troubleshooting
+
+### Login succeeds then returns to the login page (HTTP)
+
+1. Inspect `Set-Cookie` on `POST /api/auth/login`. If it includes `Secure` on plain `http://…`, the browser dropped the cookie.
+2. Confirm the running container: `docker exec solar-optimizer printenv SESSION_COOKIE_SECURE` — empty/`true` on HTTP is wrong.
+3. Set `SESSION_COOKIE_SECURE=false` in `solar.env`, then **recreate** the container (`update` or stop+rm+`docker run --env-file …`). `docker restart` does **not** re-read `--env-file`.
+4. If login itself returns 401, check `/app/data/local_auth.env` for a mangled hash (must start with `$2b$` / `$2a$` ~60 chars) and run the password reset script after upgrading.
 
 ### Owner or admin sees VIEWER badge
 

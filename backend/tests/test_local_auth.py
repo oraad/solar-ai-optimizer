@@ -40,7 +40,46 @@ def login_client(monkeypatch):
 def test_login_success_sets_cookie(login_client):
     res = login_client.post("/api/auth/login", json={"username": "admin", "password": "secret"})
     assert res.status_code == 200
-    assert "solar_session=" in res.headers.get("set-cookie", "")
+    cookie = res.headers.get("set-cookie", "")
+    assert "solar_session=" in cookie
+    assert "Secure" not in cookie
+
+
+def test_login_http_never_sets_secure_even_when_configured(monkeypatch):
+    """HTTP requests must not emit Secure (browsers drop them; breaks Proxmox)."""
+    password_hash = bcrypt.hashpw(b"secret", bcrypt.gensalt()).decode()
+    monkeypatch.setenv("LOCAL_ADMIN_USERNAME", "admin")
+    monkeypatch.setenv("LOCAL_ADMIN_PASSWORD_HASH", password_hash)
+    monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
+    monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("HA_TOKEN", "")
+    monkeypatch.setenv("HA_BASE_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "true")
+
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+
+    app = FastAPI()
+    app.add_middleware(AuthGateMiddleware)
+    app.add_middleware(UserContextMiddleware)
+    app.include_router(auth_router)
+    client = TestClient(app)
+    res = client.post("/api/auth/login", json={"username": "admin", "password": "secret"})
+    assert res.status_code == 200
+    assert "Secure" not in res.headers.get("set-cookie", "")
+    status = client.get("/api/auth/status").json()
+    assert status["session_cookie_secure"] is True
+    assert status["cookie_secure_effective"] is False
+
+
+def test_default_session_cookie_secure_is_false(monkeypatch):
+    """HTTP Proxmox/LAN must not emit Secure cookies unless explicitly enabled."""
+    monkeypatch.delenv("SESSION_COOKIE_SECURE", raising=False)
+    from app.config import Settings, get_settings
+
+    get_settings.cache_clear()
+    assert Settings().session_cookie_secure is False
 
 
 def test_login_bad_password(login_client):

@@ -131,7 +131,7 @@ ADMIN_USER_IDS=abc123,def456
 
 - Utiliser`LOCAL_ADMIN_PASSWORD_HASH`, pas simple`LOCAL_ADMIN_PASSWORD`, en production.
 - Ensemble`SESSION_SECRET`à une longue valeur aléatoire lorsque l'authentification locale est activée.
-- Ensemble`SESSION_COOKIE_SECURE=true`lorsqu'il est servi via HTTPS.
+- Ensemble `SESSION_COOKIE_SECURE=true` lorsqu'il est servi via HTTPS (valeur par défaut : `false` pour HTTP).
 - Garder`API_TOKEN`pour CI/scripts ; il accorde un accès administrateur sans la page de connexion.
 - Bloquer l'accès LAN direct au port`8000`lorsque tous les utilisateurs doivent passer par l’entrée HA.
 

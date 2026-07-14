@@ -48,22 +48,53 @@ fi
 
 # Local admin credentials written by scripts/reset-local-password.sh override
 # container env for auth keys (survives container recreate on the data volume).
+# Load via Python+shlex so bcrypt hashes ($2b$12$…) are not shell-expanded.
 LOCAL_AUTH_ENV="${DATA_DIR}/local_auth.env"
 if [ -f "$LOCAL_AUTH_ENV" ]; then
-  set -a
-  # shellcheck disable=SC1090
-  . "$LOCAL_AUTH_ENV"
-  set +a
+  eval "$(python - "$LOCAL_AUTH_ENV" <<'PY'
+import shlex
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+for raw in path.read_text(encoding="utf-8").splitlines():
+    line = raw.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    key, _, val = line.partition("=")
+    key = key.strip()
+    if not key or not all(c.isalnum() or c == "_" for c in key):
+        continue
+    if len(val) >= 2 and val[0] == val[-1] and val[0] in "'\"":
+        val = val[1:-1]
+    print(f"export {key}={shlex.quote(val)}")
+PY
+)"
 fi
 
 # Standalone MCP settings from the data volume (Settings → Agent access).
 # Skip when running as an HA add-on — options.json remains the source of truth.
 MCP_ENV="${DATA_DIR}/mcp.env"
 if [ ! -f "$OPTIONS" ] && [ -f "$MCP_ENV" ]; then
-  set -a
-  # shellcheck disable=SC1090
-  . "$MCP_ENV"
-  set +a
+  eval "$(python - "$MCP_ENV" <<'PY'
+import shlex
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+for raw in path.read_text(encoding="utf-8").splitlines():
+    line = raw.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    key, _, val = line.partition("=")
+    key = key.strip()
+    if not key or not all(c.isalnum() or c == "_" for c in key):
+        continue
+    if len(val) >= 2 and val[0] == val[-1] and val[0] in "'\"":
+        val = val[1:-1]
+    print(f"export {key}={shlex.quote(val)}")
+PY
+)"
 fi
 
 # WebSocket keepalive: align with the 30s app heartbeat in api/ws.py; tolerate LAN latency.

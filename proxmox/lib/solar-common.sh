@@ -182,6 +182,7 @@ LOG_LEVEL=INFO
 DATA_DIR=/app/data
 DATABASE_URL=sqlite+aiosqlite:////app/data/solar.db
 TRUST_INGRESS_HEADERS=true
+SESSION_COOKIE_SECURE=false
 EOF
 }
 
@@ -240,7 +241,7 @@ solar_write_admin_credentials_file() {
 }
 
 solar_ensure_env_auth() {
-  local trust_val has_hash has_plain session
+  local trust_val has_hash has_plain session cookie_secure
 
   SOLAR_ENV_PATCHED=0
   SOLAR_ADMIN_CREDENTIALS_GENERATED=0
@@ -251,6 +252,13 @@ solar_ensure_env_auth() {
   trust_val="$(solar_env_get TRUST_INGRESS_HEADERS 2>/dev/null || true)"
   if [[ "$trust_val" != "true" ]]; then
     solar_env_set TRUST_INGRESS_HEADERS true
+    SOLAR_ENV_PATCHED=1
+  fi
+
+  # HTTP CT installs: Secure cookies break browser login on :8000.
+  cookie_secure="$(solar_env_get SESSION_COOKIE_SECURE 2>/dev/null || true)"
+  if [[ -z "$cookie_secure" ]]; then
+    solar_env_set SESSION_COOKIE_SECURE false
     SOLAR_ENV_PATCHED=1
   fi
 
@@ -409,6 +417,11 @@ solar_ensure_data_volume() {
 solar_run_container() {
   solar_resolve_image_tag || return 1
   solar_ensure_data_volume
+  # Mount host solar.env into the CT so dashboard self-update can re-read it
+  # (SELF_UPDATE_ENV_FILE must be a path visible inside the running container).
+  local host_env_mount="/run/solar/solar.env"
+  local cookie_secure
+  cookie_secure="$(solar_env_get SESSION_COOKIE_SECURE 2>/dev/null || true)"
   local -a run_args=(
     -d
     --name "$SOLAR_CONTAINER"
@@ -417,10 +430,16 @@ solar_run_container() {
     -v "${SOLAR_DATA_VOLUME}:${SOLAR_DATA_PATH}"
     -p "${SOLAR_PORT}:8000"
     -v /var/run/docker.sock:/var/run/docker.sock
+    -v "${SOLAR_ENV_FILE}:${host_env_mount}:ro"
     -e SELF_UPDATE_ENABLED=true
-    -e "SELF_UPDATE_ENV_FILE=${SOLAR_ENV_FILE}"
+    -e "SELF_UPDATE_ENV_FILE=${host_env_mount}"
     -e "SELF_UPDATE_IMAGE=$(solar_image_ref)"
   )
+  # After --env-file so Inspect-stale Secure=true cannot survive recreate.
+  # Explicit true in solar.env (TLS) is preserved.
+  if [[ "$cookie_secure" != "true" ]]; then
+    run_args+=(-e SESSION_COOKIE_SECURE=false)
+  fi
   docker run "${run_args[@]}" "$(solar_image_ref)"
 }
 

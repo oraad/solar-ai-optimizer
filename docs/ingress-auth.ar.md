@@ -131,7 +131,7 @@ ADMIN_USER_IDS=abc123,def456
 
 - يستخدم`LOCAL_ADMIN_PASSWORD_HASH`، ليس عاديا`LOCAL_ADMIN_PASSWORD`، في الإنتاج.
 - تعيين`SESSION_SECRET`إلى قيمة عشوائية طويلة عند تمكين المصادقة المحلية.
-- تعيين`SESSION_COOKIE_SECURE=true`عند العرض عبر HTTPS.
+- عيّن `SESSION_COOKIE_SECURE=true` عند العرض عبر HTTPS (الافتراضي `false` لـ HTTP).
 - يحفظ`API_TOKEN`لCI/البرامج النصية؛ فهو يمنح وصول المشرف دون صفحة تسجيل الدخول.
 - منع الوصول المباشر إلى المنفذ LAN`8000`عندما يجب على جميع المستخدمين المرور عبر دخول HA.
 

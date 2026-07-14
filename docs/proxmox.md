@@ -23,7 +23,9 @@ Open the dashboard at `http://<lxc-ip>:8000`.
 
 **Home Assistant:** Install the [HACS integration](https://oraad.github.io/solar-ai-integration/home-assistant-integration/) from [`oraad/solar-ai-integration`](https://github.com/oraad/solar-ai-integration). Generate a pairing code in Solar Settings, then add the integration in HA (Core 2026.7.0+).
 
-The install script writes `/opt/solar-ai-optimizer/solar.env` with `TRUST_INGRESS_HEADERS=true` (trusts HA ingress user headers and sets `X-Frame-Options: SAMEORIGIN` for the sidebar panel) and auto-generated local admin credentials. The username and password are printed once at the end of the install — save them.
+The install script writes `/opt/solar-ai-optimizer/solar.env` with `TRUST_INGRESS_HEADERS=true` (trusts HA ingress user headers and sets `X-Frame-Options: SAMEORIGIN` for the sidebar panel), `SESSION_COOKIE_SECURE=false` (required for plain HTTP on `:8000`), and auto-generated local admin credentials. The username and password are printed once at the end of the install — save them.
+
+**Editing `solar.env`:** changes take effect only after container **recreate** (`update`, or stop+rm+`docker run --env-file …`). `docker restart` does not re-read `--env-file`.
 
 ## Quick install (Alpine)
 
@@ -116,17 +118,29 @@ Or update manually inside the LXC (include the Docker socket and self-update fla
 **Settings → Software updates → Update now** keeps working):
 
 ```bash
-docker pull ghcr.io/oraad/solar-ai-optimizer:latest
+docker pull ghcr.io/oraad/solar-ai-optimizer:0.6.12-beta.1
 docker stop solar-optimizer && docker rm solar-optimizer
 docker run -d --name solar-optimizer --restart unless-stopped \
   --env-file /opt/solar-ai-optimizer/solar.env \
+  -e SESSION_COOKIE_SECURE=false \
   -v solar-data:/app/data \
   -p 8000:8000 \
   -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /opt/solar-ai-optimizer/solar.env:/run/solar/solar.env:ro \
   -e SELF_UPDATE_ENABLED=true \
-  -e SELF_UPDATE_ENV_FILE=/opt/solar-ai-optimizer/solar.env \
-  -e SELF_UPDATE_IMAGE=ghcr.io/oraad/solar-ai-optimizer:latest \
-  ghcr.io/oraad/solar-ai-optimizer:latest
+  -e SELF_UPDATE_ENV_FILE=/run/solar/solar.env \
+  -e SELF_UPDATE_IMAGE=ghcr.io/oraad/solar-ai-optimizer:0.6.12-beta.1 \
+  ghcr.io/oraad/solar-ai-optimizer:0.6.12-beta.1
+```
+
+`-e SESSION_COOKIE_SECURE=false` after `--env-file` forces the value even if an earlier recreate left Secure on in the old container Env. Confirm:
+
+```bash
+docker exec solar-optimizer printenv SESSION_COOKIE_SECURE   # must be false
+curl -si -X POST http://127.0.0.1:8000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"YOUR_PASSWORD"}' \
+  | tr -d '\r' | grep -i '^set-cookie:'   # must NOT contain Secure
 ```
 
 !!! tip "Prefer the helper"
@@ -170,6 +184,8 @@ Dashboard **Install** renames the running container, starts the new image, waits
 
 | Issue | Check |
 |-------|--------|
+| Login works then returns to the login page | `Secure` cookie on HTTP: set `SESSION_COOKIE_SECURE=false` in `solar.env` and **recreate** (not restart). Confirm with `docker exec solar-optimizer printenv SESSION_COOKIE_SECURE`. |
+| Can't sign in / login always 401 | Wrong password, or mangled hash in `/app/data/local_auth.env` (must start with `$2b$`). Reset with `bash /opt/solar-ai-optimizer/reset-local-password.sh` after upgrading. |
 | *Docker CLI is not available in this container* (Settings → Software updates) | Fixed in **v0.5.5+** (`docker-cli` in the image). On v0.5.2–0.5.4, `docker exec solar-optimizer command -v docker` is empty even after recreate. Run `update` after pulling v0.5.5+, or recreate with the full manual `docker run` flags (socket + `SELF_UPDATE_*` env). |
 | Sidebar panel blank / `X-Frame-Options: deny` | `TRUST_INGRESS_HEADERS=true` in `/opt/solar-ai-optimizer/solar.env`; ingress `url` must point to `http://<lxc-ip>:8000` (not your HA URL); update to a current image and reload ingress in HA |
 | Docker won't start in LXC | Container needs `nesting=1` and `keyctl=1` (set by default in the helper script); on Alpine also check `rc-service docker status` |

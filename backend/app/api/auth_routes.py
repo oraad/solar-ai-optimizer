@@ -21,6 +21,7 @@ from .session import (
     cookie_header_value,
     ensure_persisted_session_secret,
     make_session_cookie,
+    request_is_https,
     require_authenticated,
     revoke_jti,
     verify_local_password,
@@ -40,12 +41,15 @@ def _client_ip(request: Request) -> str:
 
 
 @router.get("/status")
-async def auth_status() -> dict:
+async def auth_status(request: Request) -> dict:
     settings = get_settings()
+    https = request_is_https(request)
     return {
         "local_auth_enabled": settings.local_auth_enabled,
         "login_required": settings.local_auth_enabled,
         "ingress_trusted": settings.ingress_trusted,
+        "session_cookie_secure": settings.session_cookie_secure,
+        "cookie_secure_effective": bool(settings.session_cookie_secure and https),
     }
 
 
@@ -74,7 +78,8 @@ async def login(body: LoginRequest, request: Request, response: Response) -> dic
     clear_login_failures(client_ip)
     ensure_persisted_session_secret(settings)
     token = make_session_cookie(body.username, settings)
-    response.headers["Set-Cookie"] = cookie_header_value(token, settings)
+    https = request_is_https(request)
+    response.headers["Set-Cookie"] = cookie_header_value(token, settings, https=https)
     return {"ok": True}
 
 
@@ -90,7 +95,9 @@ async def logout(request: Request, response: Response) -> dict:
             if isinstance(jti, str) and isinstance(exp, (int, float)):
                 revoke_jti(jti, float(exp))
                 drop_tickets_for_jti(jti)
-    response.headers["Set-Cookie"] = clear_cookie_header_value(settings)
+    response.headers["Set-Cookie"] = clear_cookie_header_value(
+        settings, https=request_is_https(request)
+    )
     return {"ok": True}
 
 

@@ -118,17 +118,29 @@ Or update manually inside the LXC (include the Docker socket and self-update fla
 **Settings → Software updates → Update now** keeps working):
 
 ```bash
-docker pull ghcr.io/oraad/solar-ai-optimizer:latest
+docker pull ghcr.io/oraad/solar-ai-optimizer:0.6.12-beta.1
 docker stop solar-optimizer && docker rm solar-optimizer
 docker run -d --name solar-optimizer --restart unless-stopped \
   --env-file /opt/solar-ai-optimizer/solar.env \
+  -e SESSION_COOKIE_SECURE=false \
   -v solar-data:/app/data \
   -p 8000:8000 \
   -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /opt/solar-ai-optimizer/solar.env:/run/solar/solar.env:ro \
   -e SELF_UPDATE_ENABLED=true \
-  -e SELF_UPDATE_ENV_FILE=/opt/solar-ai-optimizer/solar.env \
-  -e SELF_UPDATE_IMAGE=ghcr.io/oraad/solar-ai-optimizer:latest \
-  ghcr.io/oraad/solar-ai-optimizer:latest
+  -e SELF_UPDATE_ENV_FILE=/run/solar/solar.env \
+  -e SELF_UPDATE_IMAGE=ghcr.io/oraad/solar-ai-optimizer:0.6.12-beta.1 \
+  ghcr.io/oraad/solar-ai-optimizer:0.6.12-beta.1
+```
+
+`-e SESSION_COOKIE_SECURE=false` after `--env-file` forces the value even if an earlier recreate left Secure on in the old container Env. Confirm:
+
+```bash
+docker exec solar-optimizer printenv SESSION_COOKIE_SECURE   # must be false
+curl -si -X POST http://127.0.0.1:8000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"YOUR_PASSWORD"}' \
+  | tr -d '\r' | grep -i '^set-cookie:'   # must NOT contain Secure
 ```
 
 !!! tip "Prefer the helper"

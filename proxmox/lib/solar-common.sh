@@ -417,6 +417,11 @@ solar_ensure_data_volume() {
 solar_run_container() {
   solar_resolve_image_tag || return 1
   solar_ensure_data_volume
+  # Mount host solar.env into the CT so dashboard self-update can re-read it
+  # (SELF_UPDATE_ENV_FILE must be a path visible inside the running container).
+  local host_env_mount="/run/solar/solar.env"
+  local cookie_secure
+  cookie_secure="$(solar_env_get SESSION_COOKIE_SECURE 2>/dev/null || true)"
   local -a run_args=(
     -d
     --name "$SOLAR_CONTAINER"
@@ -425,10 +430,16 @@ solar_run_container() {
     -v "${SOLAR_DATA_VOLUME}:${SOLAR_DATA_PATH}"
     -p "${SOLAR_PORT}:8000"
     -v /var/run/docker.sock:/var/run/docker.sock
+    -v "${SOLAR_ENV_FILE}:${host_env_mount}:ro"
     -e SELF_UPDATE_ENABLED=true
-    -e "SELF_UPDATE_ENV_FILE=${SOLAR_ENV_FILE}"
+    -e "SELF_UPDATE_ENV_FILE=${host_env_mount}"
     -e "SELF_UPDATE_IMAGE=$(solar_image_ref)"
   )
+  # After --env-file so Inspect-stale Secure=true cannot survive recreate.
+  # Explicit true in solar.env (TLS) is preserved.
+  if [[ "$cookie_secure" != "true" ]]; then
+    run_args+=(-e SESSION_COOKIE_SECURE=false)
+  fi
   docker run "${run_args[@]}" "$(solar_image_ref)"
 }
 

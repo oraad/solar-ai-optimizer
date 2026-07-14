@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Session cookies default to non-Secure again so Proxmox/LAN HTTP login works (`SESSION_COOKIE_SECURE` was flipped true in beta.1)
+- Login/logout never emit `Secure` on plain HTTP even when `SESSION_COOKIE_SECURE=true` (env alone cannot break browser login)
 - Proxmox install writes `SESSION_COOKIE_SECURE=false` and migrates existing `solar.env` on update
 - `run.sh` loads `local_auth.env` / `mcp.env` without shell-expanding bcrypt `$2b$…` hashes; values are shell-quoted on write
 - Proxmox mounts `solar.env` into the container and forces `-e SESSION_COOKIE_SECURE=false`; dashboard recreate re-reads that file (fixes env edits that were lost on Inspect-based recreate)

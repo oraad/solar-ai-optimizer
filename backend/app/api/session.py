@@ -236,23 +236,45 @@ def make_session_cookie(username: str, settings: Settings) -> str:
     return _encode_cookie(payload, settings)
 
 
-def cookie_header_value(token: str, settings: Settings) -> str:
+def request_is_https(request: Request) -> bool:
+    """True when the client connection (or trusted forward) is HTTPS."""
+    proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    if proto:
+        return proto == "https"
+    return request.url.scheme == "https"
+
+
+def cookie_header_value(
+    token: str,
+    settings: Settings,
+    *,
+    https: bool = False,
+) -> str:
+    """Build Set-Cookie. Secure is only set when requested AND the call is HTTPS.
+
+    HTTP (Proxmox/LAN) must never emit Secure — browsers drop those cookies and
+    login appears to succeed then bounce back to the login page.
+    """
     parts = [
         f"{SESSION_COOKIE}={token}",
         "HttpOnly",
         "Path=/",
         "SameSite=Lax",
     ]
-    if settings.session_cookie_secure:
+    if settings.session_cookie_secure and https:
         parts.append("Secure")
     max_age = max(1, settings.session_ttl_hours) * 3600
     parts.append(f"Max-Age={max_age}")
     return "; ".join(parts)
 
 
-def clear_cookie_header_value(settings: Settings | None = None) -> str:
+def clear_cookie_header_value(
+    settings: Settings | None = None,
+    *,
+    https: bool = False,
+) -> str:
     parts = [f"{SESSION_COOKIE}=", "HttpOnly", "Path=/", "SameSite=Lax"]
-    if settings is not None and settings.session_cookie_secure:
+    if settings is not None and settings.session_cookie_secure and https:
         parts.append("Secure")
     parts.append("Max-Age=0")
     return "; ".join(parts)

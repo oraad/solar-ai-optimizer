@@ -11,7 +11,7 @@ pydantic-settings>=2.14.2
 
 # HTTP + WebSocket client for Home Assistant
 httpx>=0.28.1,<1.0
-websockets>=16.0
+websockets>=16.1
 
 # Scheduling
 APScheduler>=3.11.3

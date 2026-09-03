@@ -873,14 +873,17 @@ get_header() {
   local app_type=${APP_TYPE:-ct} # Default to 'ct' if not set
   local header_dir="${app_type}"
   [[ "$app_type" == "addon" ]] && header_dir="tools"
-  local header_url="https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/${header_dir}/headers/${app_name}"
+  # Source headers from this repo (oraad/solar-ai-optimizer) when set, so
+  # third-party apps don't 404 against the community-scripts repo.
+  local header_base="${SOLAR_REPO_RAW:-https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main}"
+  local header_url="${header_base}/${header_dir}/headers/${app_name}"
   local local_header_path="/usr/local/community-scripts/headers/${app_type}/${app_name}"
 
   mkdir -p "$(dirname "$local_header_path")"
 
   if [ ! -s "$local_header_path" ]; then
-    if ! curl -fsSL "$header_url" -o "$local_header_path"; then
-      msg_warn "Failed to download header: $header_url"
+    if ! curl -fsSL "$header_url" -o "$local_header_path" 2>/dev/null; then
+      # Header ASCII art is cosmetic; fail silently if none exists for this app.
       return 250
     fi
   fi

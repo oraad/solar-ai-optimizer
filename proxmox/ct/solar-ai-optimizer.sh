@@ -51,6 +51,10 @@ function update_script() {
   check_container_storage
   check_container_resources
 
+  # Guard against unbound $IP under `set -u` when this script is run directly
+  # (e.g. the apps updater) instead of through the full build_container flow.
+  SOLAR_DASHBOARD_IP="${LOCAL_IP:-${IP:-127.0.0.1}}"
+
   _SOLAR_REPO_RAW="${SOLAR_REPO_RAW:-https://raw.githubusercontent.com/oraad/solar-ai-optimizer/main}"
   # shellcheck disable=SC1090
   source <(curl -fsSL "${_SOLAR_REPO_RAW}/proxmox/lib/solar-common.sh")
@@ -127,7 +131,7 @@ function update_script() {
     if [[ -n "$previous" && "$previous" == "$current" && "$env_patched" != "1" ]]; then
       msg_ok "No update required. ${APP} is already running the latest image."
       echo -e "${INFO}${YW}Access the dashboard at:${CL}"
-      echo -e "${GATEWAY}${BGN}http://${IP}:${SOLAR_PORT:-8000}${CL}"
+      echo -e "${GATEWAY}${BGN}http://${SOLAR_DASHBOARD_IP}:${SOLAR_PORT:-8000}${CL}"
       exit
     fi
 
@@ -155,7 +159,7 @@ function update_script() {
 
     msg_ok "Updated successfully!"
     echo -e "${INFO}${YW}Access the dashboard at:${CL}"
-    echo -e "${GATEWAY}${BGN}http://${IP}:${SOLAR_PORT:-8000}${CL}"
+    echo -e "${GATEWAY}${BGN}http://${SOLAR_DASHBOARD_IP}:${SOLAR_PORT:-8000}${CL}"
     exit
   fi
 
@@ -196,7 +200,7 @@ description
 msg_ok "Completed successfully!\n"
 echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
 echo -e "${INFO}${YW}Access the dashboard at:${CL}"
-echo -e "${GATEWAY}${BGN}http://${IP}:${SOLAR_PORT:-8000}${CL}"
+echo -e "${GATEWAY}${BGN}http://${LOCAL_IP:-${IP:-127.0.0.1}}:${SOLAR_PORT:-8000}${CL}"
 echo -e "${INFO}${YW}Starts in SHADOW MODE — configure Home Assistant in Settings before going live.${CL}"
 
 _SOLAR_CREDS_FILE="/opt/solar-ai-optimizer/.install-admin-credentials"
